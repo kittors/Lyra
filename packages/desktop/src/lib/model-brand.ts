@@ -77,6 +77,11 @@ const HOUSE_WORDS: Record<Brand, readonly string[]> = {
 	yi: ["yi"],
 };
 
+/** The words a house goes by, for matching a search like "google" against `gemini-…` ids. */
+export function houseWords(brand: Brand): readonly string[] {
+	return [brand, ...HOUSE_WORDS[brand]];
+}
+
 /**
  * A display name split into the house's word at its front and the rest: `Claude` and `Sonnet 5`,
  * `Gemini` and `3.7 Flash`. Null when the name does not lead with its house, or when what follows

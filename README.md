@@ -89,7 +89,7 @@ The phone app is a shell. It talks to Lyra on your computer. Sessions, models, a
 
 ## Add a model first
 
-Lyra does not ship a model, so the first launch cannot send a message. Open Settings → Models, add a provider (Base URL, API format, API Key), then add at least one model, by hand or with Fetch models; the test button on each model's row checks that it answers. The API format is **Responses**, **Anthropic Messages** or **Chat Completions**, whichever the provider documents. Image models usually have to be added by hand, because many relays leave them out of `/v1/models`.
+Lyra does not ship a model, so the first launch cannot send a message. Open Settings → Models, add a provider (Base URL, API format, API Key), then add at least one model, by hand or with Fetch models; the test button on each model's row checks that it answers. The API format is **Responses**, **Anthropic Messages** or **Chat Completions**, whichever the provider documents. Fetch models also removes what you uncheck, and takes a model id the endpoint does not list: type it into the search box and press Enter. Many relays leave image models out of `/v1/models`, so that is usually how one gets added.
 
 ## What it does
 

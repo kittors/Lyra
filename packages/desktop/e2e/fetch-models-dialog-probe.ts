@@ -6,7 +6,8 @@
  * ✕ 一个 ✓33、没有字，以及整体「看着很奇怪」——三十三行各自带描边的卡片，默认全选之后满屏在说
  * 边框。量的是这几件事各自的痕迹，不是「看起来好些了」：
  *
- *   - 全选那颗跟搜索框同高同圆角（从前 32 对 34、圆角一个 8px 一个胶囊），并且有可见文字。
+ *   - 全选有可见文字。2026-10-12 起它从搜索框旁边挪进了分组标题行（「已添加」「可添加」各一颗：
+ *     两组取消勾选的意思相反，一颗管两组会把「不要新的」变成「删掉已有的」），所以不再比它和搜索框的高度。
  *   - 页脚两颗按钮各自有可见文字，主按钮上的数字还在。
  *   - 每一行的 border-width 是 0：分行交给间距和 hover，不再是一摞卡片。
  *
@@ -202,9 +203,14 @@ async function main() {
 			edges.row.left >= edges.view.left - 0.5 && edges.row.right <= edges.view.right + 0.5,
 			`行 ${Math.round(edges.row.left)}–${Math.round(edges.row.right)}，滚动面可见区 ${Math.round(edges.view.left)}–${Math.round(edges.view.right)}`,
 		);
+		/*
+		 * 2px, not 4: `DialogFrame` puts the thumb 2px from the card's edge on purpose (see the note on
+		 * its scroll area), and since the 2026-10-05 restyle that is what it measures — 3px here, with or
+		 * without the pull dialog's rework. What this guards is the thumb leaving the card, not the margin.
+		 */
 		check(
 			"滑块在弹窗里面，离卡片边缘还有距离",
-			edges.thumb !== null && edges.card - edges.thumb.right >= 4,
+			edges.thumb !== null && edges.card - edges.thumb.right >= 2,
 			edges.thumb ? `滑块右缘到卡片右缘 ${Math.round((edges.card - edges.thumb.right) * 10) / 10}px` : "没有滑块",
 		);
 		// 指针停在第二行上，拍一张底色：它该比字两边各宽出去一点，右边不该碰到滑块。
@@ -220,6 +226,7 @@ async function main() {
 			rows: number;
 			footerCount: number;
 			selectAll: { text: string; height: number; radius: string } | null;
+			selectAllInGroup: boolean;
 			field: { height: number; radius: string } | null;
 			footer: { text: string; width: number }[];
 			rowBorders: number[];
@@ -249,6 +256,7 @@ async function main() {
 				rows: rows.length,
 				footerCount: footerButtons.length,
 				selectAll: box(selectAllEl),
+				selectAllInGroup: Boolean(selectAllEl?.closest('[data-ly-fetch-group]')),
 				field: fieldEl ? { height: px(getComputedStyle(fieldEl).height), radius: getComputedStyle(fieldEl).borderTopLeftRadius } : null,
 				footer: footerButtons.map((b) => ({ text: (b.innerText||'').trim(), width: Math.round(b.getBoundingClientRect().width) })),
 				rowBorders: [...new Set(rows.map((r) => px(getComputedStyle(r).borderTopWidth)))],
@@ -266,11 +274,9 @@ async function main() {
 			`文字：${JSON.stringify(measured.selectAll?.text ?? "")}`,
 		);
 		check(
-			"全选那颗跟搜索框同高同圆角",
-			Boolean(measured.selectAll && measured.field) &&
-				measured.selectAll?.height === measured.field?.height &&
-				measured.selectAll?.radius === measured.field?.radius,
-			`全选 ${measured.selectAll?.height}px / ${measured.selectAll?.radius}；搜索框 ${measured.field?.height}px / ${measured.field?.radius}`,
+			"全选在它那一组的标题行里",
+			measured.selectAllInGroup,
+			`全选 ${measured.selectAll?.height}px，${measured.selectAllInGroup ? "在" : "不在"} [data-ly-fetch-group] 里`,
 		);
 
 		check(

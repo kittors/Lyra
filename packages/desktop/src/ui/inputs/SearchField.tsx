@@ -2,6 +2,7 @@ import { translate } from "../../i18n/translate.ts";
 import { Input } from "./NativeField.tsx";
 import { Search, X } from "lucide-react";
 import { useEffect, useRef } from "react";
+import { composingKey } from "../keyboard.ts";
 
 /**
  * The app's search box.
@@ -21,6 +22,7 @@ export function SearchField({
 	size = "compact",
 	autoFocus,
 	onEscape,
+	onEnter,
 	className = "",
 }: {
 	value: string;
@@ -30,6 +32,8 @@ export function SearchField({
 	autoFocus?: boolean;
 	/** Escape clears first and dismisses only when already empty, which is what a filter wants. */
 	onEscape?: () => void;
+	/** Enter, once an input method has finished composing — the Enter that commits a candidate is not this. */
+	onEnter?: () => void;
 	className?: string;
 }) {
 	const input = useRef<HTMLInputElement>(null);
@@ -51,6 +55,11 @@ export function SearchField({
 				value={value}
 				onChange={(event) => onChange(event.target.value)}
 				onKeyDown={(event) => {
+					if (event.key === "Enter" && onEnter && !composingKey(event.nativeEvent)) {
+						event.preventDefault();
+						onEnter();
+						return;
+					}
 					if (event.key !== "Escape") return;
 					event.stopPropagation();
 					if (value) onChange("");

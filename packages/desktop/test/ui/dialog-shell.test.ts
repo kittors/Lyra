@@ -101,16 +101,15 @@ test("新建模型：同一副外壳，标题换成「添加模型」", async ()
 	}
 });
 
-test("拉取模型：导入按钮带着数字，仍然写得出自己是谁", async () => {
+test("拉取模型：应用按钮带着数字，仍然写得出自己是谁", async () => {
 	const view = await mount(zh(h(FetchModelsModal, {
-		open: true,
-		models: ["alpha", "beta", "gamma"],
-		existingModelIds: new Set(["beta"]),
+		listed: ["alpha", "beta", "gamma"],
+		models: [{ ...model, id: "relay/beta", modelId: "beta", name: "beta" }],
 		onClose: () => {},
-		onImport: () => {},
+		onApply: () => {},
 	})));
 	try {
-		audit("拉取模型", ["取消", "导入所选"]);
+		audit("拉取模型", ["取消", "添加"]);
 		// 已经加过的那一个不算在里面——数字是这一按真的会写进去的条数。
 		assert.match(shell().actions.at(-1)?.textContent ?? "", /2/);
 	} finally {

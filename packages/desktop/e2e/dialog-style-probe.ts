@@ -270,7 +270,7 @@ try {
 	await until(`Boolean(document.querySelector('[data-ly-modal] [data-ly-dialog-actions]'))`, "拉取模型弹窗没出来");
 	await pause(700);
 	await shot("3-拉取模型");
-	await audit("拉取模型", ["取消", "导入"]);
+	await audit("拉取模型", ["取消", "添加"]);
 	await escape();
 
 	console.log("\n[4] 插件市场源");
