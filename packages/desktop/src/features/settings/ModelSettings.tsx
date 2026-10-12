@@ -236,11 +236,10 @@ export function ModelSettings() {
 
 			{p.discoveredModels && (
 				<FetchModelsModal
-					open={Boolean(p.discoveredModels)}
-					models={p.discoveredModels}
-					existingModelIds={new Set(p.selected?.models.map((m) => m.modelId) ?? [])}
+					listed={p.discoveredModels}
+					models={p.selected?.models ?? []}
 					onClose={p.closeDiscoveredModal}
-					onImport={(selectedIds) => void p.importDiscoveredModels(selectedIds)}
+					onApply={(change) => void p.applyDiscoveredChange(change)}
 				/>
 			)}
 
