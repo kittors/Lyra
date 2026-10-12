@@ -177,6 +177,7 @@ export const METHODS = {
 		document: { channel: "files:document", remote: false, why: "读写任意路径" },
 		documentText: { channel: "files:documentText", remote: false, why: "把任意字节交给主进程里的解析器" },
 		bytes: { channel: "files:bytes", remote: false, why: "读写任意路径" },
+		mediaDataUrl: { channel: "files:mediaDataUrl", remote: false, why: "画布读回用的字节，手机上的看图走资源隧道" },
 		write: { channel: "files:write", remote: false, why: "读写任意路径" },
 		create: { channel: "files:create", remote: false, why: "在任意位置建文件" },
 		rename: { channel: "files:rename", remote: false, why: "读写任意路径" },

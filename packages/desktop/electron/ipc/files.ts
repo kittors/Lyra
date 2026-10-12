@@ -11,7 +11,7 @@ import { referenceFile } from "../reference-files.ts";
  */
 
 import { readableArtifact } from "../readable-artifacts.ts";
-import { dialog, ipcMain } from "electron";
+import { dialog, ipcMain, net } from "electron";
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { getWindow } from "../window.ts";
 import { documentKind } from "../../shared/document-kind.ts";
@@ -20,6 +20,7 @@ import { extractDocumentText, type ExtractedText } from "@lyra/core";
 import type { FileContents, FileEntry } from "../ipc-types.ts";
 import { listReadableFiles, readReadableFile, resolveReadablePath } from "../file-read-service.ts";
 import { attachmentFile } from "../attachment-reads.ts";
+import { MEDIA_SCHEME } from "../preview-protocol.ts";
 
 export interface FilesIpcDeps {
 	projectRoots(): readonly string[];
@@ -85,6 +86,25 @@ export function registerFilesIpc({ projectRoots }: FilesIpcDeps): void {
 		const info = await stat(path).catch(() => null);
 		if (!info?.isFile() || info.size > DOCUMENT_READ_CAP) return null;
 		return readFile(path).catch(() => null);
+	});
+
+	/*
+	 * A picture behind the media scheme, as a `data:` URL the window can draw and read back.
+	 *
+	 * Marking up a generated picture draws it into a canvas, and a canvas that has drawn something
+	 * from another origin refuses `toDataURL` — so every marked-up copy of one failed, silently,
+	 * inside a click handler. Fetched here through the scheme's own handler rather than by path, so
+	 * what may be read is decided in exactly one place: whatever the window could already show.
+	 */
+	ipcMain.handle("files:mediaDataUrl", async (_event, url: string): Promise<string | null> => {
+		if (typeof url !== "string" || !url.startsWith(`${MEDIA_SCHEME}://`)) return null;
+		const response = await net.fetch(url).catch(() => null);
+		if (!response?.ok) return null;
+		const mimeType = (response.headers.get("content-type") ?? "").split(";")[0].trim();
+		if (!mimeType.startsWith("image/")) return null;
+		const bytes = Buffer.from(await response.arrayBuffer());
+		if (bytes.byteLength > DOCUMENT_READ_CAP) return null;
+		return `data:${mimeType};base64,${bytes.toString("base64")}`;
 	});
 
 	/*

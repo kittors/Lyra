@@ -35,6 +35,7 @@ import {
 	type Tool,
 } from "./annotate.ts";
 import { strokeFor, TEXT_SCALE } from "./paint.ts";
+import { bridge } from "../../services/index.ts";
 
 export const COLOURS = ["#ef4444", "#3b82f6", "#22c55e", "#eab308", "#111827"];
 
@@ -302,8 +303,30 @@ export function useAnnotator(src: string | RawPixels | null, options?: Annotator
 
 		const img = new Image();
 		img.onload = () => accept({ source: img, width: img.naturalWidth, height: img.naturalHeight });
-		img.src = src;
+		let live = true;
+		/*
+		 * A media-scheme picture comes in as bytes, not by its URL.
+		 *
+		 * The scheme is another origin to this page, so a canvas that draws it is tainted and the
+		 * marked-up copy can never be read back — `render()` throws. That is how 保存副本 on every
+		 * generated picture did nothing at all. See `files.mediaDataUrl`.
+		 */
+		if (src.startsWith("ly-media:")) {
+			// Where the bytes cannot be had — a phone, which has no such channel — the URL itself still
+			// draws; only reading the marked-up copy back is lost, which is how it always was there.
+			void bridge.files.mediaDataUrl(src).then(
+				(data) => {
+					if (live) img.src = data ?? src;
+				},
+				() => {
+					if (live) img.src = src;
+				},
+			);
+		} else {
+			img.src = src;
+		}
 		return () => {
+			live = false;
 			img.onload = null;
 		};
 		// `session` carries no data — it is here so a second capture of an unchanged screen, whose
