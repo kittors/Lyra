@@ -227,11 +227,7 @@ const CHECKS = [
 		window: true,
 		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/preview-outside-fold-probe.ts", "slow,reopen", "after"]],
 	},
-];
-
-const pass = [];
-const fail = [];
-const skipped = [	{
+	{
 		id: "VIEWER-flight-window",
 		what: "跑起来的桌面端里：编辑/预览从缩略图大小起飞、不放大再缩；关闭实心落地；完成进输入框；照着改带上标注图；附件托盘收起有过程",
 		window: true,
@@ -244,6 +240,10 @@ const skipped = [	{
 		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/image-pane-fit-probe.ts", "--tag=回归"]],
 	},
 ];
+
+const pass = [];
+const fail = [];
+const skipped = [];
 
 for (const check of CHECKS) {
 	if (only && !only.includes(check.id)) continue;
