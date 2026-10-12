@@ -267,10 +267,8 @@ try {
 		 * so whenever the bubble opened *below* the toolbar the tip aimed at empty screen.
 		 */
 		const tip = await evaluate<{ found: boolean; above: boolean; sameSide: boolean; note: string }>(`(() => {
-			const bubble = [...document.querySelectorAll("div")].find((d) => {
-				const text = (d.textContent || "").trim();
-				return text.startsWith("细") && text.includes("粗") && d.querySelector("span.rotate-45");
-			});
+			// By its marker: the sizes inside it are dots now, so the 细/中/粗 it was once found by are gone.
+			const bubble = document.querySelector("[data-toolbar-bubble]");
 			if (!bubble) return { found: false, above: false, sameSide: false, note: "找不到气泡" };
 			const point = bubble.querySelector("span.rotate-45");
 			const bar = [...document.querySelectorAll("div")].find((d) => d.querySelector('button[data-ly-tip="矩形"]'));
