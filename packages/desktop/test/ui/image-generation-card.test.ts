@@ -57,6 +57,9 @@ test("while drawing: dots at the asked shape, the stage in words, and a percenta
 		const percent = view.find("[data-ly-image-progress]").textContent ?? "";
 		assert.match(percent, /^\d+%$/);
 		assert.ok(Number.parseInt(percent, 10) > 0 && Number.parseInt(percent, 10) < 100, percent);
+		// The chip sits on the dots: an opaque surface, or a dense patch shows through the number.
+		const chip = view.find("[data-ly-image-progress]").classList;
+		assert.ok(chip.contains("bg-float") && !chip.contains("bg-elevated"), chip.value);
 		const caption = view.find("figcaption").textContent ?? "";
 		assert.ok(caption.length > 0 && !caption.includes("gemini"), `a stage, not the model: ${caption}`);
 	} finally {

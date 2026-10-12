@@ -96,9 +96,11 @@ export function ImageFrame({
 				</button>
 			)}
 			{percent !== null && (
+				// `bg-float`, not `bg-elevated`: elevated is a translucent veil, and over a dense patch of
+				// dots the number under it could not be read.
 				<span
 					data-ly-image-progress
-					className="pointer-events-none absolute right-2.5 bottom-2.5 rounded-full bg-elevated px-2.5 py-0.5 text-caption font-medium text-ink tabular-nums shadow-[0_2px_10px_rgba(0,0,0,0.12)] transition-opacity duration-300"
+					className="pointer-events-none absolute right-2.5 bottom-2.5 rounded-full bg-float px-2.5 py-0.5 text-caption font-medium text-ink tabular-nums shadow-[0_2px_10px_rgba(0,0,0,0.12)] transition-opacity duration-300"
 					style={{ opacity: settled ? 0 : 1 }}
 				>
 					{percent}%
