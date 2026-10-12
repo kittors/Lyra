@@ -25,20 +25,33 @@ const FRAME_MS = 26;
 export function useTypedText(text: string): string {
 	const [shown, setShown] = useState(text);
 	const target = useRef(text);
+	/*
+	 * What the next rewrite starts from: the last value put on screen, landings included.
+	 *
+	 * Not `shown`. Inside the effect that is the value of the render that scheduled it, and when a
+	 * second title arrives mid-rewrite that render predates the landing below — so the next rewrite
+	 * began from the title before last. On screen the row landed on the newer title and then started
+	 * deleting the older one, which flashed back in.
+	 */
+	const onScreen = useRef(text);
+	const show = (value: string) => {
+		onScreen.current = value;
+		setShown(value);
+	};
 
 	useEffect(() => {
 		if (text === target.current) return;
 		target.current = text;
 
 		if (motionReduced()) {
-			setShown(text);
+			show(text);
 			return;
 		}
 
-		const frames = typingFrames(shown, text);
+		const frames = typingFrames(onScreen.current, text);
 		let index = 0;
 		const timer = window.setInterval(() => {
-			setShown(frames[index]);
+			show(frames[index]);
 			index += 1;
 			if (index >= frames.length) window.clearInterval(timer);
 		}, FRAME_MS);
@@ -52,10 +65,10 @@ export function useTypedText(text: string): string {
 			 * state would make the next rewrite start from a prefix that was never a real title,
 			 * and if the newer value happened to be the same one, from a truncation of itself.
 			 */
-			setShown(text);
+			show(text);
 		};
-		// `shown` is the starting point, deliberately read at the moment the target changes rather
-		// than tracked: re-running this on every frame it sets would restart the animation.
+		// Only a new target restarts the rewrite: re-running this on every frame it sets would restart
+		// the animation, and `show` writes nothing that should.
 		// oxlint-disable-next-line exhaustive-deps
 	}, [text]);
 
