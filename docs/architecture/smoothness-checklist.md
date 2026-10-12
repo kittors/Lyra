@@ -234,6 +234,11 @@ aria、name，所以按这些在文档里查东西的代码找不到它；减少
 （其余弹窗本来就走）。往回跳是因为 `ly-dialog-out`/`ly-scrim-out` 写了显式 `from`：去掉之后，
 `Overlay` 在 dismiss 那一刻把卡片和遮罩当前画出来的 opacity/transform 写成内联样式，退场从那里起步。
 
+转录末尾「运行中」那一行（`RunningRow`，`e2e/running-row-probe.ts`）：回合没有正文就结束（只调
+工具、被停止、出错）或开始压缩时，`data-open` 和内容同时变，收起动画没东西可收，贴底的转录一帧
+掉一整行。修复前按停止后逐帧高度 30 → **0**；修复后 30 → 24 → 18 → 14 → 10 → 7 → … → 0，内容留到
+`grid-template-rows` 的 `transitionend` 才卸。回答开始那一支照旧瞬间收起（注释里写明是故意的）。
+
 **差距**：无。
 
 ---

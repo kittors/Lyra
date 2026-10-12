@@ -7,7 +7,7 @@ import { Composer } from "../composer/index.ts";
 import { ResumeRow } from "./ResumeRow.tsx";
 import { HiccupRow } from "./HiccupTrace.tsx";
 import { RuleSuggestion } from "./RuleSuggestion.tsx";
-import { RunningIndicator } from "./RunningIndicator.tsx";
+import { RunningRow } from "./RunningRow.tsx";
 import { TaskList } from "../task/index.ts";
 import { BrowserCards } from "./BrowserCard.tsx";
 import { ImageGenerationCards } from "./ImageGenerationCard.tsx";
@@ -544,16 +544,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
            * down frame by frame as this line shrank — it read as the text jumping up from below and
            * knocking the line away. Unfolding (it comes back once the answer pauses) still animates.
            */}
-          <div
-            className="ly-reveal"
-            data-open={running && !answering && !compacting}
-            aria-hidden={!running || answering || compacting}
-            style={answering ? { transition: "none" } : undefined}
-          >
-            <div>
-              <div>{running && !compacting && <RunningIndicator />}</div>
-            </div>
-          </div>
+          <RunningRow running={running} answering={answering} compacting={compacting} />
           {/* Where the running indicator would have been, saying why it is not there. */}
           <ResumeRow />
           {/*
