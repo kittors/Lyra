@@ -136,6 +136,11 @@ const CHECKS = [
 		run: ["node", ["--experimental-strip-types", "--import", "./packages/core/test/setup.ts", "--test", "packages/core/test/session-db.test.ts", "packages/core/test/session-index-race.test.ts", "packages/core/test/session-legacy-import.test.ts"]],
 	},
 	{
+		id: "POPOVER-first-frame",
+		what: "项目多的时候，项目菜单每次打开先盖在按钮上闪一帧，再掉到按钮下面",
+		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/popover-first-frame.test.ts"]],
+	},
+	{
 		id: "knip",
 		what: "191 个未用导出，而 CI 里那条检查永远不会红",
 		run: ["pnpm", ["knip"]],
@@ -175,6 +180,12 @@ const CHECKS = [
 		what: "侧栏快甩时会话行和被推出的项目名整行画在标签条上下",
 		window: true,
 		run: ["node", ["--experimental-strip-types", "--test", "--test-name-pattern=fast fling", "packages/desktop/e2e/sidebar-tabs.test.ts"]],
+	},
+	{
+		id: "POPOVER-first-frame-window",
+		what: "跑起来的桌面端里，十五个项目的菜单连开五次，每次第一帧就在按钮下方、之后不再挪",
+		window: true,
+		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/popover-first-frame-probe.ts", "回归", "/tmp/regression-popover"]],
 	},
 ];
 

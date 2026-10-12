@@ -349,7 +349,8 @@ export function Popover({
 		};
 	}, [chain, self]);
 
-	// Measure after paint: the popover's own size decides whether it fits above the anchor.
+	// Measured before paint, so what this decides on mount is the first frame anyone sees: the
+	// popover's own size decides whether it fits above the anchor.
 	useLayoutEffect(() => {
 		const element = ref.current;
 		if (!anchor || !element) return;
@@ -374,8 +375,16 @@ export function Popover({
 			 */
 			if (fixed !== undefined)
 				element.style.width = `${Math.min(fixed, limit)}px`;
-			// The opening scale belongs to presentation, not to the surface's layout dimensions.
-			const box = { width: element.offsetWidth, height: element.offsetHeight };
+			/*
+			 * And the height it will have, with the caller's ceiling already counted.
+			 *
+			 * The ceiling arrives with the placement this pass decides, so on mount there is none and a
+			 * long list read at its full length: fifteen projects came to 596px against 340, fitted
+			 * neither side of the chip, and the card was slid into the window over it — then the
+			 * observer measured 340, which fitted below, and the menu dropped there a frame later.
+			 * The opening scale belongs to presentation, so offsets rather than the client rect.
+			 */
+			const box = { width: element.offsetWidth, height: Math.min(element.offsetHeight, maxHeight ?? Infinity) };
 			const w = Math.min(fixed ?? box.width, limit);
 
 			/*
