@@ -51,6 +51,13 @@ test("rapid native fullscreen clicks keep the header sized and anchored without 
 	 */
 	for (const theme of ["light", "dark"]) for (const width of [1200, 1100]) {
 		await app.send("Emulation.setDeviceMetricsOverride", { width, height: 800, deviceScaleFactor: 1, mobile: false });
+		/*
+		 * Frames, not just the new width: the dock places a panel by the size it last measured, a render
+		 * behind the page. Opened straight away on a slow runner, Git was placed for the 1024px window
+		 * the runner's screen had clamped this one to, and went under the conversation.
+		 */
+		await until(`innerWidth===${width}`);
+		await frames(5);
 		await app.evaluate(`(async()=>{const s=await window.lyra.settings.get();await window.lyra.settings.save({...s,appearance:{...s.appearance,theme:${JSON.stringify(theme)},reduceMotion:'off'}})})()`);
 		await until(`document.documentElement.classList.contains(${JSON.stringify(theme)})`);
 		if (!await app.evaluate(`Boolean(document.querySelector('${pane}'))`)) {
@@ -60,6 +67,8 @@ test("rapid native fullscreen clicks keep the header sized and anchored without 
 		await until(`document.querySelector('${button}')`);
 		await until(`document.querySelector('${pane} [data-view="changes"]')`);
 		await frames(30);
+		const beside = await app.evaluate<boolean>(`(()=>{const c=document.querySelector('[data-dock-pane="conversation"]').getBoundingClientRect(),g=document.querySelector('${pane}').getBoundingClientRect();return g.left>=c.right-1;})()`);
+		assert.ok(beside, `${theme}/${width}: Git has to sit beside the conversation, or full screen moves its title and the clicks below prove nothing`);
 		const point = await app.evaluate<{ x: number; y: number }>(`(()=>{const e=document.querySelector('${button}'),r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
 		await app.evaluate(`(()=>{
 			const pane=document.querySelector('${pane}'),original=pane.querySelector('[data-view="changes"]');

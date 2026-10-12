@@ -47,6 +47,17 @@ before(async () => {
 		const path = join(home, "settings.json"), settings = JSON.parse(await readFile(path, "utf8"));
 		await writeFile(path, JSON.stringify({ ...settings, permissionMode: "full", projectMemory: false, thinking: "off" }));
 	} });
+	/*
+	 * The window the fixture asks for, 1200×800, whatever the screen it lands on.
+	 *
+	 * A CI runner's 1024×768 screen clamps it to 1024×677: the file and diff panes stack under the
+	 * conversation and the transcript keeps about 150px. A 420px preview then has no room above its row
+	 * and covers the card's own 「展开显示」, and no row can be scrolled to where the toolbar case needs it
+	 * — the two cases measured a layout they were not written for, and were red on the macOS runner.
+	 */
+	await app.send("Emulation.setDeviceMetricsOverride", { width: 1200, height: 800, deviceScaleFactor: 0, mobile: false });
+	await until("innerWidth===1200&&innerHeight===800");
+	await frames(5);
 });
 after(async () => { try { await app?.stop(); } finally { await closeListeningServer(server); } });
 async function until(expression: string) {
