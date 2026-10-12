@@ -5,6 +5,86 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.25](https://github.com/kittors/Lyra/releases/tag/v0.9.25) - 2026-10-12
+<!-- lyra:notes en -->
+
+### Improvements & Fixes
+
+- **Long dropdowns open where they stay.** A dropdown with a long list — the project menu once there are many projects, branches, models, the repository picker, the dropdowns in Settings — showed up for one frame on top of its button and the message box, then jumped below the button with its hover highlight and scrollbar. It happened every time one opened. It is now drawn in its final place from the first frame.
+- **A remote MCP server that redirects to another site is no longer followed.** The MCP client is updated to SDK 1.32.1, along with the libraries under it that had published vulnerabilities, one of them critical. One thing behaves differently: when a remote MCP server's address redirects to another domain or port, the connection now fails and the error names where it was being sent. Following that redirect would hand the token in the server's headers to the other site; put the final address in its settings instead.
+
+<!-- lyra:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 优化与修复
+
+- **列表长的下拉菜单，打开时直接出现在它该在的位置。** 项目多时的项目菜单，还有分支、模型、仓库选择和设置里的下拉，打开时会先压在按钮和输入框上闪一帧，再带着悬停高亮和滚动条一起跳到按钮下面，每次打开都这样。现在第一帧就画在最终的位置。
+- **远程 MCP 服务重定向到别的站点时，不再跟过去。** MCP 客户端升级到 SDK 1.32.1，它底下几个有公开漏洞的依赖一并更新，其中一个是严重级。有一处表现不同：远程 MCP 服务的地址如果重定向到别的域名或端口，现在会连接失败，报错里写着它要被转去哪里。跟过去的话，你填在这个服务请求头里的令牌会被带到那个站点；把它的地址改成重定向后的最终地址即可。
+
+</details>
+
+<!-- lyra:notes zh-TW -->
+
+<details>
+<summary>中文（繁體）</summary>
+
+### 最佳化與修復
+
+- **清單很長的下拉選單，打開時直接出現在它該在的位置。** 專案多時的專案選單，還有分支、模型、儲存庫選擇和設定裡的下拉選單，打開時會先壓在按鈕和輸入框上閃一個影格，再連同滑鼠停留的醒目標示和捲軸一起跳到按鈕下方，每次打開都這樣。現在第一個影格就畫在最終的位置。
+- **遠端 MCP 服務重新導向到別的網站時，不再跟過去。** MCP 用戶端升級到 SDK 1.32.1，底下幾個有公開漏洞的相依套件一併更新，其中一個屬於嚴重等級。有一處行為不同：遠端 MCP 服務的位址如果重新導向到別的網域或連接埠，現在會連線失敗，錯誤訊息會寫出它要被轉到哪裡。若跟過去，你填在這個服務請求標頭裡的權杖會被帶到那個網站；請把位址改成重新導向後的最終位址。
+
+</details>
+
+<!-- lyra:notes ja -->
+
+<details>
+<summary>日本語</summary>
+
+### 改善と修正
+
+- **長いリストのドロップダウンが、開いた瞬間から正しい位置に出るようになりました。** プロジェクトが多いときのプロジェクトメニュー、ブランチ、モデル、リポジトリの選択、設定のドロップダウンは、開くたびに 1 フレームだけボタンと入力欄の上に重なって表示され、そのあとホバーのハイライトやスクロールバーごとボタンの下へ跳んでいました。今は最初のフレームから最終的な位置に描かれます。
+- **リモートの MCP サーバーが別のサイトへリダイレクトしても、ついていかなくなりました。** MCP クライアントを SDK 1.32.1 に更新し、その下で脆弱性が公表されていたライブラリ（うち一つは深刻度 Critical）もあわせて更新しました。挙動が一点だけ変わります。リモート MCP サーバーのアドレスが別のドメインやポートへリダイレクトする場合、接続は失敗するようになり、エラーにはリダイレクト先が表示されます。ついていくと、そのサーバーのヘッダーに設定したトークンが別のサイトに渡ってしまうためです。アドレスはリダイレクト後の最終的なものに変えてください。
+
+</details>
+
+<!-- lyra:notes ko -->
+
+<details>
+<summary>한국어</summary>
+
+### 개선 및 수정
+
+- **목록이 긴 드롭다운이 열리자마자 제자리에 나타납니다.** 프로젝트가 많을 때의 프로젝트 메뉴, 브랜치, 모델, 저장소 선택, 설정의 드롭다운은 열 때마다 한 프레임 동안 버튼과 입력창 위를 덮었다가, 호버 강조와 스크롤바째로 버튼 아래로 튀어 내려갔습니다. 이제 첫 프레임부터 최종 위치에 그려집니다.
+- **원격 MCP 서버가 다른 사이트로 리디렉션해도 따라가지 않습니다.** MCP 클라이언트를 SDK 1.32.1로 올리고, 그 아래에서 취약점이 공개된 라이브러리들(그중 하나는 심각 등급)도 함께 업데이트했습니다. 한 가지가 달라집니다. 원격 MCP 서버 주소가 다른 도메인이나 포트로 리디렉션되면 이제 연결이 실패하고, 오류에 리디렉션 대상이 표시됩니다. 따라가면 그 서버의 헤더에 넣어 둔 토큰이 다른 사이트로 넘어가기 때문입니다. 주소를 리디렉션 후의 최종 주소로 바꿔 주세요.
+
+</details>
+
+<!-- lyra:notes fr -->
+
+<details>
+<summary>Français</summary>
+
+### Améliorations et corrections
+
+- **Les menus déroulants longs s’ouvrent directement à leur place.** Un menu à longue liste — le menu des projets quand ils sont nombreux, les branches, les modèles, le choix du dépôt, les menus des Réglages — apparaissait l’espace d’une image par-dessus son bouton et la zone de saisie, puis sautait sous le bouton avec sa surbrillance et sa barre de défilement. À chaque ouverture. Il est désormais dessiné à sa place définitive dès la première image.
+- **Un serveur MCP distant qui redirige vers un autre site n’est plus suivi.** Le client MCP passe au SDK 1.32.1, avec les bibliothèques sous-jacentes qui avaient des vulnérabilités publiées, dont une critique. Un comportement change : si l’adresse d’un serveur MCP distant redirige vers un autre domaine ou un autre port, la connexion échoue désormais et l’erreur indique la destination de la redirection. La suivre transmettrait le jeton placé dans les en-têtes de ce serveur à l’autre site ; indiquez plutôt l’adresse finale dans ses réglages.
+
+</details>
+
+<!-- lyra:notes ru -->
+
+<details>
+<summary>Русский</summary>
+
+### Улучшения и исправления
+
+- **Длинные выпадающие списки сразу открываются на своём месте.** Список с большим числом пунктов — меню проектов, когда их много, ветки, модели, выбор репозитория, выпадающие списки в настройках — на один кадр появлялся поверх кнопки и поля ввода, а затем вместе с подсветкой и полосой прокрутки прыгал под кнопку. Так было при каждом открытии. Теперь он с первого кадра рисуется там, где и останется.
+- **Удалённый сервер MCP, перенаправляющий на другой сайт, больше не подключается туда.** Клиент MCP обновлён до SDK 1.32.1 вместе с библиотеками под ним, в которых были опубликованные уязвимости, одна из них критическая. Одно поведение изменилось: если адрес удалённого сервера MCP перенаправляет на другой домен или порт, подключение теперь не выполняется, а в ошибке указано, куда вело перенаправление. Если пойти за ним, токен из заголовков этого сервера попал бы на другой сайт; укажите в настройках сервера конечный адрес.
+
+</details>
+
 ## [0.9.24](https://github.com/kittors/Lyra/releases/tag/v0.9.24) - 2026-10-11
 <!-- lyra:notes en -->
 
