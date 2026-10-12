@@ -13,11 +13,20 @@
  *   stored    the same conversation reopened — records rebuilt from the saved messages
  *   expanded  stored, under 设置 › 外观 › 工具调用 › 展开, where each run is a group line of its own
  *
+ * And two about the card's height, which the move made visible: drawn outside the fold the card
+ * mounts at once, and whether it then follows its page came down to timing.
+ *
+ *   slow      stored, with a page that cannot report its height for two seconds — a heavy page, or
+ *             any page on a busy machine. The card gave up 1.5 s after mounting, took its default
+ *             440 as the answer, remembered it, and from then on could only grow.
+ *   reopen    stored, then the window reloaded: the card opens at the height it remembered, and
+ *             must not move from it.
+ *
  * Verdicts come from what the window painted: which element the page's frame sits in, where it is
  * relative to the fold line and the answer, and the card's height — which only follows the page's
- * own reported height if the page actually ran inside it.
+ * own reported height if the page actually ran inside it — frame by frame from the card's mount.
  *
- *   node --experimental-strip-types e2e/preview-outside-fold-probe.ts [live,stored,expanded] [before|after]
+ *   node --experimental-strip-types e2e/preview-outside-fold-probe.ts [live,stored,expanded,slow,reopen] [before|after|<label>]
  *
  * Screenshots, recordings and the measured numbers land in ~/Desktop/Lyra预览不进折叠测试/.
  */
@@ -31,10 +40,10 @@ import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { landsOn } from "./lands-on.ts";
 import { encode, frameGrabber, pause, type Frame } from "./record.ts";
 
-const PORT = 9483;
+const PORT = 9462;
 const OUT = join(homedir(), "Desktop", "Lyra预览不进折叠测试");
-const [SCENES = "live,stored,expanded", PHASE = "after"] = process.argv.slice(2);
-const LABEL = PHASE === "before" ? "修复前" : "修复后";
+const [SCENES = "live,stored,expanded,slow,reopen", PHASE = "after"] = process.argv.slice(2);
+const LABEL = PHASE === "before" ? "修复前" : PHASE === "after" ? "修复后" : PHASE;
 const STAMP = (() => {
 	const now = new Date();
 	const two = (n: number) => String(n).padStart(2, "0");
@@ -51,7 +60,17 @@ const PAGE_HEIGHT = 360;
 const HOLD_MS = 6000;
 const SESSION = "probe-pup";
 
-const PUP = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>${TITLE}</title><style>
+/** How long the slow scene's page holds its main thread before anything in it — the height reporter too — can run. */
+const SLOW_MS = 2000;
+
+/**
+ * The page the model makes. `holdMs` blocks its main thread first, after the injected reporter is
+ * set up and before it can say anything: the first height then arrives that much after the frame
+ * started, which is what a heavy page, or a busy machine, does to it.
+ */
+const page = (holdMs = 0) => `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>${TITLE}</title>${
+	holdMs ? `<script>for(var until=Date.now()+${holdMs};Date.now()<until;);</script>` : ""
+}<style>
 *{box-sizing:border-box}
 body{margin:0;height:${PAGE_HEIGHT}px;position:relative;display:grid;place-items:center;background:linear-gradient(160deg,#fff6e6,#ffe4c4);font-family:-apple-system,"PingFang SC",sans-serif;overflow:hidden}
 .bubble{position:absolute;top:24px;left:50%;transform:translateX(-50%);background:#fff;border-radius:999px;padding:10px 22px;font-weight:600;font-size:15px;color:#7a4a1c;box-shadow:0 6px 18px rgba(160,90,20,.15);white-space:nowrap}
@@ -75,6 +94,7 @@ body{margin:0;height:${PAGE_HEIGHT}px;position:relative;display:grid;place-items
 <div class="bubble">汪！我是${TITLE}，摸摸我的头呀~</div>
 <div class="dog"><div class="ear l"></div><div class="ear r"></div><div class="head"><div class="mask"></div><div class="eye l"></div><div class="eye r"></div><div class="cheek l"></div><div class="cheek r"></div><div class="nose"></div><div class="tongue"></div></div></div>
 </body></html>`;
+const PUP = page();
 
 // ---------------------------------------------------------------------------
 // A relay speaking Chat Completions: reasoning, then a `preview` call, then an answer.
@@ -171,7 +191,7 @@ async function seed(home: string, relayPort: number, scene: string): Promise<voi
 		{ role: "assistant", content: [{ type: "text", text: ANSWER }], ...reply, stopReason: "stop", timestamp: at + 5400, durationMs: 2000 },
 	];
 	await mkdir(join(home, "previews", SESSION, "pup1"), { recursive: true });
-	await writeFile(join(home, "previews", SESSION, "pup1", "index.html"), PUP);
+	await writeFile(join(home, "previews", SESSION, "pup1", "index.html"), scene === "slow" ? page(SLOW_MS) : PUP);
 	const last = messages.length + 2;
 	const meta = { id: SESSION, title: "给我画一个 可爱的小狗。", projectId, projectName: "Lyra", cwd, createdAt: at, updatedAt: at + 7400, modelId: "relay/gemini-3.8-flash-high", messageCount: messages.length, usage, seq: last };
 	await mkdir(join(home, "sessions", projectId), { recursive: true });
@@ -310,6 +330,81 @@ const READ = `(() => {
 
 const read = () => js<Reading>(READ);
 
+/**
+ * A log of the card's life, kept by the window itself from before the card exists — for a reload,
+ * from before the app's own code runs (`Page.addScriptToEvaluateOnNewDocument`).
+ *
+ * The height verdict alone cannot say why a card ended at 440: whether the page loaded late, never
+ * reported, or reported after the card had stopped listening. So the window notes the frame being
+ * mounted and loaded, every height the page posts, every height the card writes down as settled,
+ * and — once per painted frame — the card's height and the page's opacity, which is also what
+ * catches a card that dips and comes back.
+ */
+const TRACE = `(() => {
+	if (window.__previewTrace) return;
+	const title = ${JSON.stringify(TITLE)};
+	const t0 = performance.now();
+	const events = [];
+	window.__previewTrace = events;
+	const at = () => Math.round(performance.now() - t0);
+	const ours = (node) => node.nodeType === 1 && (node.matches('iframe') ? [node] : [...node.querySelectorAll('iframe')]).some((f) => f.title === title);
+	const frames = () => [...document.querySelectorAll('main iframe')].filter((f) => f.title === title);
+	new MutationObserver((list) => {
+		for (const change of list) {
+			for (const node of change.addedNodes) if (ours(node)) events.push({ t: at(), kind: 'mount' });
+			for (const node of change.removedNodes) if (ours(node)) events.push({ t: at(), kind: 'unmount' });
+		}
+	}).observe(document, { childList: true, subtree: true });
+	addEventListener('load', (event) => {
+		if (event.target && event.target.tagName === 'IFRAME' && event.target.title === title) events.push({ t: at(), kind: 'load' });
+	}, true);
+	addEventListener('message', (event) => {
+		const h = event.data && event.data.__dwPreviewHeight;
+		if (typeof h === 'number') events.push({ t: at(), kind: 'report', h, mine: frames().some((f) => f.contentWindow === event.source) });
+	}, true);
+	const write = Storage.prototype.setItem;
+	Storage.prototype.setItem = function (key, value) {
+		if (String(key).startsWith('ly-preview-height:')) events.push({ t: at(), kind: 'remember', h: Number(value) });
+		return write.call(this, key, value);
+	};
+	let last = '';
+	const tick = () => {
+		const frame = frames()[0];
+		const h = frame ? Math.round(frame.parentElement.parentElement.getBoundingClientRect().height) : null;
+		const op = frame ? Math.round(Number(getComputedStyle(frame).opacity) * 100) / 100 : null;
+		if (h + '/' + op !== last) {
+			last = h + '/' + op;
+			events.push({ t: at(), kind: 'frame', h, op });
+		}
+		requestAnimationFrame(tick);
+	};
+	requestAnimationFrame(tick);
+})()`;
+
+interface TraceEvent {
+	t: number;
+	kind: "mount" | "unmount" | "load" | "report" | "remember" | "frame";
+	h?: number | null;
+	op?: number | null;
+	mine?: boolean;
+}
+
+const traced = () => js<TraceEvent[]>("window.__previewTrace || []");
+
+/** One line per event, timed from the frame's first mount — what a reader of the log needs to see the race. */
+function timeline(events: TraceEvent[]): string {
+	const start = events.find((one) => one.kind === "mount")?.t ?? 0;
+	return events
+		.map((one) => {
+			const t = String(one.t - start).padStart(6);
+			if (one.kind === "frame") return `${t}ms  frame     card ${one.h ?? "-"}  opacity ${one.op ?? "-"}`;
+			if (one.kind === "report") return `${t}ms  report    ${one.h}${one.mine ? "" : "（不是这张卡片的 iframe 发的）"}`;
+			if (one.kind === "remember") return `${t}ms  remember  ${one.h}`;
+			return `${t}ms  ${one.kind}`;
+		})
+		.join("\n");
+}
+
 /** The page has loaded and the card has settled on a height — or it never will. */
 const pageSettled = `(() => {
 	const frame = [...document.querySelectorAll('main iframe')].find((f) => f.title === ${JSON.stringify(TITLE)});
@@ -328,10 +423,45 @@ function judgeFolded(scene: string, seen: Reading) {
 	check(scene, `页面在卡片里真的跑起来了：卡片高度跟着页面（${PAGE_HEIGHT}px 上下），不是量不到时的 440`, Math.abs(tall - PAGE_HEIGHT) <= 12, { card: tall });
 }
 
+/**
+ * Frame by frame from the mount: the card's height goes from where it starts to where it ends, and
+ * nowhere else.
+ *
+ * The final height alone passed while the card dipped to 256 — the dog cut off at the chin — and
+ * grew back to 362 in front of whoever was looking. One way only, with a pixel of slack for rounding.
+ */
+function judgeFrames(scene: string, events: TraceEvent[]) {
+	const heights = events.flatMap((one) => (one.kind === "frame" && typeof one.h === "number" ? [one.h] : []));
+	const first = heights[0] ?? 0;
+	const last = heights.at(-1) ?? 0;
+	const shrinking = last <= first;
+	let reached = first;
+	let turned = false;
+	for (const h of heights) {
+		if (shrinking ? h > reached + 1 : h < reached - 1) turned = true;
+		reached = shrinking ? Math.min(reached, h) : Math.max(reached, h);
+	}
+	const past = heights.some((h) => h < Math.min(first, last) - 1 || h > Math.max(first, last) + 1);
+	check(scene, "逐帧：卡片高度从挂上到落定只朝一个方向走，没有先缩过头再长回来", heights.length > 0 && !turned && !past, { frames: heights.length, path: turns(heights) });
+}
+
+/** The heights a card passed through, kept where it changed direction: 440 → 256 → 362 rather than eighty numbers. */
+function turns(heights: number[]): number[] {
+	const path: number[] = [];
+	for (const h of heights) {
+		const [a, b] = path.slice(-2);
+		if (path.length >= 2 && (b - a) * (h - b) >= 0) path[path.length - 1] = h;
+		else if (path.at(-1) !== h) path.push(h);
+	}
+	return path;
+}
+
 /** Opened, the fold holds a row for the call and no second copy of the page. */
 function judgeOpen(scene: string, seen: Reading) {
 	check(scene, "折叠行打开了", seen.open === "true", { open: seen.open });
-	check(scene, `打开后，折叠里是一行「生成预览 ${TITLE}」`, seen.rows.some((row) => row.includes("生成预览") && row.includes(TITLE)), { rows: seen.rows });
+	// The whole row and nothing else: a row clicked open as well reads 「生成预览 柴柴小布丁参数{…}结果…」, and a
+	// substring match let exactly that through while the probe's own second click was opening it.
+	check(scene, `打开后，折叠里是一行「生成预览 ${TITLE}」`, seen.rows.some((row) => row === `生成预览 ${TITLE}`), { rows: seen.rows.map((row) => row.slice(0, 80)) });
 	check(scene, "打开后，折叠里没有第二份页面，整个窗口仍只有一份", seen.insidePages === 0 && seen.pages === 1, { inside: seen.insidePages, pages: seen.pages });
 }
 
@@ -342,6 +472,7 @@ async function boot(scene: string): Promise<void> {
 	g = await frameGrabber(PORT);
 	await until(`document.querySelector('main textarea')`, 30000, "输入框");
 	await js("document.fonts.ready");
+	await js(TRACE);
 	await rest();
 	await pause(800);
 	const reel = { name: scene, frames: [] as Frame[], rolling: true, done: Promise.resolve() };
@@ -350,7 +481,8 @@ async function boot(scene: string): Promise<void> {
 			try {
 				reel.frames.push({ at: Date.now(), data: await g.shot() });
 			} catch {
-				return;
+				// A reloading page has no frame to give for a moment; only the scene ending stops the reel.
+				if (!reel.rolling) return;
 			}
 			await pause(100);
 		}
@@ -363,7 +495,8 @@ async function shutdown(): Promise<void> {
 	film = undefined;
 	if (reel) {
 		reel.rolling = false;
-		await reel.done;
+		// Bounded: a screenshot asked for while the page was reloading can go unanswered, and the reel would wait on it forever.
+		await Promise.race([reel.done, pause(3000)]);
 	}
 	g?.close();
 	const home = app?.home;
@@ -387,13 +520,18 @@ function inside(seen: Reading): string {
 	return seen.rows.some((row) => row.includes("生成预览")) ? `里面是一行「${seen.rows.find((row) => row.includes("生成预览"))}」，页面在折叠外面` : "里面没有这次调用";
 }
 
-/** Open the process line, and under the expanded layout the run's own group line inside it too. */
-async function openFold(): Promise<void> {
+/**
+ * Open the process line — and, under the expanded layout, the run's own group line inside it.
+ *
+ * Only there, and only the group's own line. In the default layout the run is no line at all, and
+ * the one button left matching "something folded inside a run" was the preview's own call row:
+ * clicked, it opened the call's arguments and result, which is not what opening the fold shows.
+ */
+async function openFold(group: boolean): Promise<void> {
 	await click('[data-ly-turn-process] button[aria-expanded="false"]');
 	await pause(700);
-	const group = '[data-ly-turn-process] [data-ly-run] button[aria-expanded="false"]';
-	if (await js<boolean>(`Boolean(document.querySelector('${group}'))`)) {
-		await click(group);
+	if (group) {
+		await click('[data-ly-turn-process] [data-ly-run] button[aria-expanded="false"]:not([data-ly-tool] button)');
 		await pause(700);
 	}
 	await rest();
@@ -429,13 +567,16 @@ async function sceneLive(): Promise<void> {
 		await pause(1200);
 		const done = await read();
 		console.log(`     跑完：${JSON.stringify(done)}`);
+		const events = await traced();
+		console.log(timeline(events));
 		await caption(done.pages && !done.inProcess ? "跑完了：过程收成一行，页面和回答都在它外面" : "跑完了：过程收成一行，页面跟着收进去了");
 		await shoot(scene, "02", "跑完_收着");
 		check(scene, "折叠行写的是「思考 1 次 · 生成预览」", /思考 1 次/.test(done.line ?? "") && /生成预览/.test(done.line ?? ""), { line: done.line });
 		judgeFolded(scene, done);
+		judgeFrames(scene, events);
 
 		await caption("打开过程，看看里面");
-		await openFold();
+		await openFold(false);
 		const opened = await read();
 		console.log(`     打开：${JSON.stringify(opened)}`);
 		await caption(inside(opened));
@@ -447,28 +588,93 @@ async function sceneLive(): Promise<void> {
 	}
 }
 
+/** Open the seeded conversation from the sidebar, and give its page time to settle. */
+async function openStored(): Promise<Reading> {
+	await click(`[data-ly-row="${SESSION}"] > button`);
+	await until(`document.querySelector('[data-ly-turn-process]')`, 15000, "过程块");
+	await within(pageSettled, 6000);
+	await pause(900);
+	await rest();
+	return read();
+}
+
 async function sceneStored(scene: "stored" | "expanded"): Promise<void> {
 	await boot(scene);
 	try {
 		await caption(scene === "expanded" ? "工具调用设成「展开」，重新打开这段对话" : "重新打开这段对话（记录是从存下来的消息里重建的）");
-		await click(`[data-ly-row="${SESSION}"] > button`);
-		await until(`document.querySelector('[data-ly-turn-process]')`, 15000, "过程块");
-		await within(pageSettled, 6000);
-		await pause(900);
-		await rest();
-		const folded = await read();
+		const folded = await openStored();
+		const events = await traced();
 		console.log(`     收着：${JSON.stringify(folded)}`);
+		console.log(timeline(events));
 		await caption(folded.pages && !folded.inProcess ? "过程收成一行，页面画在它下面" : "过程收成一行：页面跟着收进去了");
 		await shoot(scene, "01", "收着");
 		judgeFolded(scene, folded);
+		judgeFrames(scene, events);
 
 		await caption("打开过程，看看里面");
-		await openFold();
+		await openFold(scene === "expanded");
 		const opened = await read();
 		console.log(`     打开：${JSON.stringify(opened)}`);
 		await caption(inside(opened));
 		await shoot(scene, "02", "打开过程");
 		judgeOpen(scene, opened);
+		await pause(1200);
+	} finally {
+		await shutdown();
+	}
+}
+
+async function sceneSlow(): Promise<void> {
+	const scene = "slow";
+	await boot(scene);
+	try {
+		await caption(`页面开头先忙 ${SLOW_MS / 1000} 秒才说得出自己多高（重页面，或者机器正忙）`);
+		const folded = await openStored();
+		const events = await traced();
+		console.log(`     收着：${JSON.stringify(folded)}`);
+		console.log(timeline(events));
+		const height = folded.cardBox?.height ?? 0;
+		await caption(Math.abs(height - PAGE_HEIGHT) <= 12 ? `页面晚了 ${SLOW_MS / 1000} 秒才报高度，卡片照样跟着它（${height}px）` : `页面晚了 ${SLOW_MS / 1000} 秒才报高度，卡片卡在 ${height}px`);
+		await shoot(scene, "01", "晚报高度");
+		judgeFolded(scene, folded);
+		judgeFrames(scene, events);
+		await pause(1200);
+	} finally {
+		await shutdown();
+	}
+}
+
+async function sceneReopen(): Promise<void> {
+	const scene = "reopen";
+	await boot(scene);
+	try {
+		await caption("打开这段对话，等卡片量好高度并记下来");
+		const first = await openStored();
+		const remembered = await js<string | null>(`localStorage.getItem('ly-preview-height:${SESSION}/pup1')`);
+		console.log(`     第一次：卡片 ${first.cardBox?.height}，记下的高度 ${remembered}`);
+		await caption(`记下的高度是 ${remembered}px，重新载入窗口`);
+		// Installed ahead of the app's own code, so the reopened card is watched from its very first frame.
+		// Electron runs a script registered this way only once the Page domain is on — without it, silently nothing.
+		await g.send("Page.enable", {});
+		await g.send("Page.addScriptToEvaluateOnNewDocument", { source: TRACE });
+		await g.send("Page.reload", {});
+		await pause(1500);
+		await until(`document.querySelector('main textarea')`, 30000, "输入框");
+		if (!(await js<boolean>(`Boolean(document.querySelector('[data-ly-turn-process]'))`))) await click(`[data-ly-row="${SESSION}"] > button`);
+		await until(`document.querySelector('[data-ly-turn-process]')`, 15000, "过程块");
+		await within(pageSettled, 6000);
+		await pause(1500);
+		await rest();
+		const again = await read();
+		const events = await traced();
+		console.log(`     重开：${JSON.stringify(again)}`);
+		console.log(timeline(events));
+		const height = again.cardBox?.height ?? 0;
+		await caption(turns(events.flatMap((one) => (one.kind === "frame" && typeof one.h === "number" ? [one.h] : []))).length > 1 ? "重开：卡片从记下的高度先缩了一下，又长回来" : `重开：卡片一出来就是记下的 ${height}px，一帧都没动`);
+		await shoot(scene, "01", "重开");
+		check(scene, "重开后页面画在对话里", again.pages === 1 && again.painted, { pages: again.pages, painted: again.painted });
+		check(scene, `重开后卡片还是页面的高度（${PAGE_HEIGHT}px 上下）`, Math.abs(height - PAGE_HEIGHT) <= 12, { card: height, remembered });
+		judgeFrames(scene, events);
 		await pause(1200);
 	} finally {
 		await shutdown();
@@ -481,6 +687,8 @@ async function main(): Promise<void> {
 		live: sceneLive,
 		stored: () => sceneStored("stored"),
 		expanded: () => sceneStored("expanded"),
+		slow: sceneSlow,
+		reopen: sceneReopen,
 	};
 	for (const name of SCENES.split(",")) {
 		const scene = scenes[name];

@@ -49,18 +49,31 @@ export const PREVIEW_SCHEME = "ly-preview";
  */
 export function withHeightReporter(html: string): string {
 	/*
-	 * Two ways to measure, because either one alone is wrong half the time.
+	 * Three ways to measure, because any one alone is wrong for some page.
 	 *
 	 * If the document already scrolls, the content has outgrown the viewport and `scrollHeight` is
-	 * exactly the answer. If it does not, the page has been asked how tall it is while filling the
-	 * space it was given — `height: 100vh`, a centred grid, a flex column — and it will keep
-	 * answering with that space no matter what space we offer.
+	 * exactly the answer.
 	 *
-	 * For that second case the height rules are lifted and the content is left to compose itself.
-	 * That measurement has its own blind spot, which is why it is not used for everything: a page
-	 * whose inner boxes are sized in percentages collapses without a height to be a percentage of,
-	 * and reports far less than it draws. Restored in the same task, so nothing is ever painted in
-	 * the measured state.
+	 * If the body stops short of the viewport, the page is not filling the space it was given, and
+	 * its own box — margin included, or its content where that spills past it — is the answer. This
+	 * case used to fall through to the next one, which lifts the page's height rules, and that threw
+	 * away a height the page had set for itself: a `height: 360px` body measured 256 in the 440 the
+	 * card starts at, the card shrank to 256, the page now overflowed and reported 362, and every
+	 * such preview dipped and came back. The reports also disagreed with themselves — 256 at any
+	 * height above 360, 362 below it — so a card reopened at its remembered 362 heard 256 first and
+	 * bounced again. Measured this way the page gives one answer at any height above its own, and
+	 * that is always what the card gives it: the 2px of slack added below sits inside the frame
+	 * (`box-content` in `PreviewCard`). At exactly its own height it would look like a page filling
+	 * the frame. A body with no box of its own (`display: contents`, or nothing but positioned
+	 * children) says nothing this way, and goes on to the last case as before.
+	 *
+	 * Otherwise the page has been asked how tall it is while filling the space it was given —
+	 * `height: 100vh`, a centred grid, a flex column — and it will keep answering with that space no
+	 * matter what space we offer. For that case the height rules are lifted and the content is left
+	 * to compose itself. That measurement has its own blind spot, which is why it is the last resort:
+	 * a page whose inner boxes are sized in percentages collapses without a height to be a percentage
+	 * of, and reports far less than it draws. Restored in the same task, so nothing is ever painted
+	 * in the measured state.
 	 */
 	/*
 	 * A classic feedback loop, cut at the source.
@@ -90,6 +103,9 @@ var b=document.body,d=document.documentElement;
 if(!b||!d)return 0;
 var scroll=Math.max(b.scrollHeight,d.scrollHeight);
 if(scroll>d.clientHeight+2)return scroll;
+var box=b.getBoundingClientRect();
+var own=Math.ceil(Math.max(box.bottom+(parseFloat(getComputedStyle(b).marginBottom)||0),box.top+b.scrollHeight));
+if(box.height>0&&own<d.clientHeight)return own;
 var keep=[[b,b.style.height,b.style.minHeight],[d,d.style.height,d.style.minHeight]];
 b.style.height="auto";b.style.minHeight="0";
 d.style.height="auto";d.style.minHeight="0";
