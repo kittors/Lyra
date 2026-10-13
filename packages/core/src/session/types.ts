@@ -88,8 +88,23 @@ export interface SessionMeta {
 	 * name a moment later: the rename looked like it had worked, right up until the first message.
 	 */
 	titleSetByUser?: boolean;
+	/**
+	 * The suggestion this conversation was started from: a `spawn_session` call in another one.
+	 *
+	 * The card that made the suggestion finds out it was taken by looking for the conversation that
+	 * names it here — the one fact that survives a restart and reaches every window and phone with
+	 * the session list, without a second record kept beside the card. See ADR-0039.
+	 */
+	spawnedFrom?: SpawnedFrom;
 	/** Highest sequence number written. Sync clients compare against this. */
 	seq: number;
+}
+
+export interface SpawnedFrom {
+	/** The conversation the suggestion was made in. */
+	sessionId: string;
+	/** The `spawn_session` call that made it. */
+	toolCallId: string;
 }
 
 export type SessionRecord =

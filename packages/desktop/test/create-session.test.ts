@@ -209,3 +209,25 @@ test("工作树的选择穿过首条消息的白名单，手机那一路也一�
 	assert.equal(initialPrompt({ content, worktree: true }, "remote")?.worktree, true);
 	assert.throws(() => initialPrompt({ content, worktree: "yes" }), /worktree/);
 });
+
+/*
+ * 从建议卡片开出来的会话，用卡片的标题当名字。
+ *
+ * 首条消息是写给模型看的一段说明，截前六十个字放进侧栏，读起来像半句话。
+ */
+test("建会话时给了标题就用它：白名单收字符串、压空白、按六十字截；不是字符串就拒", async () => {
+	const content = [{ type: "text", text: "In src/auth.ts, legacyLogin has no callers left. Search the repository to confirm, then delete it and its tests." }];
+	assert.equal(initialPrompt({ content, title: "  删掉没人调用的\n legacyLogin  " })?.title, "删掉没人调用的 legacyLogin");
+	assert.equal(initialPrompt({ content, title: "长".repeat(80) })?.title?.length, 60);
+	assert.equal(Object.hasOwn(initialPrompt({ content, title: "   " }) ?? {}, "title"), false, "a blank title is no title");
+	assert.throws(() => initialPrompt({ content, title: 42 }), /title/);
+	const root = await mkdtemp(join(tmpdir(), "lyra-titled-"));
+	try {
+		const store = new SessionStore(join(root, "sessions"));
+		const saved = await createStoredSession(store, DEFAULT_SETTINGS, root, "", initialPrompt({ content, title: "删掉没人调用的 legacyLogin" }));
+		assert.equal(saved.meta.title, "删掉没人调用的 legacyLogin");
+		assert.equal(saved.meta.titleSetByUser, true, "a taken name: the first turn must not rename it after the prompt");
+		const untitled = await createStoredSession(store, DEFAULT_SETTINGS, root, "", initialPrompt({ content }));
+		assert.equal(untitled.meta.titleSetByUser, undefined, "a conversation nobody named is still named after its first message");
+	} finally { await rm(root, { recursive: true, force: true }); }
+});

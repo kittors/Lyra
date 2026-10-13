@@ -9,7 +9,7 @@
  * keeps the map from being reachable — and therefore mutable — from six different files.
  */
 
-import { AgentSession, backgroundJobs, type AgentEvent, type SessionStorage, type Settings, type SideChat } from "@lyra/core";
+import { AgentSession, backgroundJobs, createSessionOpsTools, type AgentEvent, type SessionStorage, type Settings, type SideChat } from "@lyra/core";
 import type { BrowserWindow } from "electron";
 import { browserState, closeSessionBrowser } from "./browser-workspace.ts";
 import { createBrowserTools } from "./browser-tools.ts";
@@ -17,6 +17,7 @@ import { autoCreateSessionWorktree, cleanOldWorktrees } from "./git-worktrees.ts
 import type { SessionChange } from "./ipc-shapes.ts";
 import type { SessionSnapshot, LyraApi } from "./ipc-types.ts";
 import { createStoredSession, type InitialPrompt } from "./create-session.ts";
+import { archiveAfterTurn } from "./session-ops.ts";
 import { initialPrompt, promptContent, promptOptions } from "./prompt-input.ts";
 import { ensureSessionWorkspace } from "./scratch.ts";
 import { discardSideChat } from "./sidechat-discard.ts";
@@ -58,6 +59,19 @@ const initializing = new Map<string, Promise<AgentSession | null>>();
 const retiring = new Set<string>();
 const abortedWhileStarting = new Set<string>();
 
+/** Conversations that asked to be archived, filed away once their turn has ended — see `session-ops.ts`. */
+const archives = archiveAfterTurn({
+	archive: async (id) => {
+		const meta = sessions.get(id)?.meta ?? (await deps.store().listSessions()).find((one) => one.id === id);
+		if (meta) await deps.store().setArchived(meta.projectId, id, true);
+	},
+	busy: (id) => sessions.get(id)?.running ?? false,
+	archived: async (id) => (await deps.store().listSessions()).some((one) => one.id === id && one.archived === true),
+	dispose: (id) => disposeSession(id),
+});
+/** Shared by every session: they hold no state, and `ctx.sessionId` says whose call it is. */
+const sessionOps = createSessionOpsTools({ archiveAfterTurn: (id) => archives.request(id) });
+
 export async function createSession(cwd: string, modelId: string, initial?: InitialPrompt): Promise<SessionSnapshot> {
 	const saved = await createStoredSession(deps.store(), deps.settings(), cwd, modelId, initialPrompt(initial));
 	stageSession(saved);
@@ -68,7 +82,7 @@ export async function createSession(cwd: string, modelId: string, initial?: Init
 function stageSession(saved: SessionSnapshot): AgentSession {
 	const browser = createBrowserTools();
 	const session = new AgentSession({ cwd: saved.meta.cwd, settings: deps.settings(), store: deps.store(), meta: saved.meta,
-		extraTools: browser.tools, emit: (event) => broadcast(saved.meta.id, event) });
+		extraTools: [...browser.tools, ...sessionOps], emit: (event) => broadcast(saved.meta.id, event) });
 	session.restore(saved.messages);
 	sessions.set(saved.meta.id, session);
 	browsers.set(saved.meta.id, browser.dispose);
@@ -136,6 +150,8 @@ export function broadcast(sessionId: string, event: AgentEvent): void {
 	eachAppWindow((win) => win.webContents.send("agent:event", { sessionId, event }));
 	deps.sync?.()?.broadcast(sessionId, event);
 	notifyAgentEvent(sessionId, event, sessions.get(sessionId)?.meta.title);
+	// After the windows have the event: they hear the turn end before they hear it was archived.
+	archives.observe(sessionId, event);
 }
 
 /**
@@ -172,7 +188,7 @@ export async function getOrCreateSession(cwd: string, _modelId: string): Promise
 		cwd: sessionCwd,
 		settings: appSettings,
 		store: deps.store(),
-		extraTools: browser.tools,
+		extraTools: [...browser.tools, ...sessionOps],
 		emit: (event: AgentEvent) => broadcast(session.meta.id, event),
 	});
 	await session.initialize();

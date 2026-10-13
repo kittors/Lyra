@@ -87,7 +87,10 @@ async function main() {
 	git("commit", "-m", "init");
 
 	const relay = await startFakeImageRelay({
-		scenes: [{ cue: "看看你在哪", call: "call_where", tool: "bash", args: { command: "pwd && git branch --show-current" }, reply: "看过了，就在这里。" }],
+		scenes: [
+			{ cue: "看看你在哪", call: "call_where", tool: "bash", args: { command: "pwd && git branch --show-current" }, reply: "看过了，就在这里。" },
+			{ cue: "顺手建议一个", call: "call_spawn", tool: "spawn_session", args: { title: "到工作树里看看在哪", summary: "验证建议卡片上的工作树开关。", prompt: "看看你在哪" }, reply: "建议好了。" },
+		],
 		art: { day: "", night: "" },
 		drawMs: 0,
 	});
@@ -177,6 +180,32 @@ async function main() {
 			check("这一条在项目目录里跑，分支是 main", (secondRan.includes(project) || secondRan.includes(`/private${project}`)) && /\bmain\b/.test(secondRan), secondRan.replace(/\s+/g, " ").slice(-200));
 			check("两个会话都在原项目下", second.groups.length === 1, `分组：${second.groups.join(" | ")}`);
 			await shot("05_两个会话都在原项目下");
+
+			console.log("⑤ 建议卡片上也能选工作树：开出来的会话在自己的工作树里跑");
+			await type("顺手建议一个");
+			await pause(600);
+			await click('[aria-label="发送"]');
+			await settled(60000);
+			await until(`document.querySelector("[data-ly-session-suggestion] [data-ly-worktree-toggle]")`, 15000);
+			const offered = await app.evaluate<string | null>(`document.querySelector("[data-ly-session-suggestion] [data-ly-worktree-toggle]")?.getAttribute("aria-pressed") ?? null`);
+			check("卡片上「开始」旁边有工作树开关，默认跟设置（关）", offered === "false", `aria-pressed=${offered}`);
+			await click("[data-ly-session-suggestion] [data-ly-worktree-toggle]");
+			await pause(500);
+			await shot("06_卡片上选了工作树");
+			await click('[data-ly-suggestion-action="start"]');
+			await until(`document.querySelector("[data-ly-suggestion-action]")?.textContent === "已完成 · 打开"`, 60000);
+			await pause(1200);
+			const spawned = await app.evaluate<{ title: string; cwd: string; worktree?: { project: string; branch: string } } | null>(`window.lyra.sessions.list().then((all) => all.find((meta) => meta.spawnedFrom) ?? null)`);
+			const spawnedRan = await app.evaluate<string>(RAN);
+			check("开出来的会话用卡片的标题", spawned?.title === "到工作树里看看在哪", spawned?.title ?? "没有");
+			check("它在自己的工作树里跑，归在原项目", Boolean(spawned?.worktree) && spawnedRan.includes("/worktrees/demo-repo-") && spawnedRan.includes("lyra/session-"), `${JSON.stringify(spawned?.worktree)} · ${spawnedRan.replace(/\s+/g, " ").slice(0, 160)}`);
+			const third = await look();
+			// Its row says "done" first — what it is doing outranks where — so its place is checked by group.
+			const filed = spawned ? await app.evaluate<boolean>(`Boolean(document.querySelector('[data-ly-row="' + ${JSON.stringify(spawned.title)} + '"]') || [...document.querySelectorAll("[data-ly-row]")].some((row) => row.textContent.includes(${JSON.stringify(spawned.title)})))`) : false;
+			check("侧栏还是只有原项目一组，新会话在里面", third.groups.length === 1 && filed, `分组：${third.groups.join(" | ")}；行首：${third.marks.join(" ")}`);
+			check("卡片说「已完成 · 打开」", (await app.evaluate<string>(`document.querySelector("[data-ly-suggestion-action]")?.textContent ?? ""`)) === "已完成 · 打开", "");
+			check("建了第二棵工作树，项目旁边仍然没有东西", (await worktrees()).length === 2 && (await readdir(parent)).length === 1, `~/.lyra/worktrees：${(await worktrees()).join("、")}`);
+			await shot("07_卡片开出的会话在工作树里");
 		}
 	} finally {
 		await stop();

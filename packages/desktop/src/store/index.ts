@@ -3,7 +3,7 @@ import type { ApprovalOrigin, ApprovalRequest, ApprovalRisk, QuestionFields } fr
 import { translate } from "../i18n/translate.ts";
 import { applySessionChange } from "./session-changes.ts";
 import type { PluginUpdateState, SessionChange } from "../../electron/ipc-types.ts";
-import type { AgentEvent, ApprovalDecision, CommandRun, MediaKind, Message, MessageAttachment, SessionMeta, Settings, ThinkingLevel, UserContent, UserMessage } from "@lyra/core";
+import type { AgentEvent, ApprovalDecision, CommandRun, MediaKind, Message, MessageAttachment, SessionMeta, Settings, SpawnedFrom, ThinkingLevel, UserContent, UserMessage } from "@lyra/core";
 import { type SessionActivity } from "@lyra/core/activity";
 import { applyAgentEvent } from "./apply-event.ts";
 import type { Cache, TurnStop } from "./derive.ts";
@@ -17,6 +17,7 @@ import type { TodoItem } from "@lyra/core";
 import { create } from "zustand";
 import type {
   AgentCapabilities,
+  LyraApi,
   SyncStatus,
   WorkspaceInfo,
 } from "../../electron/ipc-types.ts";
@@ -542,6 +543,14 @@ export interface AppState extends QueueSlice {
    */
 	/** `worktree`: for a new conversation, whether it gets a worktree of its own; absent follows the setting. */
 	send(content: UserContent[], options?: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[]; sessionId?: string | null; worktree?: boolean }): Promise<boolean>;
+  /**
+   * Start a conversation suggested by a `spawn_session` card, in the suggesting conversation's
+   * project, with `prompt` as its first message — and leave every screen where it is. The new one
+   * appears in the sidebar and runs in the background; `from` is written into its meta, which is how
+   * the card knows it was taken. `options` passes through to `sessions.create` (whether to start in a
+   * new worktree, once the card offers it). Resolves to the new id, or null when nothing was started.
+   */
+  startSession(prompt: string, from: SpawnedFrom, options?: Omit<NonNullable<Parameters<LyraApi["sessions"]["create"]>[2]>, "content" | "spawnedFrom">): Promise<string | null>;
   /**
    * Replace a message and re-run from there; everything after it is discarded.
    *

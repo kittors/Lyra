@@ -12,6 +12,7 @@ import { TaskList } from "../task/index.ts";
 import { BrowserCards } from "./BrowserCard.tsx";
 import { ImageGenerationCards } from "./ImageGenerationCard.tsx";
 import { VideoGenerationCards } from "./VideoGenerationCard.tsx";
+import { SessionSuggestionCards } from "./SessionSuggestionCard.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useAnswering } from "./useAnswering.ts";
@@ -512,6 +513,8 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
             const films = inside.filter((call) => call.name === "video_generate");
             // And so do pages made with `preview` — inside, folded, they were gone until the reasoning was opened. See `InFold`.
             const previews = inside.filter((call) => call.name === "preview");
+            // A suggested conversation waits on a click; folded into the working it would never get one.
+            const suggestions = inside.filter((call) => call.name === "spawn_session");
             // 这一轮派出去的子智能体。收起之后「调用工具 N 个」那一行尾巴上还挂着它们的脸。
             const delegated = inside.filter((call) => call.name === "task");
             return (
@@ -537,6 +540,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
                 {drawings.length > 0 && <ImageGenerationCards calls={drawings} />}
                 {films.length > 0 && <VideoGenerationCards calls={films} />}
                 {previews.length > 0 && <PreviewCards calls={previews} />}
+                {suggestions.length > 0 && <SessionSuggestionCards calls={suggestions} />}
               </Fragment>
             );
           })}

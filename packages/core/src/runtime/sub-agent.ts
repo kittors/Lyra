@@ -49,6 +49,7 @@ import { VIDEO_TOOL_NAME } from "../videos/types.ts";
 import type { ConversationPicks } from "../images/picks.ts";
 import { IMAGE_TOOL_NAME } from "../images/types.ts";
 import { writePreview } from "./previews.ts";
+import { SESSION_LEVEL_TOOLS } from "./session-ops.ts";
 import { makeYieldTool, renderYield, yieldInstruction, YIELD_KEY, type YieldOutcome } from "./yield-tool.ts";
 import type { Skill } from "../skills/loader.ts";
 import { SKILLS_KEY } from "../skills/tool.ts";
@@ -229,10 +230,13 @@ export async function runSubAgent(
 	 * 什么都不碰，写的是它自己状态图里的一张单子；而检查点上「要不要接着跑」看的正是这张单子
 	 * （`continuation.ts`）。一个只读审查者没有它，就只能在第六十轮被一刀切下，不管它读到哪了。
 	 */
-	const fromSession =
+	const fromSession = (
 		definition.tools === "*"
 			? options.tools
-			: options.tools.filter((t) => (definition.tools as string[]).includes(t.name) || t.name === todoTool.name);
+			: options.tools.filter((t) => (definition.tools as string[]).includes(t.name) || t.name === todoTool.name)
+	)
+		// Whatever the definition asks for, `tools: "*"` included: these act on a conversation, and a sub-agent is not one (`SESSION_LEVEL_TOOLS`).
+		.filter((t) => !SESSION_LEVEL_TOOLS.has(t.name));
 
 	/*
 	 * Recursive dispatch is off unless the definition asks for it, and off again at the depth limit.

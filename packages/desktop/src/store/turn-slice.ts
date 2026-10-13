@@ -7,18 +7,21 @@
  */
 
 import { translate } from "../i18n/translate.ts";
-import type { ApprovalDecision, MediaKind, Message, MessageAttachment, ThinkingLevel, UserContent, UserMessage } from "@lyra/core";
+import type { ApprovalDecision, MediaKind, Message, MessageAttachment, SessionMeta, SpawnedFrom, ThinkingLevel, UserContent, UserMessage } from "@lyra/core";
+import type { SessionSnapshot } from "../../electron/ipc-types.ts";
 import { prune, todosFrom, without } from "./derive.ts";
 import { howItStopped } from "./turn-stop.ts";
-import { loadCarried, meterFor, saveCarried } from "./turn-meter.ts";
+import { loadCarried, meterFor, saveCarried, type TurnMeter } from "./turn-meter.ts";
 import type { AppState } from "./index.ts";
 import { bridge } from "../services/index.ts";
 import { draftFromUserMessage } from "../lib/revert-draft.ts";
 import { outlivingTurn } from "../lib/approval-scope.ts";
 import { sessionWorkspace } from "./session-workspace.ts";
+import { sessionHome } from "../lib/session-home.ts";
 
 type Get = () => AppState;
 type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void;
+type StartOptions = Parameters<AppState["startSession"]>[2];
 
 export function turnSlice(set: Set, get: Get) {
 	const creating = new Map<number, ReturnType<typeof bridge.sessions.create>>();
@@ -39,6 +42,41 @@ export function turnSlice(set: Set, get: Get) {
 		await get().openSession(meta);
 		// Another conversation was opened while this one was being read: that is the newer choice.
 		return get().activeSessionId === sessionId;
+	};
+	/*
+	 * The steps a new conversation's first turn goes through, shared by the two ways one starts: `send`
+	 * from a blank screen, which then also puts it on that screen, and `startSession` from a suggestion
+	 * card, which leaves every screen where it is.
+	 */
+	/** Listed in the sidebar and parked in the cache, running — painted before the runtime has taken the turn. */
+	const listedRunning = (snapshot: SessionSnapshot, meter: TurnMeter): Partial<AppState> => {
+		const id = snapshot.meta.id;
+		return {
+			sessions: [snapshot.meta, ...get().sessions.filter((session) => session.id !== id)],
+			activity: { ...get().activity, [id]: "running" },
+			turns: { ...get().turns, [id]: meter },
+			sessionCache: prune({ ...get().sessionCache, [id]: {
+				meta: snapshot.meta, messages: snapshot.messages, toolRuns: {},
+				state: { running: true, approvals: [], todos: [], compactions: [], stopped: null, retrying: null, capabilities: null, pendingUserMessage: null },
+			} }, id),
+		};
+	};
+	/** The runtime took the turn: its meta replaces the optimistic one wherever that was put. */
+	const acknowledged = (meta: SessionMeta): Partial<AppState> => {
+		const cached = get().sessionCache[meta.id];
+		return {
+			sessions: get().sessions.map((listed) => listed.id === meta.id ? meta : listed),
+			...(cached ? { sessionCache: { ...get().sessionCache, [meta.id]: { ...cached, meta } } } : {}),
+			...(get().activeSessionId === meta.id ? { meta } : {}),
+		};
+	};
+	/** The turn never started: the row and the parked copy say so rather than spinning on. */
+	const failedToStart = (id: string): Partial<AppState> => {
+		const cached = get().sessionCache[id];
+		return {
+			activity: { ...get().activity, [id]: "failed" }, turns: without(get().turns, id),
+			...(cached?.state ? { sessionCache: { ...get().sessionCache, [id]: { ...cached, state: { ...cached.state, running: false, stopped: "error", pendingUserMessage: null } } } } : {}),
+		};
 	};
 	return {
 	async send(content: UserContent[], options: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[]; sessionId?: string | null; worktree?: boolean } = {}) {
@@ -146,13 +184,7 @@ export function turnSlice(set: Set, get: Get) {
 				const listed = snapshot.meta;
 				const messages = snapshot.messages;
 				set({
-					sessions: [listed, ...get().sessions.filter((session) => session.id !== listed.id)],
-					activity: { ...get().activity, [sessionId]: "running" },
-					turns: { ...get().turns, [sessionId]: meter },
-					sessionCache: prune({ ...get().sessionCache, [sessionId]: {
-						meta: listed, messages, toolRuns: {},
-						state: { running: true, approvals: [], todos: [], compactions: [], stopped: null, retrying: null, capabilities: null, pendingUserMessage: null },
-					} }, sessionId),
+					...listedRunning(snapshot, meter),
 					...(ownsSelection() ? {
 						activeSessionId: sessionId, draftBecame: sessionId, meta: listed, messages, toolRuns: {}, approvals: [],
 						loadingSession: false, pendingUserMessage: null,
@@ -172,12 +204,7 @@ export function turnSlice(set: Set, get: Get) {
 		try {
 			const meta = await bridge.agent.prompt(id, content, { ...options, resumePending });
 			accepted = true;
-			const cached = get().sessionCache[id];
-			set({
-				sessions: get().sessions.map((listed) => listed.id === id ? meta : listed),
-				...(cached ? { sessionCache: { ...get().sessionCache, [id]: { ...cached, meta } } } : {}),
-				...(get().activeSessionId === id ? { meta } : {}),
-			});
+			set(acknowledged(meta));
 			if (get().activeSessionId === id && get().workspace && get().workspace?.path !== meta.cwd) {
 				const workspace = await sessionWorkspace(meta);
 				if (get().activeSessionId === id) set({ workspace });
@@ -195,15 +222,41 @@ export function turnSlice(set: Set, get: Get) {
 				get().notify(translate("turn.sendFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
 				return false;
 			}
-			const cached = get().sessionCache[id];
-			set({ activity: { ...get().activity, [id]: "failed" }, turns: without(get().turns, id),
-				...(cached?.state ? { sessionCache: { ...get().sessionCache, [id]: { ...cached, state: { ...cached.state, running: false, stopped: "error", pendingUserMessage: null } } } } : {}),
-			});
+			set(failedToStart(id));
 			if (get().activeSessionId === id) set({ running: false, stopped: "error", pendingUserMessage: null, turnStartedAt: null });
 			get().notify(translate("turn.sendFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
 			return false;
 		} finally { if (prompting.get(id) === submission) prompting.delete(id); }
 		return true;
+	},
+
+	async startSession(prompt: string, from: SpawnedFrom, options: StartOptions = {}) {
+		const source = get().activeSessionId === from.sessionId ? get().meta : (get().sessionCache[from.sessionId]?.meta ?? get().sessions.find((session) => session.id === from.sessionId));
+		/*
+		 * In the project of the conversation that suggested it — the project, not its directory: one
+		 * running in its own git worktree has `cwd` inside the worktree (`sessionHome`).
+		 */
+		const cwd = source ? sessionHome(source) : undefined;
+		if (!cwd) return null;
+		const content: UserContent[] = [{ type: "text", text: prompt }];
+		let snapshot: SessionSnapshot;
+		try {
+			// `options` is where the card's later choices go — starting in a new worktree is the first.
+			snapshot = await bridge.sessions.create(cwd, get().settings?.defaultModelId ?? "", { ...options, content, spawnedFrom: from });
+		} catch (cause) {
+			get().notify(translate("sessionOps.startFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
+			return null;
+		}
+		const id = snapshot.meta.id;
+		// Listed and running, never selected: whoever pressed Start stays in the conversation they were reading.
+		set(listedRunning(snapshot, meterFor({ running: undefined, carried: null, carryOn: false, now: Date.now() })));
+		try {
+			set(acknowledged(await bridge.agent.prompt(id, content, { resumePending: true })));
+		} catch (cause) {
+			set(failedToStart(id));
+			get().notify(translate("turn.sendFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
+		}
+		return id;
 	},
 
   /**
