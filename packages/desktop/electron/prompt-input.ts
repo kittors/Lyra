@@ -1,4 +1,4 @@
-import type { UserContent } from "@lyra/core";
+import { safeMediaName, type UserContent } from "@lyra/core";
 import { noteAttachmentPath } from "./attachment-reads.ts";
 import type { InitialPrompt } from "./create-session.ts";
 
@@ -14,7 +14,9 @@ export function promptContent(value: unknown): UserContent[] {
 		if (!object(block)) throw new Error("Invalid content block");
 		if (block.type === "text" && typeof block.text === "string") return { type: "text", text: block.text };
 		if (block.type === "image" && typeof block.data === "string" && typeof block.mimeType === "string") {
-			return { type: "image", data: block.data, mimeType: block.mimeType };
+			// What an annotated copy was marked up from, for the gallery; a name in `session-media` or nothing.
+			const from = typeof block.from === "string" ? safeMediaName(block.from) : "";
+			return { type: "image", data: block.data, mimeType: block.mimeType, ...(from ? { from } : {}) };
 		}
 		throw new Error("Invalid user content block");
 	});

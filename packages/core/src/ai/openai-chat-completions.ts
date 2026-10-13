@@ -17,7 +17,7 @@ import type {
 } from "../types.ts";
 import { addUsage, emptyUsage } from "../types.ts";
 import { computeCost } from "../utils/pricing.ts";
-import { classifyFailure, FailureError } from "./failure.ts";
+import { classifyFailure, spokenSoFar, FailureError } from "./failure.ts";
 import { RetryBudget, fetchWithRetry, retryStream, toolCallId } from "./retry.ts";
 import { argumentFragment, parseToolArguments, readSseWithIdleTimeout, STREAM_IDLE_TIMEOUT_MS } from "../utils/sse.ts";
 import { failedStreamEvent, joinUrl } from "./endpoint.ts";
@@ -544,6 +544,7 @@ async function* streamChatCompletions(
 								message: typeof said === "string" ? said : undefined,
 								raw: JSON.stringify(event).slice(0, 4000),
 								spent: partial.usage.output > 0 || partial.content.length > 0,
+								streamed: spokenSoFar(partial.content),
 							}),
 						);
 					}
@@ -797,6 +798,7 @@ async function* streamChatCompletions(
 							from: "stream",
 							message: finishError,
 							spent: partial.usage.output > 0 || partial.content.length > 0,
+							streamed: spokenSoFar(partial.content),
 						}),
 					);
 				}
@@ -833,6 +835,7 @@ async function* streamChatCompletions(
 							from: "stream",
 							message: "回答只传了一半，连接就断了",
 							spent: true,
+							streamed: spokenSoFar(partial.content),
 						}),
 					);
 				}

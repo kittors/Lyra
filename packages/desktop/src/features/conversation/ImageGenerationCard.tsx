@@ -112,11 +112,12 @@ function ImageGenerationCard({ call }: { call: ToolCallContent }) {
 		caption = `${details?.model.name ?? ""}${size}${missing > 0 ? ` · ${t("imageGen.partial", { n: missing })}` : ""}`;
 	}
 
-	const sources = pictures.map((picture) => ({ src: sessionMediaUrl(picture.media), alt: prompt, onAttach: attachToComposer(sessionId) }));
+	const sources = pictures.map((picture) => ({ src: sessionMediaUrl(picture.media), alt: prompt, onAttach: attachToComposer(sessionId, picture.media) }));
 	const frameOf = (event: React.MouseEvent<HTMLElement>) => event.currentTarget.closest<HTMLElement>("[data-ly-image-frame]");
 
 	return (
-		<figure data-ly-image-card={live ? "drawing" : "done"} className="m-0 flex w-fit max-w-full flex-col gap-2">
+		// `data-ly-image-call` is what the gallery asks the transcript to scroll to (`reveal.ts`).
+		<figure data-ly-image-card={live ? "drawing" : "done"} data-ly-image-call={call.id} className="m-0 flex w-fit max-w-full flex-col gap-2">
 			<figcaption className="truncate text-detail text-ink-muted">
 				<RollingText>{caption}</RollingText>
 			</figcaption>
@@ -173,6 +174,9 @@ function DrawFailed({ details, stopped }: { details?: ImageGenerationDetails; st
 	} else if (error?.hint === "check-key") {
 		title = t("imageGen.notAllowed", { model });
 		note = t("imageGen.notAllowedHint");
+	} else if (error?.hint === "blocked") {
+		title = t("imageGen.refused");
+		note = t("imageGen.refusedHint");
 	}
 	return (
 		<div data-ly-image-card={stopped ? "stopped" : "error"} className="flex w-fit max-w-[420px] items-start gap-2.5 rounded-xl border border-line bg-card/30 px-3 py-2.5 text-label">

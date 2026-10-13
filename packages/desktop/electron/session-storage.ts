@@ -59,6 +59,7 @@ export function observeSessionStorage(store: SessionStorage, changed: (change: S
 		storeId: store.storeId?.bind(store),
 		activeDays: store.activeDays?.bind(store),
 		sizes: store.sizes?.bind(store),
+		sessionsWithResultOf: store.sessionsWithResultOf?.bind(store),
 		messages: (...args) => store.messages(...args),
 		load: (...args) => store.load(...args),
 		listSessions: () => store.listSessions(),

@@ -85,8 +85,14 @@ export type FailureInput =
 	| { from: "transport"; error: unknown }
 	/** 服务器答了，但状态码不是 2xx。 */
 	| { from: "status"; status: number; body?: string }
-	/** 连接和状态码都正常，错误写在流里面。 */
-	| { from: "stream"; message?: string; raw?: string; spent?: boolean }
+	/**
+	 * 连接和状态码都正常，错误写在流里面。
+	 *
+	 * `streamed` is the visible text that reached the window before the error (`spokenSoFar`): a provider
+	 * sometimes writes its refusal as the answer and leaves a relay to close with a generic error, which
+	 * on its own reads as a hiccup — see `refusalIn`.
+	 */
+	| { from: "stream"; message?: string; raw?: string; spent?: boolean; streamed?: string }
 	/** 流正常结束，但一个字都没有——见 `emptyReply`。 */
 	| { from: "empty"; why: "no-content" | "no-frames" | "unparsable"; body?: string };
 
@@ -139,7 +145,11 @@ const FATAL_PHRASES: { match: RegExp; summary: string; hint: FailureHint }[] = [
 	{ match: /insufficient[_\s-]?quota|exceeded your current quota|余额不足|额度不足|欠费/i, summary: "额度不足", hint: "check-billing" },
 	{ match: /invalid[_\s-]?api[_\s-]?key|incorrect api key|unauthorized|api key not valid|密钥无效/i, summary: "密钥被拒绝", hint: "check-key" },
 	{ match: /account[_\s-]?(deactivated|disabled|suspended|banned)|账号已(停用|禁用|封禁)/i, summary: "账号已停用", hint: "check-billing" },
-	{ match: /content[_\s-]?filter|content[_\s-]?policy|safety|违反.{0,6}政策|内容审核/i, summary: "内容被安全策略拒绝", hint: "blocked" },
+	{
+		match: /content[_\s-]?filter|content[_\s-]?policy|safety|prohibited[_\s-]?(use|content)|sensitive words|moderation[_\s-]?blocked|违反.{0,6}政策|内容审核/i,
+		summary: "内容被安全策略拒绝",
+		hint: "blocked",
+	},
 	{ match: /model[_\s-]?not[_\s-]?found|does not exist|no such model|模型不存在/i, summary: "模型或地址不存在", hint: "check-model" },
 	{ match: /context[_\s-]?length[_\s-]?exceeded|maximum context length|too many tokens/i, summary: "上下文超出模型上限", hint: "check-request" },
 ];
@@ -304,7 +314,7 @@ export function classifyFailure(input: FailureInput): Failure {
 		case "status":
 			return fromStatus(input.status, input.body);
 		case "stream":
-			return fromStream(input.message, input.raw, input.spent === true);
+			return fromStream(input.message, input.raw, input.spent === true, input.streamed);
 		case "empty":
 			return fromEmpty(input.why, input.body);
 	}
@@ -377,6 +387,16 @@ function fromStatus(status: number, body?: string): Failure {
 	const detail = truncateDetail(body ?? "");
 	const fatal = FATAL_STATUS.get(status);
 
+	/*
+	 * A refusal on content outranks the status's own reading. Some providers answer it with a 400, and
+	 * read as "the request is malformed" it sent the loop off to trim the history and send it again
+	 * (`rejectedContent` in `loop.ts`) — a second paid request for the same refusal.
+	 */
+	const refused = matchFatalPhrase(said || body || "");
+	if (fatal && refused?.hint === "blocked") {
+		return { kind: "fatal", summary: refused.summary, detail, hint: refused.hint, fingerprint: fingerprintOf("fatal", `${status}:${refused.summary}`) };
+	}
+
 	if (fatal) {
 		return {
 			kind: "fatal",
@@ -413,7 +433,7 @@ function fromStatus(status: number, body?: string): Failure {
 	};
 }
 
-function fromStream(message: string | undefined, raw: string | undefined, spent: boolean): Failure {
+function fromStream(message: string | undefined, raw: string | undefined, spent: boolean, streamed?: string): Failure {
 	const said = (message ?? "").trim() || messageFromBody(raw);
 	const phrase = matchFatalPhrase(said || raw || "");
 	if (phrase) {
@@ -423,6 +443,25 @@ function fromStream(message: string | undefined, raw: string | undefined, spent:
 			detail: truncateDetail(raw ?? said),
 			hint: phrase.hint,
 			fingerprint: fingerprintOf("fatal", phrase.summary),
+			costIncurred: spent || undefined,
+		};
+	}
+
+	/*
+	 * The error says nothing, but what came before it was the provider refusing.
+	 *
+	 * Gemini behind a relay streams its refusal as the answer — "The prompt could not be submitted …
+	 * violate Google's Generative AI Prohibited Use policy" — and the relay then closes with a generic
+	 * `internal_server_error`. Read from the error alone that was a hiccup, retried every five seconds,
+	 * each attempt streaming the same refusal again until someone pressed stop.
+	 */
+	if (refusalIn(streamed)) {
+		return {
+			kind: "fatal",
+			summary: "内容被安全策略拒绝",
+			detail: truncateDetail([streamed?.trim(), raw ?? said].filter(Boolean).join("\n\n")),
+			hint: "blocked",
+			fingerprint: fingerprintOf("fatal", "streamed-refusal"),
 			costIncurred: spent || undefined,
 		};
 	}
@@ -491,6 +530,27 @@ function fromEmpty(why: "no-content" | "no-frames" | "unparsable", body?: string
  * 它的人要先读过「重发的是同一个请求体」这句。
  */
 const EMPTY_REPLY_RETRIES = 4;
+
+/**
+ * Providers' own refusal sentences, as they arrive in place of an answer.
+ *
+ * Narrower than `FATAL_PHRASES` on purpose: that table reads error bodies, where "safety" means a
+ * refusal; this one reads what a model wrote, where it can just as well be a sentence about thread
+ * safety. So only the fixed wordings, and only in a short reply — a refusal is a sentence or two,
+ * not the end of a long answer that happened to quote one.
+ */
+const STREAMED_REFUSALS = [/Generative AI Prohibited Use policy/i, /The prompt could not be submitted/i, /prompt contains sensitive words/i];
+const REFUSAL_MAX_CHARS = 600;
+
+function refusalIn(streamed: string | undefined): boolean {
+	const text = streamed?.trim() ?? "";
+	return text.length > 0 && text.length <= REFUSAL_MAX_CHARS && STREAMED_REFUSALS.some((pattern) => pattern.test(text));
+}
+
+/** The visible text of a reply in progress — what the person has already seen of it. Thinking is not included. */
+export function spokenSoFar(content: readonly { type: string; text?: string }[]): string {
+	return content.flatMap((part) => (part.type === "text" && typeof part.text === "string" ? [part.text] : [])).join("");
+}
 
 function matchFatalPhrase(text: string): { summary: string; hint: FailureHint } | undefined {
 	if (!text) return undefined;

@@ -45,3 +45,26 @@
 .ly-image-action:hover {
   background: rgb(0 0 0 / 0.58);
 }
+
+/*
+ * A drawing the gallery jumped to: a ring that comes up and fades, once.
+ *
+ * The jump itself is instant, and a picture landing in the middle of a page full of other pictures
+ * is not obviously the one you asked for. Outside the frame rather than over the picture, so the
+ * picture is never washed out while you look at it; the delay lets the view switch finish first.
+ */
+@keyframes ly-image-flash {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 0%, transparent);
+  }
+  25% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent) 55%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent) 0%, transparent);
+  }
+}
+
+[data-ly-image-card][data-ly-flash] [data-ly-image-frame] {
+  animation: ly-image-flash 1600ms var(--ly-e-out) 180ms both;
+}

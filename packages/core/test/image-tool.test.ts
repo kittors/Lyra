@@ -128,12 +128,45 @@ test("an earlier drawing can be passed back by the path the model was given", as
 	assert.equal(host.requests[0].images?.[0].data, PNG);
 });
 
+test("an edit records what went in by session-media name, so the gallery can draw where it started", async () => {
+	const fresh = await imageTool.execute({ prompt: "a boat" }, context(fakeHost(drawn)));
+	assert.equal((fresh.details as ImageGenerationDetails).sources, undefined, "a drawing from words alone has no sources");
+	const media = (fresh.details as ImageGenerationDetails).images?.[0].media ?? "";
+
+	// #1 names a picture already in session-media, #2 an inline attachment, and the path a workspace file.
+	const logo = Buffer.from(PNG, "base64");
+	logo.writeUInt32BE(2, 16);
+	await writeFile(join(workspace, "badge.png"), logo);
+	const inline = Buffer.from(PNG, "base64");
+	inline.writeUInt32BE(3, 16);
+	const host = fakeHost(drawn, () => [
+		{ media, mimeType: "image/png" },
+		{ data: inline.toString("base64"), mimeType: "image/png" },
+	]);
+	const edit = await imageTool.execute({ prompt: "put the badge on the boat", images: ["#1", "#2", "badge.png"] }, context(host));
+	const sources = (edit.details as ImageGenerationDetails).sources ?? [];
+	assert.equal(sources.length, 3);
+	assert.equal(sources[0], media);
+	for (const name of sources) assert.ok(existsSync(sessionMediaPath(name)), `${name} is a file the gallery can show`);
+	assert.notEqual(sources[1], sources[2], "two different pictures are two names");
+});
+
 test("without an image model, or with one the user did not configure, the model is told what to say", async () => {
 	const none = await imageTool.execute({ prompt: "a boat" }, context(undefined));
 	assert.match(none.content[0].type === "text" ? none.content[0].text : "", /No image model is configured/);
 
 	const unknown = await imageTool.execute({ prompt: "a boat", model: "midjourney-v7" }, context(fakeHost(drawn)));
 	assert.match(unknown.content[0].type === "text" ? unknown.content[0].text : "", /midjourney-v7/);
+});
+
+test("a refusal on content comes back final: the card says refused, the model is told not to retry it unchanged", async () => {
+	const refused = new FailureError(classifyFailure({ from: "stream", message: "The model answered in words instead of drawing", streamed: "The prompt could not be submitted. The prompt contains sensitive words that violate Google's Generative AI Prohibited Use policy." }));
+	const result = await imageTool.execute({ prompt: "something it refuses" }, context(fakeHost(() => Promise.reject(refused))));
+	assert.equal(result.isError, true);
+	const text = result.content[0].type === "text" ? result.content[0].text : "";
+	assert.match(text, /refused this request under its content policy/);
+	assert.match(text, /don't retry it unchanged/);
+	assert.equal((result.details as ImageGenerationDetails).error?.hint, "blocked");
 });
 
 test("a spent quota comes back as an error the card can show and the model can repeat", async () => {

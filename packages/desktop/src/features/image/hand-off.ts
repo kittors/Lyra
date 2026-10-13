@@ -12,13 +12,14 @@
 import { translate } from "../../i18n/translate.ts";
 import { useApp } from "../../store/index.ts";
 
-export function attachToComposer(sessionId: string | null): (dataUrl: string) => void {
+/** `from` is the drawn picture being marked up, by `session-media` name, so its history carries on through the copy. */
+export function attachToComposer(sessionId: string | null, from?: string): (dataUrl: string) => void {
 	return (dataUrl) => {
 		const comma = dataUrl.indexOf(",");
 		const mimeType = /^data:([^;,]+)/.exec(dataUrl)?.[1] ?? "image/png";
 		useApp.getState().setComposerDraft("", {
 			sessionId,
-			attachments: [{ id: crypto.randomUUID(), name: translate("annotate.attachmentName"), mimeType, kind: "image", isText: false, data: dataUrl.slice(comma + 1) }],
+			attachments: [{ id: crypto.randomUUID(), name: translate("annotate.attachmentName"), mimeType, kind: "image", isText: false, data: dataUrl.slice(comma + 1), ...(from ? { markedFrom: from } : {}) }],
 		});
 	};
 }

@@ -94,6 +94,16 @@ const CASES: Case[] = [
 	{ id: "stream-error-msg", what: "流内 error 事件，带 message", fail: () => halfSpent({ type: "error", message: "upstream temporarily unavailable" }) },
 	{ id: "stream-error-bare", what: "流内 error 事件，什么都没带 ← 截图里的那个", fail: () => halfSpent({ type: "error" }) },
 	{ id: "stream-failed", what: "response.failed 事件", fail: () => halfSpent({ type: "response.failed", response: { error: { message: "internal" } } }) },
+	{
+		id: "stream-refusal-then-error",
+		what: "拒绝写成回答流出来，中转再补一个泛泛的 error ← 10-13 那次",
+		fail: () =>
+			sse([
+				frame({ type: "response.output_item.added", output_index: 0, item: { type: "message", id: "msg_1" } }),
+				frame({ type: "response.output_text.delta", output_index: 0, delta: "The prompt could not be submitted. The prompt contains sensitive words that violate Google's Generative AI Prohibited Use policy." }),
+				frame({ type: "error", code: "internal_server_error", message: "response_stream_incomplete: upstream responses stream closed before response.completed" }),
+			]),
+	},
 	{ id: "stream-cut", what: "流吐到一半连接断了", fail: () => sse([frame({ type: "response.output_item.added", output_index: 0, item: { type: "message", id: "m" } }), frame({ type: "response.output_text.delta", output_index: 0, delta: "半句" })], { cut: true }) },
 	{ id: "stream-empty", what: "200，流是空的，一个事件都没有", fail: () => sse([]) },
 	{ id: "stream-garbage", what: "200，流里全是非法 JSON", fail: () => sse(["data: {不是 JSON", "data: <html>502</html>"]) },
@@ -172,7 +182,7 @@ async function run(testCase: Case): Promise<Row> {
 	}
 }
 
-const EXPECT_FATAL = new Set(["http-401", "http-404", "http-402-quota"]);
+const EXPECT_FATAL = new Set(["http-401", "http-404", "http-402-quota", "stream-refusal-then-error"]);
 
 async function main() {
 	const rows: Row[] = [];

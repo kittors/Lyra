@@ -82,6 +82,8 @@ export { imageDimensions } from "./images/dimensions.ts";
 export { generateImages } from "./images/generate.ts";
 export { imageModelRows, isImageModel, isImageModelId, resolveImageModel } from "./images/models.ts";
 export type { ImageGenerationDetails, ImageRequest, ImageResult } from "./images/types.ts";
+export { GalleryReader, type Gallery, type GalleryInput, type GalleryPicture, type GallerySession } from "./images/gallery.ts";
+export type { Ask as GalleryAsk } from "./images/lineage.ts";
 export { runAgent, type AgentRunConfig, type AgentRunResult } from "./agent/loop.ts";
 export { errorResult, textResult } from "./agent/tool-run.ts";
 export { runTurn, useAgentLoop, type AgentLoop } from "./agent/runner.ts";

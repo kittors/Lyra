@@ -42,6 +42,12 @@ export function wasCutShort(messages: Message[]): boolean {
  */
 export function howItStopped(messages: Message[], reason?: string): TurnStop {
 	if (reason === "aborted") return "user";
+	/*
+	 * A refusal on content ended the turn for good, not halfway: carrying on asks the provider the same
+	 * thing and is refused the same way. The refusal row says what happened; nothing offers to resume.
+	 */
+	const last = messages.findLast((message) => message.role === "assistant");
+	if (last?.role === "assistant" && last.stopReason === "error" && last.failure?.hint === "blocked") return null;
 	if (reason === "error") return "error";
 	for (let i = messages.length - 1; i >= 0; i--) {
 		const message = messages[i];

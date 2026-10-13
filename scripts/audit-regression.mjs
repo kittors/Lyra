@@ -169,6 +169,16 @@ const CHECKS = [
 		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/image-recent.test.ts", "packages/core/test/image-tool.test.ts"]],
 	},
 	{
+		id: "RETRY-refusal",
+		what: "服务商把拒绝写成回答流出来、中转再补一个泛泛的流内错误：被当成服务端故障每 5 秒重试一次，每次再流一遍同一段拒绝",
+		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/failure-classify.test.ts", "packages/core/test/responses-refusal-stream.test.ts", "packages/core/test/image-generate.test.ts"]],
+	},
+	{
+		id: "GALLERY-lineage",
+		what: "画廊里一张图的生成链路：旧结果靠 #1 倒推、分叉的图归到原会话、撤回和删除的图不出现；链路排成一列，分支整段列、括线接回出处",
+		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/image-lineage.test.ts", "packages/core/test/image-gallery.test.ts"]],
+	},
+	{
 		id: "VIEWER-redo-ui",
 		what: "投递到输入框的图（标注图、浏览器区域截图）在句子里没有标记，打第一个字就被当孤儿卸掉",
 		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/split-composer-draft.test.ts"]],

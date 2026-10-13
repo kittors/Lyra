@@ -8,6 +8,7 @@
  */
 
 import { joinUrl } from "../ai/endpoint.ts";
+import { classifyFailure, FailureError } from "../ai/failure.ts";
 import { fetchWithRetry, RetryBudget } from "../ai/retry.ts";
 import type { ModelConfig, ProviderConfig } from "../types/provider.ts";
 import { quotaGuard } from "./quota.ts";
@@ -136,7 +137,18 @@ export async function viaChatCompletions(
 		usage.total += parsed.usage?.total_tokens ?? 0;
 	}
 	if (images.length === 0) {
-		throw new Error(note ? `The model answered in words instead of drawing: ${note.slice(0, 300)}` : "The model answered without an image.");
+		/*
+		 * Words instead of a picture are usually the model refusing. Classified like any reply that ended
+		 * without what was asked for, so a refusal on content is final — the card and the model are told
+		 * it was refused — and anything else stays worth another try.
+		 */
+		throw new FailureError(
+			classifyFailure({
+				from: "stream",
+				message: note ? `The model answered in words instead of drawing: ${note.slice(0, 300)}` : "The model answered without an image.",
+				streamed: note,
+			}),
+		);
 	}
 	return { images, route: "chat", usage: usage.total ? usage : undefined };
 }

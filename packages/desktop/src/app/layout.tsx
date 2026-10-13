@@ -21,6 +21,7 @@ import { freezeMotion } from "../ui/motion/freeze.ts";
 import { useDrawerGesture, useKeyboardInset } from "../mobile/useMobileShell.ts";
 import { hasHeaderBar, overlayReserved, titlebarInsets, type TitlebarInsets } from "./window/titlebar.ts";
 import { bridge, onPhone } from "../services/index.ts";
+import { useApp } from "../store/index.ts";
 import { MAIN_TOOLBAR_HEIGHT, NATIVE_HEADER_HEIGHT } from "../../shared/window-chrome.ts";
 
 /** Below this the sidebar and a readable content column no longer fit side by side. */
@@ -230,10 +231,23 @@ export function LayoutProvider({ children, nav = true }: { children: React.React
 		setDrawerOpen(false);
 	}, [compact]);
 
+	/*
+	 * The gallery has no use for the conversation list. It is a place of its own — the pictures from
+	 * every conversation at once — and the list beside it only narrowed the album. Going there folds the
+	 * sidebar away and coming back unfolds it as it was; the toggle still opens it there, for that visit
+	 * only, without deciding how every other view looks.
+	 */
+	const gallery = useApp((state) => state.view === "gallery");
+	const [galleryNav, setGalleryNav] = useState(false);
+	useEffect(() => {
+		if (!gallery) setGalleryNav(false);
+	}, [gallery]);
+
 	const toggleNav = useCallback(() => {
 		if (compact) setDrawerOpen((open) => !open);
+		else if (gallery) setGalleryNav((open) => !open);
 		else setPushOpen((open) => !open);
-	}, [compact]);
+	}, [compact, gallery]);
 
 	const dismissNav = useCallback(() => {
 		if (compact) setDrawerOpen(false);
@@ -241,8 +255,9 @@ export function LayoutProvider({ children, nav = true }: { children: React.React
 
 	const collapseNav = useCallback(() => {
 		if (compact) setDrawerOpen(false);
+		else if (gallery) setGalleryNav(false);
 		else setPushOpen(false);
-	}, [compact]);
+	}, [compact, gallery]);
 
 	/*
 	 * The phone's two additions to the shell, mounted here because this is where the drawer's state
@@ -257,7 +272,7 @@ export function LayoutProvider({ children, nav = true }: { children: React.React
 			compact,
 			wide: mode === "wide",
 			width,
-			navOpen: compact ? drawerOpen : pushOpen,
+			navOpen: compact ? drawerOpen : gallery ? galleryNav : pushOpen,
 			hasNav: nav,
 			nativeFullScreen,
 			headerBar,
@@ -279,6 +294,8 @@ export function LayoutProvider({ children, nav = true }: { children: React.React
 			width,
 			drawerOpen,
 			pushOpen,
+			gallery,
+			galleryNav,
 			nav,
 			nativeFullScreen,
 			headerBar,

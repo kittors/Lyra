@@ -99,6 +99,14 @@ export interface ImageGenerationDetails {
 	/** Pictures went in: this was an edit. */
 	edit: boolean;
 	/**
+	 * The pictures that went in, by `session-media` name, in the order they were given.
+	 *
+	 * What makes a picture's history drawable in the gallery: the dog, the dog in a hat, the girl
+	 * holding it. Absent on results written before it existed; those are traced back from the call's
+	 * own `#1`/path arguments instead (`lineage.ts`).
+	 */
+	sources?: string[];
+	/**
 	 * The shape the picture will most likely come back in, when none was asked for: an edit keeps
 	 * the shape of the picture it starts from. Width over height.
 	 *

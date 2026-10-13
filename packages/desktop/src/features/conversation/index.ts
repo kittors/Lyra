@@ -26,5 +26,7 @@ export { announceUndo, useDeliveryUndos } from "./delivery-undo.ts";
 export { usePathMenu } from "./PathMenu.tsx";
 export { TraceText } from "./detail/TraceText.tsx";
 export { showTrace } from "./trajectory/navigation.ts";
+/* 画廊里点「在对话中查看」：那个对话一读完，就把那张图滚到中间、闪一下。 */
+export { revealDrawing } from "./reveal.ts";
 export { Conversation, ConversationSkeleton } from "./Conversation.tsx";
 export { EmptyState } from "./EmptyState.tsx";

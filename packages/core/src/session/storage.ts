@@ -69,4 +69,11 @@ export interface SessionStorage extends Partial<PartialSink> {
 	activeDays?(): Promise<ActiveDay[]>;
 	/** Bytes each session's records take. */
 	sizes?(): Promise<Record<string, number>>;
+	/**
+	 * Sessions with a result of this tool among their messages, and how far each has been written.
+	 *
+	 * A prefilter on the text of the records: a result that was later voided still counts, so a caller
+	 * loads each session to see what is really there, and `seq` says when that is worth doing again.
+	 */
+	sessionsWithResultOf?(toolName: string): Promise<{ id: string; seq: number }[]>;
 }

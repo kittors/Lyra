@@ -114,3 +114,13 @@ test("正文里的标记决定附件插在句子的哪一处", async () => {
 	 */
 	assert.equal(outgoing.displayText, text, "气泡里那句话还认得出它说的是哪一个附件");
 });
+
+test("标注过的图带着它是从哪张图标注来的，别的图不带", async () => {
+	const from = `${"a".repeat(40)}.jpg`;
+	const outgoing = await buildOutgoing(draft("照标注改", [{ ...png, name: "标注图.png", markedFrom: from }, png]), "/tmp");
+	const images = outgoing?.content.filter((block) => block.type === "image") ?? [];
+	assert.deepEqual(
+		images.map((block) => (block as { from?: string }).from),
+		[from, undefined],
+	);
+});

@@ -166,6 +166,14 @@ test("a finished turn is not offering to be resumed", () => {
 	assert.equal(howItStopped([asked, reply("stop")], "done"), null);
 });
 
+test("a turn the provider refused on content offers no carrying on — it would be refused again", () => {
+	const refused = { ...reply("error", "The prompt could not be submitted."), failure: { kind: "fatal" as const, summary: "内容被安全策略拒绝", hint: "blocked" as const } };
+	assert.equal(howItStopped([asked, refused], "error"), null);
+	assert.equal(carryOnPrompt(howItStopped([asked, refused]), 0), null);
+	// Any other failure still leaves the turn to be carried on once the trouble is gone.
+	assert.equal(howItStopped([asked, reply("error")], "error"), "error");
+});
+
 test("pressing stop mid-sentence is a pause, not an interruption", () => {
 	/*
 	 * The case the whole thing was written for. `settleTail` has just marked the reply `aborted`,
