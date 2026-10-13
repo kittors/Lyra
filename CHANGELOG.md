@@ -5,6 +5,135 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.27](https://github.com/kittors/Lyra/releases/tag/v0.9.27) - 2026-10-13
+<!-- lyra:notes en -->
+
+### New features
+
+- **Gallery: every picture from every conversation in one place.** Gallery sits under Plugins in the bar on the left. Pictures are grouped by day and shown at their own shape — a 16:9 picture is not cropped into a square. Hover one to see what you asked for; search by what you said, the prompt, or the conversation's name. The conversation list folds away while you are in the gallery and comes back when you leave.
+- **Open a picture to see how it got there.** Beside it is its history, from the first picture to this one: every step shows what you said at the time, and the steps are joined by a line. When one picture was changed in two directions, the other branch is listed whole further down, with a bracket on the left leading back to the picture it came from; the way to the picture you are looking at is drawn in blue. Pictures drawn before this version never recorded which picture each edit started from — their history is worked out from the #1 and #2 they were asked with.
+- **Back to where it was drawn.** Show in conversation opens that conversation, scrolls to the picture and flashes its frame.
+- **Change a picture without leaving the gallery.** Type what to change under the picture and press Enter: it goes to the picture's conversation with the picture attached, and when the new one is drawn the gallery opens on it. You can circle things with the pen first; that marked-up step shows in the history too.
+
+### Improvements & Fixes
+
+- **A refused prompt is no longer retried over and over.** When Gemini refused a request through a relay ("The prompt could not be submitted … Generative AI Prohibited Use policy"), Lyra called it a server fault and asked again every 5 seconds, getting the same refusal each time until you pressed stop. It now asks once, says the provider's safety policy refused it, and the message box no longer offers Continue — that would only be refused again.
+- **When the image model refuses, the card says so.** A refusal used to read as "The picture didn't come through". The card now says the request was refused under the content policy, and that sending it again unchanged will be refused too.
+
+<!-- lyra:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 新功能
+
+- **画廊：所有对话里画过的图都在一个地方。** 左边图标栏「插件」下面多了「画廊」。图按天排开，按自己的比例显示，16:9 的图不会被裁成方块；悬停能看到当时说的那句话，可以按说过的话、提示词或对话名搜索。进画廊时会话列表自动收起，回到对话再展开。
+- **点开一张图，看它是怎么一步步改成这样的。** 右边是它的生成链路：从第一张起，每一步写着你当时说的话，上下两步用线连着。同一张图往两个方向改过的，另一条分支整段列在后面，用左边的括线接回它是从哪张分出来的；这张图自己的来路用蓝色标出。这个版本之前画的图没有记下每次改的是哪张，链路按当时用的 #1、#2 倒推出来。
+- **回到画出它的地方。** 「在对话中查看」打开那个对话，滚到这张图，图框闪一下。
+- **不出画廊就能再改一次。** 在图下面写一句要怎么改、回车，就带着这张图发回它所在的对话；画好以后回到画廊，直接停在新图上。也可以先用笔在图上圈出来，标注的那一步同样会出现在链路里。
+
+### 优化与修复
+
+- **服务商拒绝的内容，不再一直重试。** Gemini 经中转拒绝一条请求时（「The prompt could not be submitted … Generative AI Prohibited Use policy」），Lyra 把它当成「服务端故障」，每 5 秒再问一次，每次收到同一段拒绝，直到手动停止。现在只问一次，直接说明是被服务商的安全策略拒绝；输入框也不再给「继续」——按下去只会被再拒一次。
+- **生图模型拒绝时，卡片会说清楚。** 以前被拒只显示「图片没有生成出来」；现在写的是这次请求被内容安全策略拒绝了，并提示同样的请求再发也会被拒。
+
+</details>
+
+<!-- lyra:notes zh-TW -->
+
+<details>
+<summary>中文（繁體）</summary>
+
+### 新功能
+
+- **畫廊：所有對話裡畫過的圖都在同一個地方。** 左側圖示列「外掛」下面多了「畫廊」。圖片依日期排列，照自己的比例顯示，16:9 的圖不會被裁成方塊；滑鼠移上去能看到當時說的那句話，也能依說過的話、提示或對話名稱搜尋。進入畫廊時對話清單會自動收起，回到對話再展開。
+- **點開一張圖，看它是怎麼一步步改成這樣的。** 右邊是它的生成歷程：從第一張開始，每一步寫著你當時說的話，上下兩步用線連起來。同一張圖往兩個方向改過的，另一條分支整段列在後面，用左側的括線接回它是從哪張分出來的；這張圖自己的來路以藍色標示。這個版本之前畫的圖沒有記下每次改的是哪一張，歷程是依當時用的 #1、#2 倒推出來的。
+- **回到畫出它的地方。** 「在對話中查看」會打開那個對話、捲到這張圖，圖框閃一下。
+- **不離開畫廊就能再改一次。** 在圖下方寫一句要怎麼改、按 Enter，就會帶著這張圖傳回它所在的對話；畫好之後回到畫廊，會直接停在新圖上。也可以先用筆在圖上圈出來，標註的那一步同樣會出現在歷程裡。
+
+### 最佳化與修復
+
+- **服務商拒絕的內容，不再一直重試。** Gemini 經中轉拒絕一則請求時（「The prompt could not be submitted … Generative AI Prohibited Use policy」），Lyra 把它當成「伺服器端故障」，每 5 秒再問一次，每次都收到同一段拒絕，直到手動停止。現在只問一次，直接說明是被服務商的安全政策拒絕；輸入框也不再提供「繼續」——按下去只會再被拒絕一次。
+- **生圖模型拒絕時，卡片會說清楚。** 以前被拒只顯示「圖片沒有產生出來」；現在會寫這次請求被內容安全政策拒絕了，並提醒同樣的請求再送一次也會被拒。
+
+</details>
+
+<!-- lyra:notes ja -->
+
+<details>
+<summary>日本語</summary>
+
+### 新機能
+
+- **ギャラリー：どの会話で描いた画像もここにまとまります。** 左のアイコン列の「プラグイン」の下に「ギャラリー」を追加しました。画像は日付ごとに並び、それぞれの縦横比のまま表示されます（16:9 の画像が正方形に切り取られることはありません）。ポインターを合わせると頼んだときの言葉が見え、言葉・プロンプト・会話名で検索できます。ギャラリーにいる間は会話一覧がしまわれ、会話に戻ると元に戻ります。
+- **画像を開くと、そこに至るまでの流れが見えます。** 横に生成履歴が並びます。最初の 1 枚からこの画像まで、各ステップにそのとき言ったことが書かれ、線でつながっています。同じ画像を 2 通りに直した場合は、もう一方の枝がまとめて下に並び、左側の括弧線で元の画像につながります。いま見ている画像までの道のりは青で示されます。このバージョンより前に描いた画像は「どの画像を直したか」を記録していなかったため、そのとき使われた #1・#2 からたどり直しています。
+- **描いた場所へ戻れます。** 「会話で表示」でその会話が開き、画像までスクロールして枠が一度光ります。
+- **ギャラリーから離れずに描き直せます。** 画像の下に直したい内容を書いて Enter を押すと、その画像を添えて元の会話に送られます。描き終わってギャラリーに戻ると、新しい画像が開いた状態になっています。先にペンで画像に印をつけることもでき、その注釈のステップも履歴に残ります。
+
+### 改善と修正
+
+- **拒否された内容を何度も再試行しなくなりました。** 中継サーバー経由の Gemini がリクエストを拒否したとき（「The prompt could not be submitted … Generative AI Prohibited Use policy」）、Lyra はそれを「サーバー側の障害」と見なして 5 秒ごとに問い直し、止めるまで同じ拒否文を受け取り続けていました。今は 1 回だけ問い合わせ、プロバイダの安全ポリシーで拒否されたことをそのまま伝えます。入力欄にも「続ける」は出なくなりました。押しても同じように拒否されるだけだからです。
+- **画像モデルが拒否したとき、カードにそう表示されます。** これまでは「画像を生成できませんでした」とだけ出ていました。今はコンテンツポリシーで拒否されたこと、同じ内容で送り直しても拒否されることを表示します。
+
+</details>
+
+<!-- lyra:notes ko -->
+
+<details>
+<summary>한국어</summary>
+
+### 새 기능
+
+- **갤러리: 모든 대화에서 그린 이미지를 한곳에서.** 왼쪽 아이콘 막대의 '플러그인' 아래에 '갤러리'가 생겼습니다. 이미지는 날짜별로 묶이고 각자의 비율 그대로 보입니다. 16:9 이미지가 정사각형으로 잘리지 않습니다. 마우스를 올리면 그때 요청한 말이 보이고, 한 말·프롬프트·대화 이름으로 검색할 수 있습니다. 갤러리에 있는 동안에는 대화 목록이 접히고, 대화로 돌아가면 다시 펼쳐집니다.
+- **이미지를 열면 어떻게 여기까지 왔는지 보입니다.** 옆에 생성 기록이 나옵니다. 첫 이미지부터 지금 이미지까지 단계마다 그때 한 말이 적혀 있고, 단계 사이가 선으로 이어집니다. 같은 이미지를 두 방향으로 고친 경우 다른 갈래는 아래에 통째로 나오고, 왼쪽의 괄호 선이 어느 이미지에서 갈라졌는지 이어 줍니다. 지금 보는 이미지까지의 경로는 파란색으로 표시됩니다. 이 버전 이전에 그린 이미지는 어느 이미지를 고쳤는지 기록되지 않았기 때문에, 그때 쓰인 #1·#2로 거슬러 올라가 기록을 만듭니다.
+- **그려진 자리로 돌아가기.** '대화에서 보기'를 누르면 그 대화가 열리고 이미지까지 스크롤된 뒤 테두리가 한 번 반짝입니다.
+- **갤러리를 떠나지 않고 다시 고치기.** 이미지 아래에 바꿀 내용을 적고 Enter를 누르면 그 이미지를 첨부해 원래 대화로 보냅니다. 새 이미지가 그려진 뒤 갤러리로 돌아오면 새 이미지가 바로 열려 있습니다. 먼저 펜으로 이미지에 표시를 해도 되며, 그 주석 단계도 기록에 남습니다.
+
+### 개선 및 수정
+
+- **거부된 내용을 계속 다시 시도하지 않습니다.** 중계 서버를 거친 Gemini가 요청을 거부했을 때('The prompt could not be submitted … Generative AI Prohibited Use policy'), Lyra는 이를 '서버 오류'로 보고 5초마다 다시 물었고, 멈출 때까지 같은 거부 문구를 받았습니다. 이제는 한 번만 묻고, 제공자의 안전 정책에 따라 거부되었다고 바로 알려 줍니다. 입력창에도 '계속'이 나오지 않습니다. 눌러 봐야 다시 거부될 뿐이니까요.
+- **이미지 모델이 거부하면 카드에 그렇게 표시됩니다.** 전에는 '이미지가 만들어지지 않았습니다'라고만 나왔습니다. 이제는 콘텐츠 정책에 따라 거부되었고, 같은 요청을 그대로 다시 보내도 거부된다고 알려 줍니다.
+
+</details>
+
+<!-- lyra:notes fr -->
+
+<details>
+<summary>Français</summary>
+
+### Nouveautés
+
+- **Galerie : toutes les images de toutes les conversations au même endroit.** La Galerie se trouve sous Extensions, dans la barre de gauche. Les images y sont groupées par jour et gardent leur format : une image en 16:9 n’est plus rognée en carré. Au survol, on voit ce que vous aviez demandé ; la recherche porte sur vos messages, les invites et le nom des conversations. La liste des conversations se replie tant que vous êtes dans la Galerie et revient quand vous en sortez.
+- **Ouvrez une image pour voir comment elle est née.** À côté s’affiche son histoire, de la première image jusqu’à celle-ci : chaque étape reprend ce que vous aviez dit, et un trait relie les étapes. Si une même image a été modifiée dans deux directions, l’autre branche est listée en entier plus bas, reliée par une accolade à gauche à l’image dont elle part ; le chemin qui mène à l’image affichée est tracé en bleu. Les images dessinées avant cette version n’avaient pas gardé trace de l’image de départ de chaque retouche : leur histoire est reconstituée à partir des #1 et #2 utilisés à ce moment-là.
+- **Retour à l’endroit où elle a été dessinée.** « Voir dans la conversation » ouvre la conversation, défile jusqu’à l’image et fait clignoter son cadre.
+- **Retoucher une image sans quitter la Galerie.** Écrivez sous l’image ce qu’il faut changer et appuyez sur Entrée : la demande part dans la conversation de l’image, image jointe, et la Galerie s’ouvre sur la nouvelle image une fois dessinée. Vous pouvez d’abord entourer des zones au stylo ; cette étape d’annotation apparaît aussi dans l’histoire.
+
+### Améliorations et corrections
+
+- **Une demande refusée n’est plus relancée en boucle.** Quand Gemini refusait une demande via un relais (« The prompt could not be submitted … Generative AI Prohibited Use policy »), Lyra y voyait une panne du serveur et redemandait toutes les 5 secondes, recevant le même refus jusqu’à ce que vous arrêtiez. Désormais, une seule demande est envoyée, le refus par la politique de sécurité du fournisseur est indiqué tel quel, et la zone de saisie ne propose plus Continuer — ce serait refusé à nouveau.
+- **Quand le modèle d’images refuse, la carte le dit.** Elle affichait seulement que l’image n’avait pas pu être créée ; elle indique maintenant que la demande a été refusée par la politique de contenu, et que la renvoyer telle quelle sera refusé aussi.
+
+</details>
+
+<!-- lyra:notes ru -->
+
+<details>
+<summary>Русский</summary>
+
+### Новое
+
+- **Галерея: все картинки из всех разговоров в одном месте.** Галерея появилась в левой панели, под «Плагинами». Картинки сгруппированы по дням и показаны в своих пропорциях — картинку 16:9 больше не обрезает до квадрата. При наведении видно, что вы тогда просили; искать можно по своим словам, запросу или названию разговора. Пока вы в галерее, список разговоров свёрнут, а при возврате снова открывается.
+- **Откройте картинку — и увидите, как она получилась.** Рядом показана её история: от первой картинки до этой, у каждого шага — то, что вы тогда сказали, шаги соединены линией. Если одну картинку меняли двумя способами, вторая ветка целиком идёт ниже, а скобка слева ведёт к картинке, от которой она пошла; путь к открытой картинке выделен синим. Картинки, нарисованные до этой версии, не запоминали, с какой картинки начиналась правка, — их история восстановлена по #1 и #2, с которыми их просили.
+- **Назад туда, где картинка была нарисована.** «Показать в разговоре» открывает разговор, прокручивает к картинке и подсвечивает её рамку.
+- **Переделать картинку, не выходя из галереи.** Напишите под картинкой, что изменить, и нажмите Enter: просьба уйдёт в разговор с этой картинкой во вложении, а когда новая будет готова, галерея откроется на ней. Можно сначала обвести нужное пером — шаг с разметкой тоже попадёт в историю.
+
+### Улучшения и исправления
+
+- **Отклонённый запрос больше не повторяется по кругу.** Когда Gemini через ретранслятор отклонял запрос («The prompt could not be submitted … Generative AI Prohibited Use policy»), Lyra считала это сбоем сервера и спрашивала заново каждые 5 секунд, получая тот же отказ, пока вы не нажимали стоп. Теперь запрос отправляется один раз, Lyra сразу сообщает, что его отклонили правила безопасности поставщика, а поле ввода больше не предлагает «Продолжить» — это закончилось бы тем же отказом.
+- **Если модель картинок отказала, карточка так и говорит.** Раньше она писала только, что картинка не получилась; теперь — что запрос отклонён правилами о содержимом и повторная отправка без изменений тоже будет отклонена.
+
+</details>
+
 ## [0.9.26](https://github.com/kittors/Lyra/releases/tag/v0.9.26) - 2026-10-12
 <!-- lyra:notes en -->
 
