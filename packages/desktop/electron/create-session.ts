@@ -8,6 +8,8 @@ export interface InitialPrompt {
 	skillRef?: { name: string; path?: string; pluginId?: string };
 	sessionRefs?: Array<{ id: string; title: string }>;
 	attachments?: MessageAttachment[];
+	/** Run this conversation in a worktree of its own, or not. Absent follows `worktrees.autoCreateOnNewSession`. */
+	worktree?: boolean;
 }
 
 /** Persist identity, title and the submitted message without starting MCP, Git or a provider. */
@@ -39,11 +41,13 @@ export async function createStoredSession(
 			]
 		: [];
 	for (const message of messages) meta = (await store.append(meta, { type: "message", message })) ?? meta;
-	if (initial || settings.worktrees?.autoCreateOnNewSession) {
+	// The choice made for this conversation, where one was; the setting is only the default it starts from.
+	const worktree = initial?.worktree ?? Boolean(settings.worktrees?.autoCreateOnNewSession);
+	if (initial || worktree) {
 		meta = (await store.append(meta, { type: "meta", meta: {
 			...meta,
 			...(initial ? { pendingPrompt: true } : {}),
-			...(settings.worktrees?.autoCreateOnNewSession ? { workspaceSetup: "worktree" } : {}),
+			...(worktree ? { workspaceSetup: "worktree" } : {}),
 		} })) ?? meta;
 	}
 	return { meta, messages, running: Boolean(initial), pendingApprovals: [] };

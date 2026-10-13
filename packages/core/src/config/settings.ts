@@ -498,9 +498,9 @@ export interface Settings {
 	sessionOrder?: Record<string, string[]>;
 	/** Worktrees configuration and auto-cleanup preferences. */
 	worktrees?: {
-		/** Managed worktrees root directory. Defaults to ~/.lyra/worktrees or sibling directory if empty. */
+		/** Where conversations' worktrees are made. Empty means `~/.lyra/worktrees` — never beside the project (`autoCreateSessionWorktree`). */
 		rootDir?: string;
-		/** Automatically create a dedicated worktree when starting a new session. */
+		/** Whether a new conversation starts in a worktree of its own unless told otherwise: the default the composer's toggle starts from. */
 		autoCreateOnNewSession?: boolean;
 		/** Automatically fetch upstream remotes before creating a worktree. */
 		fetchUpstreamBeforeCreate?: boolean;

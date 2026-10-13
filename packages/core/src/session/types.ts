@@ -25,6 +25,16 @@ export interface SessionMeta {
 	/** Desktop workspace preparation is deferred until execution, never transcript reading. */
 	workspaceSetup?: "worktree";
 	/**
+	 * The git worktree this conversation was given, once it has one: `cwd` is then the worktree, and
+	 * `project` the checkout it was made from.
+	 *
+	 * Kept because nothing else says so. Every list groups by `cwd`, and a worktree's path belongs to
+	 * no registered project — so each conversation run in one opened a group of its own, under the
+	 * project's name again, and moved there the moment its worktree was made. Whatever asks which
+	 * project a conversation is in asks this first (`sessionHome` on the desktop).
+	 */
+	worktree?: { project: string; branch: string };
+	/**
 	 * How many messages were already written when the model was last changed mid-conversation.
 	 *
 	 * Everything before this index was produced by a different model, and carries that provider's

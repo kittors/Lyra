@@ -127,6 +127,7 @@ const zhCN = {
 	"update.noAppInPackage": "下载的更新包里没有找到应用",
 	"update.cannotOpenInstaller": "无法打开安装包：{reason}",
 	"update.installFailedPlain": "安装失败",
+	"worktree.notCreated": "没能给这个会话建出自己的工作树，这次就在项目目录里改。原因：{reason}",
 } as const;
 
 export type NativeMessageKey = keyof typeof zhCN;
@@ -237,6 +238,7 @@ export const NATIVE_CATALOGS: Record<NativeLocale, NativeCatalog> = {
 		"update.noAppInPackage": "下載的更新檔裡沒有找到應用程式",
 		"update.cannotOpenInstaller": "無法開啟安裝檔：{reason}",
 		"update.installFailedPlain": "安裝失敗",
+		"worktree.notCreated": "沒能為這個對話建立自己的工作樹，這次就在專案目錄裡修改。原因：{reason}",
 	},
 	en: {
 		"tray.show": "Open Lyra", "tray.hide": "Hide Lyra", "tray.newChat": "New chat", "tray.recent": "Recent chats", "tray.noChats": "No chats yet", "tray.pullRequests": "Pull requests", "tray.scheduled": "Scheduled", "tray.settings": "Settings…", "tray.updates": "Check for updates…", "tray.launchAtLogin": "Launch at login", "tray.quit": "Quit Lyra", "dialog.projectDirectory": "Choose project folder", "dialog.screenshotDirectory": "Choose screenshot folder",
@@ -338,6 +340,7 @@ export const NATIVE_CATALOGS: Record<NativeLocale, NativeCatalog> = {
 		"update.noAppInPackage": "The downloaded update has no app in it",
 		"update.cannotOpenInstaller": "Could not open the installer: {reason}",
 		"update.installFailedPlain": "The installation failed",
+		"worktree.notCreated": "Couldn't make a worktree for this conversation, so it is working in the project folder itself. Reason: {reason}",
 	},
 	fr: {
 		"tray.show": "Ouvrir Lyra", "tray.hide": "Masquer Lyra", "tray.newChat": "Nouvelle discussion", "tray.recent": "Discussions récentes", "tray.noChats": "Aucune discussion", "tray.pullRequests": "Demandes de fusion", "tray.scheduled": "Planifiées", "tray.settings": "Réglages…", "tray.updates": "Rechercher des mises à jour…", "tray.launchAtLogin": "Ouvrir à la connexion", "tray.quit": "Quitter Lyra", "dialog.projectDirectory": "Choisir le dossier du projet", "dialog.screenshotDirectory": "Choisir le dossier des captures",
@@ -439,6 +442,7 @@ export const NATIVE_CATALOGS: Record<NativeLocale, NativeCatalog> = {
 		"update.noAppInPackage": "Le paquet de mise à jour téléchargé ne contient pas l’application",
 		"update.cannotOpenInstaller": "Impossible d’ouvrir le paquet d’installation : {reason}",
 		"update.installFailedPlain": "L’installation a échoué",
+		"worktree.notCreated": "Impossible de créer un worktree pour cette conversation : elle travaille donc directement dans le dossier du projet. Raison : {reason}",
 	},
 	ru: {
 		"tray.show": "Открыть Lyra", "tray.hide": "Скрыть Lyra", "tray.newChat": "Новый чат", "tray.recent": "Недавние чаты", "tray.noChats": "Чатов пока нет", "tray.pullRequests": "Запросы на слияние", "tray.scheduled": "Запланировано", "tray.settings": "Настройки…", "tray.updates": "Проверить обновления…", "tray.launchAtLogin": "Запускать при входе", "tray.quit": "Выйти из Lyra", "dialog.projectDirectory": "Выберите папку проекта", "dialog.screenshotDirectory": "Выберите папку для снимков",
@@ -540,6 +544,7 @@ export const NATIVE_CATALOGS: Record<NativeLocale, NativeCatalog> = {
 		"update.noAppInPackage": "В загруженном пакете обновления нет приложения",
 		"update.cannotOpenInstaller": "Не удалось открыть установочный пакет: {reason}",
 		"update.installFailedPlain": "Установка не удалась",
+		"worktree.notCreated": "Не удалось создать для этой беседы отдельное рабочее дерево, поэтому она работает прямо в папке проекта. Причина: {reason}",
 	},
 	ko: {
 		"tray.show": "Lyra 열기", "tray.hide": "Lyra 숨기기", "tray.newChat": "새 대화", "tray.recent": "최근 대화", "tray.noChats": "아직 대화가 없습니다", "tray.pullRequests": "Pull request", "tray.scheduled": "예약됨", "tray.settings": "설정…", "tray.updates": "업데이트 확인…", "tray.launchAtLogin": "로그인할 때 실행", "tray.quit": "Lyra 종료", "dialog.projectDirectory": "프로젝트 폴더 선택", "dialog.screenshotDirectory": "스크린샷 저장 폴더 선택",
@@ -641,6 +646,7 @@ export const NATIVE_CATALOGS: Record<NativeLocale, NativeCatalog> = {
 		"update.noAppInPackage": "내려받은 업데이트 파일에 앱이 없습니다",
 		"update.cannotOpenInstaller": "설치 파일을 열 수 없습니다: {reason}",
 		"update.installFailedPlain": "설치에 실패했습니다",
+		"worktree.notCreated": "이 대화를 위한 워크트리를 만들지 못해 이번에는 프로젝트 폴더에서 바로 작업합니다. 이유: {reason}",
 	},
 	ja: {
 		"tray.show": "Lyra を開く", "tray.hide": "Lyra を隠す", "tray.newChat": "新しい会話", "tray.recent": "最近の会話", "tray.noChats": "会話はまだありません", "tray.pullRequests": "プルリクエスト", "tray.scheduled": "予約済み", "tray.settings": "設定…", "tray.updates": "アップデートを確認…", "tray.launchAtLogin": "ログイン時に起動", "tray.quit": "Lyra を終了", "dialog.projectDirectory": "プロジェクトフォルダーを選択", "dialog.screenshotDirectory": "スクリーンショットの保存先を選択",
@@ -742,6 +748,7 @@ export const NATIVE_CATALOGS: Record<NativeLocale, NativeCatalog> = {
 		"update.noAppInPackage": "ダウンロードしたアップデートにアプリが入っていません",
 		"update.cannotOpenInstaller": "インストーラーを開けませんでした：{reason}",
 		"update.installFailedPlain": "インストールに失敗しました",
+		"worktree.notCreated": "この会話用のワークツリーを作れなかったため、今回はプロジェクトのフォルダーで直接作業します。理由：{reason}",
 	},
 };
 

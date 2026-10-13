@@ -353,7 +353,8 @@ export interface LyraApi {
 	sessions: {
 		onChanged(handler: (change: SessionChange) => void): () => void;
 		list(): Promise<SessionMeta[]>;
-		create(cwd: string, modelId: string, initial?: { content: UserContent[]; synthetic?: boolean; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[] }): Promise<SessionSnapshot>;
+		/** `initial.worktree`: this conversation in a worktree of its own, or not; absent follows the setting. */
+		create(cwd: string, modelId: string, initial?: { content: UserContent[]; synthetic?: boolean; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[]; worktree?: boolean }): Promise<SessionSnapshot>;
 		/** Start the agent for this session — skills, MCP servers, the lot. For running things. */
 		open(projectId: string, sessionId: string): Promise<SessionSnapshot | null>;
 		/**

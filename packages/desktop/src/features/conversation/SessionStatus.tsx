@@ -3,6 +3,7 @@ import { translate } from "../../i18n/translate.ts";
 import type { SessionActivity } from "@lyra/core/activity";
 
 import { BreatheLoader } from "../../ui/motion/loaders.tsx";
+import { GitFork } from "lucide-react";
 
 /** Keys, looked up when the row is drawn — this table is built at import time. */
 const LABEL: Record<SessionActivity, MessageKey> = {
@@ -24,15 +25,20 @@ const LABEL: Record<SessionActivity, MessageKey> = {
  * Idle keeps its place rather than collapsing. Every row reserves the same width whatever its
  * state, so titles line up as a column and a mark appearing does not shove one sideways; the
  * faint ring standing in for "nothing" is quiet enough to read as part of the rule.
+ *
+ * A conversation in a worktree of its own (`worktree`, its branch) says so in that idle place, with
+ * the fork the composer's toggle uses — the one thing about it a title cannot. What it is doing
+ * still comes first: a running or waiting conversation shows that, as any other does.
  */
-export function SessionStatus({ activity }: { activity: SessionActivity | null }) {
+export function SessionStatus({ activity, worktree }: { activity: SessionActivity | null; worktree?: string }) {
+	const tip = activity ? translate(LABEL[activity]) : worktree ? translate("sidebar.inWorktree", { branch: worktree }) : undefined;
 	return (
 		<span
 			className="relative flex h-3.5 w-3.5 shrink-0 items-center justify-center overflow-visible"
-			data-ly-tip={activity ? translate(LABEL[activity]) : undefined}
+			data-ly-tip={tip}
 			data-ly-tip-side="right"
-			aria-label={activity ? translate(LABEL[activity]) : undefined}
-			role={activity ? "img" : undefined}
+			aria-label={tip}
+			role={tip ? "img" : undefined}
 		>
 			{activity === "running" ? (
 				/*
@@ -48,6 +54,8 @@ export function SessionStatus({ activity }: { activity: SessionActivity | null }
 				<span data-ly-status-mark="running">
 					<BreatheLoader size={12} />
 				</span>
+			) : !activity && worktree ? (
+				<GitFork data-ly-status-mark="worktree" size={11} strokeWidth={2.1} className="text-ink-faint" aria-hidden />
 			) : (
 				/*
 				 * One 7px disc, four paints. Switching a finished conversation in used to swap a

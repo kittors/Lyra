@@ -5,6 +5,7 @@ import { Camera, ChevronDown, CircleAlert, Folder, GitBranch, MessageSquare, Plu
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { motionReduced } from "../../ui/motion/reduced.ts";
 import { ChangeBar } from "../git/index.ts";
+import { WorktreeToggle } from "./WorktreeToggle.tsx";
 import { CommandMenu } from "./CommandMenu.tsx";
 import { QueuedMessages } from "./QueuedMessages.tsx";
 import { buildOutgoing, queuePreview, queueThumbnail } from "./outgoing.ts";
@@ -127,6 +128,14 @@ export function Composer({ centered = false }: {
 
 	const savedDraft = useApp((s) => s.drafts[draftKey]);
 	const setDraft = useApp((s) => s.setDraft);
+	/*
+	 * Whether this new conversation gets a worktree of its own (`WorktreeToggle`), held against the
+	 * draft it was chosen for: another blank conversation, or this one moved to another project, starts
+	 * again from the setting.
+	 */
+	const offersWorktree = activeSessionId === null && Boolean(workspace?.isGitRepo);
+	const [worktreePick, setWorktreePick] = useState<{ draft: string; on: boolean } | null>(null);
+	const inWorktree = worktreePick?.draft === draftKey ? worktreePick.on : Boolean(settings?.worktrees?.autoCreateOnNewSession);
 
 	const [text, setText] = useState(() => savedDraft?.text ?? "");
 	const [sessionRefs, setSessionRefs] = useState<Array<{ id: string; title: string }>>(() => savedDraft?.sessionRefs ?? []);
@@ -484,6 +493,7 @@ export function Composer({ centered = false }: {
 			...(outgoing.skillRef ? { skillRef: outgoing.skillRef } : {}),
 			...(outgoing.sessionRefs?.length ? { sessionRefs: outgoing.sessionRefs } : {}),
 			...(outgoing.attachments?.length ? { attachments: outgoing.attachments } : {}),
+			...(offersWorktree ? { worktree: inWorktree } : {}),
 			sessionId: activeSessionId,
 		});
 		if (!accepted) {
@@ -647,6 +657,7 @@ export function Composer({ centered = false }: {
 								active={branchMenu.open}
 							/>
 						)}
+						{offersWorktree && <WorktreeToggle on={inWorktree} onChange={(on) => setWorktreePick({ draft: draftKey, on })} />}
 						<div className="min-w-2 flex-1" />
 						<ChangeBar />
 					</div>

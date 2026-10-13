@@ -181,3 +181,31 @@ test("the level a new chat started with stays when the next new chat moves the d
 		assert.equal(sessionThinking(reloaded?.meta, medium), "high", "输入框那枚标签读到的也是");
 	} finally { await rm(root, { recursive: true, force: true }); }
 });
+
+/*
+ * 「这次用不用工作树」是这一个会话的事：设置只是它起步的默认值。
+ *
+ * 从前只有设置一个开关，开着就每个新会话都建、关着就一个都不建，想单独给某一个会话建都做不到。
+ */
+test("这一次的选择盖过全局开关：开着的设置可以不要，关着的设置可以要", async () => {
+	const root = await mkdtemp(join(tmpdir(), "lyra-choose-"));
+	try {
+		const store = new SessionStore(join(root, "sessions"));
+		const content = promptContent([{ type: "text", text: "这次怎么跑" }]);
+		const on = { ...DEFAULT_SETTINGS, worktrees: { autoCreateOnNewSession: true } };
+		const off = { ...DEFAULT_SETTINGS, worktrees: { autoCreateOnNewSession: false } };
+		assert.equal((await createStoredSession(store, off, root, "", { content, worktree: true })).meta.workspaceSetup, "worktree");
+		assert.equal((await createStoredSession(store, on, root, "", { content, worktree: false })).meta.workspaceSetup, undefined);
+		assert.equal((await createStoredSession(store, on, root, "", { content })).meta.workspaceSetup, "worktree");
+		assert.equal((await createStoredSession(store, off, root, "", { content })).meta.workspaceSetup, undefined);
+	} finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("工作树的选择穿过首条消息的白名单，手机那一路也一样；不是布尔就拒", () => {
+	const content = [{ type: "text", text: "x" }];
+	assert.equal(initialPrompt({ content, worktree: true })?.worktree, true);
+	assert.equal(initialPrompt({ content, worktree: false })?.worktree, false);
+	assert.equal(Object.hasOwn(initialPrompt({ content }) ?? {}, "worktree"), false, "absent stays absent, so the setting decides");
+	assert.equal(initialPrompt({ content, worktree: true }, "remote")?.worktree, true);
+	assert.throws(() => initialPrompt({ content, worktree: "yes" }), /worktree/);
+});

@@ -18,6 +18,7 @@ import { loadCarried } from "./turn-meter.ts";
 import { flushCoalesced } from "./coalesce.ts";
 import { readSelectedSession, restoreLiveState } from "./session-read.ts";
 import { isProjectLess } from "../lib/project-scope.ts";
+import { projectWorkspace, sessionWorkspace } from "./session-workspace.ts";
 
 type Get = () => AppState;
 type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void;
@@ -80,6 +81,7 @@ export function sessionSlice(set: Set, get: Get) {
       return;
     }
     const previous = get();
+    const left = previous.workspace;
     if (previous.meta && previous.activeSessionId && !previous.loadingSession) {
       set({ sessionCache: prune({
         ...without(previous.sessionCache, previous.activeSessionId),
@@ -97,6 +99,8 @@ export function sessionSlice(set: Set, get: Get) {
       ...blankSlot(get),
       // A new blank conversation starts in the project that is open, not in one a screen parked.
       parkedDraft: null,
+      // Its project, when what is open is the worktree a conversation was given (`projectWorkspace`).
+      ...(left?.worktreeOf ? { workspace: projectWorkspace(left) } : {}),
       /*
        * 主动开新对话才切到聊天。
        *
@@ -113,6 +117,17 @@ export function sessionSlice(set: Set, get: Get) {
      * A blank new conversation has dispatched nothing yet; clear any leftover roster.
      */
     useSubAgents.getState().clear();
+
+    // The project's own branch, which the placeholder above could not know.
+    if (left?.worktreeOf) {
+      const project = left.worktreeOf;
+      void bridge.workspace.info(project).then(
+        (workspace) => {
+          if (workspace && !get().activeSessionId && get().workspace?.path === project) set({ workspace });
+        },
+        () => {},
+      );
+    }
 
     /*
      * Out of the last conversation's directory, back to the shared one — after the window has
@@ -378,7 +393,7 @@ export function sessionSlice(set: Set, get: Get) {
      * can only ever replace the record with an identical copy.
      */
     if (!projectLess && get().workspace?.path !== meta.cwd) {
-      void bridge.workspace.info(meta.cwd).then((workspace) => {
+      void sessionWorkspace(meta).then((workspace) => {
         // Null stays null: `?? get().workspace` would put back the project that was open before.
         if (workspace && get().activeSessionId === meta.id) set({ workspace });
       });

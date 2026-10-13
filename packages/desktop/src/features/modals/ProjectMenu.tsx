@@ -8,6 +8,7 @@ import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
 import { ProjectDialog } from "./ProjectDialog.tsx";
 import { bridge } from "../../services/index.ts";
+import { sessionHome } from "../../lib/session-home.ts";
 
 /**
  * Per-project actions, hung off the row they act on.
@@ -48,7 +49,7 @@ export function ProjectMenu({
 
 	const entry = settings?.projects.find((project) => project.path === path);
 	const pinned = entry?.pinned ?? false;
-	const liveSessions = sessions.filter((s) => s.cwd === path && !s.archived).length;
+	const liveSessions = sessions.filter((s) => sessionHome(s) === path && !s.archived).length;
 
 	/*
 	 * The question is the app's modal, not a second panel hung off this menu.

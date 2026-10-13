@@ -13,6 +13,7 @@ import { useSubAgents } from "./subAgents.ts";
 import { bridge } from "../services/index.ts";
 import { moveBeforeOrAfter, orderedSessions, type SessionSortKey } from "../lib/sidebar-order.ts";
 import { sessionUnderProject } from "../lib/project-scope.ts";
+import { sessionHome } from "../lib/session-home.ts";
 import { baseName } from "../lib/paths.ts";
 import { projectFolders } from "@lyra/core/project-folders";
 
@@ -315,7 +316,7 @@ export function workspaceSlice(set: Set, get: Get) {
 		const settings = get().settings;
 		if (!settings) return false;
 		const pinned = new Set(settings.pinnedSessionIds ?? []);
-		const sessions = get().sessions.filter((session) => session.cwd === projectPath && !session.archived && !pinned.has(session.id));
+		const sessions = get().sessions.filter((session) => sessionHome(session) === projectPath && !session.archived && !pinned.has(session.id));
 		const ordered = orderedSessions(sessions, sort, settings.sessionOrder?.[projectPath]).map((session) => session.id);
 		const next = moveBeforeOrAfter(ordered, sourceId, targetId, placement);
 		if (!next) return false;
@@ -485,11 +486,11 @@ export function workspaceSlice(set: Set, get: Get) {
      * shape of 「删不掉」 all over again.
      */
     const folders = projectFolders(get().settings?.projects.find((p) => p.path === path) ?? { path });
-    const targets = get().sessions.filter((s) => sessionUnderProject(folders, s.cwd) && !s.archived);
+    const targets = get().sessions.filter((s) => sessionUnderProject(folders, sessionHome(s)) && !s.archived);
     if (targets.length === 0) return;
     set({
       sessions: get().sessions.map((s) =>
-        sessionUnderProject(folders, s.cwd) && !s.archived ? { ...s, archived: true } : s,
+        sessionUnderProject(folders, sessionHome(s)) && !s.archived ? { ...s, archived: true } : s,
       ),
     });
     if (targets.some((s) => s.id === get().activeSessionId)) {

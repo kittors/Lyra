@@ -58,6 +58,15 @@ export interface WorkspaceInfo {
 	 * panel would otherwise offer to `git init` a directory that is already a repository.
 	 */
 	gitProblem?: string;
+	/**
+	 * The project this is a worktree of, when the window shows a conversation that runs in one.
+	 *
+	 * Filled in by the renderer from `SessionMeta.worktree` (`sessionWorkspace`), never by the main
+	 * process: a worktree someone made by hand and opened as a project is a project of its own. `path`
+	 * stays the worktree — its branch, its changes and its files are the conversation's — and a new
+	 * conversation started from here starts in this one instead.
+	 */
+	worktreeOf?: string;
 }
 
 export interface SessionSnapshot {

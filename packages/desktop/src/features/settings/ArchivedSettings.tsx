@@ -13,6 +13,7 @@ import { useApp } from "../../store/index.ts";
 import { sessionTitle } from "../../lib/session-title.ts";
 import { hourStyle } from "../../lib/hour-style.ts";
 import { useI18n, type ResolvedUiLocale } from "../../i18n/index.ts";
+import { sessionHome } from "../../lib/session-home.ts";
 
 /**
  * The archive: everything filed away from the sidebar, grouped by project.
@@ -40,9 +41,10 @@ export function ArchivedSettings() {
 	const projects = useMemo(() => {
 		const byPath = new Map<string, { path: string; name: string; count: number }>();
 		for (const session of archived) {
-			const entry = byPath.get(session.cwd) ?? { path: session.cwd, name: session.projectName, count: 0 };
+			const home = sessionHome(session);
+			const entry = byPath.get(home) ?? { path: home, name: session.projectName, count: 0 };
 			entry.count += 1;
-			byPath.set(session.cwd, entry);
+			byPath.set(home, entry);
 		}
 		return [...byPath.values()].sort((a, b) => b.count - a.count);
 	}, [archived]);
@@ -50,13 +52,14 @@ export function ArchivedSettings() {
 	const groups = useMemo(() => {
 		const needle = query.trim().toLowerCase();
 		const filtered = archived.filter(
-			(s) => (project === "all" || s.cwd === project) && (!needle || s.title.toLowerCase().includes(needle)),
+			(s) => (project === "all" || sessionHome(s) === project) && (!needle || s.title.toLowerCase().includes(needle)),
 		);
 		const byPath = new Map<string, { path: string; name: string; sessions: SessionMeta[] }>();
 		for (const session of filtered) {
-			const entry = byPath.get(session.cwd) ?? { path: session.cwd, name: session.projectName, sessions: [] };
+			const home = sessionHome(session);
+			const entry = byPath.get(home) ?? { path: home, name: session.projectName, sessions: [] };
 			entry.sessions.push(session);
-			byPath.set(session.cwd, entry);
+			byPath.set(home, entry);
 		}
 		return [...byPath.values()]
 			.map((g) => ({ ...g, sessions: g.sessions.sort((a, b) => b.updatedAt - a.updatedAt) }))

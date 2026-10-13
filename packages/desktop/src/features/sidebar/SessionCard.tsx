@@ -30,6 +30,7 @@ import { portal } from "../../ui/overlay/portal.ts";
 import { baseName } from "../../lib/paths.ts";
 import { hourStyle } from "../../lib/hour-style.ts";
 import { useI18n, type ResolvedUiLocale } from "../../i18n/index.ts";
+import { sessionHome } from "../../lib/session-home.ts";
 
 /**
  * How long the pointer has to rest before this appears.
@@ -204,7 +205,7 @@ export function SessionCard({
 			 * ran, not what was checked out at the time. A stale branch name would be worse than none.
 			 */}
 			<div className="px-3 py-2">
-				<Row icon={<FolderOpen size={11.5} strokeWidth={1.9} />}>{project ?? folderName(session.cwd)}</Row>
+				<Row icon={<FolderOpen size={11.5} strokeWidth={1.9} />}>{project ?? folderName(sessionHome(session))}</Row>
 			</div>
 
 			{/*

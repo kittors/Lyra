@@ -12,6 +12,7 @@ import type { SessionMeta } from "@lyra/core";
 import { projectFolders } from "@lyra/core/project-folders";
 import { orderedSessions, type SessionSortKey } from "./sidebar-order.ts";
 import { isDescendantPath } from "./paths.ts";
+import { sessionHome } from "./session-home.ts";
 
 export interface Group {
 	path: string;
@@ -121,7 +122,8 @@ export function groupSessions(
 			loose.push(session);
 			continue;
 		}
-		const home = owner.get(session.cwd) ?? session.cwd;
+		const where = sessionHome(session);
+		const home = owner.get(where) ?? where;
 		let group = byPath.get(home);
 		if (!group) {
 			group = { path: home, name: session.projectName, sessions: [] };
@@ -169,9 +171,9 @@ export function groupSessions(
  * `archived` is what it does not.
  */
 export function emptiedProjects(listable: SessionMeta[], archived: SessionMeta[]): Set<string> {
-	const live = new Set(listable.map((s) => s.cwd));
+	const live = new Set(listable.map(sessionHome));
 	const out = new Set<string>();
-	for (const session of archived) if (!live.has(session.cwd)) out.add(session.cwd);
+	for (const session of archived) if (!live.has(sessionHome(session))) out.add(sessionHome(session));
 	return out;
 }
 
