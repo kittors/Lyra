@@ -155,7 +155,26 @@ test("a chat answer with the picture inline in markdown, or in a content array, 
 	const parts = host(() => json({ choices: [{ message: { content: [{ type: "text", text: "ok" }, { type: "image_url", image_url: { url: `data:image/png;base64,${PNG}` } }] } }] }));
 	assert.equal((await viaChatCompletions(provider(), model("gemini-2.5-flash-image"), { prompt: "a boat" }, { fetch: parts.fetch, retryAttempts: 1 })).images.length, 1);
 	const words = host(() => json({ choices: [{ message: { content: "I can't draw that." } }] }));
-	await assert.rejects(viaChatCompletions(provider(), model("gemini-2.5-flash-image"), { prompt: "a boat" }, { fetch: words.fetch, retryAttempts: 1 }), /answered in words instead of drawing: I can't draw that/);
+	// The words are kept for the model and the hover; not a refusal on content, so another try is allowed.
+	await assert.rejects(viaChatCompletions(provider(), model("gemini-2.5-flash-image"), { prompt: "a boat" }, { fetch: words.fetch, retryAttempts: 1 }), (error: unknown) => {
+		const failure = (error as { failure?: { kind: string; detail?: string } }).failure;
+		assert.match(failure?.detail ?? "", /answered in words instead of drawing: I can't draw that/);
+		assert.equal(failure?.kind, "upstream");
+		return true;
+	});
+});
+
+test("words instead of a picture that are the provider refusing are final, and say so", async () => {
+	const refusal = host(() =>
+		json({ choices: [{ message: { content: "The prompt could not be submitted. The prompt contains sensitive words that violate Google's Generative AI Prohibited Use policy." } }] }),
+	);
+	await assert.rejects(viaChatCompletions(provider(), model("gemini-2.5-flash-image"), { prompt: "a boat" }, { fetch: refusal.fetch, retryAttempts: 3 }), (error: unknown) => {
+		const failure = (error as { failure?: { kind: string; hint?: string } }).failure;
+		assert.equal(failure?.kind, "fatal");
+		assert.equal(failure?.hint, "blocked");
+		return true;
+	});
+	assert.equal(refusal.seen.length, 1, "a refusal is not asked for twice");
 });
 
 test("a host without the Images API is tried over chat once, and remembered", async () => {

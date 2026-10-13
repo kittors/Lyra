@@ -2570,6 +2570,8 @@ export const en = {
 	"imageGen.resetsIn": "Resets in about {time}",
 	"imageGen.notAllowed": "This key can’t use {model}",
 	"imageGen.notAllowedHint": "Allow the model for this key in the provider’s console, or use the address of a group that includes it",
+	"imageGen.refused": "The request was refused under the content policy",
+	"imageGen.refusedHint": "Sending it again will be refused the same way; rephrase it or leave out what the policy objects to",
 	"gallery.title": "Gallery",
 	"gallery.count": { one: "{n} picture", other: "{n} pictures" },
 	"gallery.search": "Search what you asked, prompts or conversations",

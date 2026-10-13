@@ -174,6 +174,9 @@ function DrawFailed({ details, stopped }: { details?: ImageGenerationDetails; st
 	} else if (error?.hint === "check-key") {
 		title = t("imageGen.notAllowed", { model });
 		note = t("imageGen.notAllowedHint");
+	} else if (error?.hint === "blocked") {
+		title = t("imageGen.refused");
+		note = t("imageGen.refusedHint");
 	}
 	return (
 		<div data-ly-image-card={stopped ? "stopped" : "error"} className="flex w-fit max-w-[420px] items-start gap-2.5 rounded-xl border border-line bg-card/30 px-3 py-2.5 text-label">

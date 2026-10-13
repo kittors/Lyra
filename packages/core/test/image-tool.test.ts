@@ -159,6 +159,16 @@ test("without an image model, or with one the user did not configure, the model 
 	assert.match(unknown.content[0].type === "text" ? unknown.content[0].text : "", /midjourney-v7/);
 });
 
+test("a refusal on content comes back final: the card says refused, the model is told not to retry it unchanged", async () => {
+	const refused = new FailureError(classifyFailure({ from: "stream", message: "The model answered in words instead of drawing", streamed: "The prompt could not be submitted. The prompt contains sensitive words that violate Google's Generative AI Prohibited Use policy." }));
+	const result = await imageTool.execute({ prompt: "something it refuses" }, context(fakeHost(() => Promise.reject(refused))));
+	assert.equal(result.isError, true);
+	const text = result.content[0].type === "text" ? result.content[0].text : "";
+	assert.match(text, /refused this request under its content policy/);
+	assert.match(text, /don't retry it unchanged/);
+	assert.equal((result.details as ImageGenerationDetails).error?.hint, "blocked");
+});
+
 test("a spent quota comes back as an error the card can show and the model can repeat", async () => {
 	const failure = classifyFailure({ from: "status", status: 429, body: "Your quota will reset after 1h52m45s." });
 	const host = fakeHost(() => {

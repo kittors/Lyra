@@ -2755,6 +2755,8 @@ export const zhCN = {
 	"imageGen.resetsIn": "约 {time} 后恢复",
 	"imageGen.notAllowed": "这个密钥不能使用 {model}",
 	"imageGen.notAllowedHint": "到服务商后台给这个密钥开放该模型，或改用包含它的分组地址",
+	"imageGen.refused": "这次请求被内容安全策略拒绝了",
+	"imageGen.refusedHint": "同样的请求再发也会被拒，换个说法或去掉它不允许的内容",
 	"gallery.title": "画廊",
 	"gallery.count": "{n} 张图",
 	"gallery.search": "搜索说过的话、提示词或对话",

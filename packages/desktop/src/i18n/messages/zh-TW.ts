@@ -2570,6 +2570,8 @@ export const zhTW = {
 	"imageGen.resetsIn": "約 {time} 後恢復",
 	"imageGen.notAllowed": "這個金鑰不能使用 {model}",
 	"imageGen.notAllowedHint": "到服務商後台為這個金鑰開放該模型，或改用包含它的分組位址",
+	"imageGen.refused": "這次請求被內容安全政策拒絕了",
+	"imageGen.refusedHint": "同樣的請求再發也會被拒，換個說法或拿掉它不允許的內容",
 	"gallery.title": "畫廊",
 	"gallery.count": "{n} 張圖",
 	"gallery.search": "搜尋說過的話、提示或對話",

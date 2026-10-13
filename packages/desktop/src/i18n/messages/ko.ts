@@ -2570,6 +2570,8 @@ export const ko = {
 	"imageGen.resetsIn": "약 {time} 후에 다시 쓸 수 있습니다",
 	"imageGen.notAllowed": "이 키로는 {model}을(를) 사용할 수 없습니다",
 	"imageGen.notAllowedHint": "제공자 콘솔에서 이 키에 모델을 허용하거나, 모델이 포함된 그룹의 주소를 사용하세요",
+	"imageGen.refused": "이 요청은 콘텐츠 정책에 따라 거부되었습니다",
+	"imageGen.refusedHint": "같은 요청은 다시 보내도 거부됩니다. 표현을 바꾸거나 허용되지 않는 내용을 빼 주세요",
 	"gallery.title": "갤러리",
 	"gallery.count": "{n}장",
 	"gallery.search": "요청한 말, 프롬프트, 대화 검색",

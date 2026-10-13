@@ -164,3 +164,39 @@ test("花过钱的失败标出来，没花的不标", () => {
 	assert.equal(classifyFailure({ from: "stream", message: "boom" }).costIncurred, undefined);
 	assert.equal(transport("ECONNRESET").costIncurred, undefined);
 });
+
+// What Lyra received on 2026-10-13: Gemini behind a relay streamed its refusal as the answer, then the
+// relay closed the stream with a generic error event. Retried every five seconds until stopped by hand.
+const GOOGLE_REFUSAL =
+	"The prompt could not be submitted. The prompt contains sensitive words that violate Google's Generative AI Prohibited Use policy. Try rephrasing the prompt. If you think this was an error, send feedback.";
+const RELAY_CLOSE = '{"type":"error","code":"internal_server_error","message":"response_stream_incomplete: upstream responses stream closed before response.completed","sequence_number":0}';
+
+test("服务商把拒绝写成回答、再被中转泛泛地断掉，认出是拒绝，不重试", () => {
+	const refused = classifyFailure({ from: "stream", message: "response_stream_incomplete: upstream responses stream closed before response.completed", raw: RELAY_CLOSE, spent: true, streamed: GOOGLE_REFUSAL });
+	assert.equal(refused.kind, "fatal");
+	assert.equal(refused.hint, "blocked");
+	assert.equal(worthRetrying(refused), false);
+	assert.ok(refused.detail?.includes("Prohibited Use policy"), "the refusal itself is kept for the hover");
+
+	// The same close with nothing refused before it is still a hiccup worth another try.
+	const hiccup = classifyFailure({ from: "stream", message: "response_stream_incomplete: upstream responses stream closed before response.completed", raw: RELAY_CLOSE, spent: true, streamed: "这是一段正常的回答，说到一半" });
+	assert.equal(hiccup.kind, "upstream");
+});
+
+test("正常回答里提到 safety 或拒绝的句式，断流照样重试", () => {
+	const answer = `${"线程安全靠这把锁保证。".repeat(60)} This lock guarantees thread safety. The prompt could not be submitted in a long essay about it.`;
+	const cut = classifyFailure({ from: "stream", message: "回答只传了一半，连接就断了", spent: true, streamed: answer });
+	assert.equal(cut.kind, "upstream", "a long answer that quotes a refusal is not one");
+	const short = classifyFailure({ from: "stream", message: "回答只传了一半，连接就断了", spent: true, streamed: "This lock guarantees thread safety." });
+	assert.equal(short.kind, "upstream", "only the providers' own refusal sentences count in a model's text");
+});
+
+test("400 的正文写着被内容策略拦下，判成被拦，而不是请求体有问题", () => {
+	const blocked = classifyFailure({ from: "status", status: 400, body: '{"error":{"message":"Your request was rejected as a result of our safety system: moderation_blocked","code":"moderation_blocked"}}' });
+	assert.equal(blocked.kind, "fatal");
+	assert.equal(blocked.hint, "blocked");
+	const malformed = classifyFailure({ from: "status", status: 400, body: '{"error":{"message":"Invalid value for messages[3].content"}}' });
+	assert.equal(malformed.hint, "check-request", "an ordinary bad request keeps its own reading");
+	const prohibited = classifyFailure({ from: "stream", message: "PROHIBITED_CONTENT" });
+	assert.equal(prohibited.hint, "blocked");
+});

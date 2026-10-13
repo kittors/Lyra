@@ -2570,6 +2570,8 @@ export const fr = {
 	"imageGen.resetsIn": "Rétabli dans environ {time}",
 	"imageGen.notAllowed": "Cette clé ne peut pas utiliser {model}",
 	"imageGen.notAllowedHint": "Autorisez le modèle pour cette clé dans la console du fournisseur, ou utilisez l’adresse d’un groupe qui l’inclut",
+	"imageGen.refused": "La demande a été refusée par la politique de contenu",
+	"imageGen.refusedHint": "La renvoyer telle quelle sera refusé de la même façon ; reformulez-la ou retirez ce que la politique refuse",
 	"gallery.title": "Galerie",
 	"gallery.count": { one: "{n} image", other: "{n} images" },
 	"gallery.search": "Chercher dans vos demandes, les invites ou les conversations",

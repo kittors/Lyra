@@ -2570,6 +2570,8 @@ export const ja = {
 	"imageGen.resetsIn": "約 {time} 後に回復します",
 	"imageGen.notAllowed": "このキーでは {model} を使えません",
 	"imageGen.notAllowedHint": "プロバイダの管理画面でこのキーにモデルを許可するか、モデルを含むグループのアドレスを使ってください",
+	"imageGen.refused": "このリクエストはコンテンツポリシーで拒否されました",
+	"imageGen.refusedHint": "同じ内容で送っても同じく拒否されます。言い方を変えるか、許可されない部分を外してください",
 	"gallery.title": "ギャラリー",
 	"gallery.count": "{n} 枚",
 	"gallery.search": "頼んだ言葉・プロンプト・会話を検索",
