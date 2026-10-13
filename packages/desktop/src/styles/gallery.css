@@ -1,0 +1,92 @@
+/* ---------------------------------------------------------------------------
+ * The gallery (`features/gallery/`).
+ * ------------------------------------------------------------------------- */
+
+/*
+ * A tile's picture fades up once it is decoded, over the card colour that held its place: never from
+ * nothing to a picture in one frame, and never through a broken-image icon.
+ */
+.ly-gallery-picture {
+  opacity: 0;
+  /* The zoom on hover is slow on purpose — a drift, not a jump — and still a token, so reduced motion stops it. */
+  transition:
+    opacity var(--ly-t-base) var(--ly-e-out),
+    transform calc(var(--ly-t-slow) * 1.6) var(--ly-e-out);
+}
+
+.ly-gallery-picture[data-loaded] {
+  opacity: 1;
+}
+
+.ly-gallery-tile:hover .ly-gallery-picture {
+  transform: scale(1.03);
+}
+
+.ly-gallery-tile:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* How many pictures this one's history holds. Glass, like the buttons on a drawn picture (`image-gen.css`). */
+.ly-gallery-chip {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 9999px;
+  background: rgb(0 0 0 / 0.42);
+  color: rgb(255 255 255 / 0.96);
+  font-size: 11px;
+  font-weight: 600;
+  backdrop-filter: blur(14px) saturate(1.4);
+}
+
+/* What was asked for, over the bottom of the picture while the pointer is on it. */
+.ly-gallery-caption {
+  position: absolute;
+  inset: auto 0 0;
+  display: block;
+  padding: 28px 10px 9px;
+  background: linear-gradient(to top, rgb(0 0 0 / 0.62), rgb(0 0 0 / 0));
+  color: rgb(255 255 255 / 0.96);
+  text-align: left;
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity var(--ly-t-quick) var(--ly-e-out),
+    transform var(--ly-t-base) var(--ly-e-out);
+  pointer-events: none;
+}
+
+.ly-gallery-tile:hover .ly-gallery-caption,
+.ly-gallery-tile:focus-visible .ly-gallery-caption {
+  opacity: 1;
+  transform: none;
+}
+
+/*
+ * The history's lines: the faint ink of a rule for the family's other branches, the accent for the
+ * way the picture being looked at came to be — its story is the one line the eye should follow.
+ */
+.ly-lineage-line {
+  fill: none;
+  stroke: color-mix(in srgb, var(--color-ink) 24%, transparent);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ly-lineage-line[data-on-path] {
+  stroke: color-mix(in srgb, var(--color-accent) 80%, transparent);
+}
+
+/* The picture on the stage, marked in its history: a gap in the page colour, then the accent. */
+.ly-lineage-current {
+  box-shadow:
+    0 0 0 2px var(--color-shell),
+    0 0 0 3.5px var(--color-accent);
+}

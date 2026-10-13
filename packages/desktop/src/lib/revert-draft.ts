@@ -11,6 +11,8 @@ type RestoredAttachment = {
 	isText: boolean;
 	path?: string;
 	label?: string;
+	/** A marked-up copy taken back keeps saying what it was marked up on (`ImageContent.from`). */
+	markedFrom?: string;
 };
 
 export type RestoredDraft = {
@@ -64,6 +66,7 @@ export function draftFromUserMessage(message: UserMessage): RestoredDraft {
 			isText: Boolean(isText),
 			...(kind ? { kind } : {}),
 			...(image ? { data: image.data } : {}),
+			...(image?.from ? { markedFrom: image.from } : {}),
 			...(body ? { text: bodyText(body.text) } : {}),
 			...(file.path ? { path: file.path } : {}),
 			...(file.label ? { label: file.label } : {}),
@@ -76,6 +79,7 @@ export function draftFromUserMessage(message: UserMessage): RestoredDraft {
 			mimeType: images[imageAt].mimeType,
 			kind: "image",
 			data: images[imageAt].data,
+			...(images[imageAt].from ? { markedFrom: images[imageAt].from } : {}),
 			isText: false,
 		});
 	}

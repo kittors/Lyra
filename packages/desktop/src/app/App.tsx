@@ -70,6 +70,9 @@ const PullRequestsView = lazy(() =>
 const ScheduledView = lazy(() =>
 	import("../features/scheduled/ScheduledView.tsx").then((m) => ({ default: m.ScheduledView })),
 );
+const GalleryView = lazy(() =>
+	import("../features/gallery/GalleryView.tsx").then((m) => ({ default: m.GalleryView })),
+);
 const SettingsShell = lazy(() =>
 	import("../features/settings/SettingsShell.tsx").then((m) => ({ default: m.SettingsShell })),
 );
@@ -276,11 +279,12 @@ function Shell() {
  * Usually invisible — the chunk is on the same disk and arrives within a frame or two. It is the
  * phone, loading the same bundle across a relay, that this is for.
  */
-function LazyScreen({ children, shape }: { children: React.ReactNode; shape: "settings" | "plugins" | "pull-requests" | "scheduled" }) {
+function LazyScreen({ children, shape }: { children: React.ReactNode; shape: "settings" | "plugins" | "pull-requests" | "scheduled" | "gallery" }) {
 	const fallback =
 		shape === "settings" ? <SettingsFallback />
 		: shape === "plugins" ? <PluginsFallback />
 		: shape === "pull-requests" ? <PullRequestsFallback />
+		: shape === "gallery" ? <GalleryFallback />
 		: <ScheduledFallback />;
 	return <Suspense fallback={fallback}>{children}</Suspense>;
 }
@@ -307,6 +311,27 @@ function ScheduledFallback() {
 				<SkeletonBar width="min(420px, 70%)" height={10} className="mt-3.5" />
 			</div>
 			<SkeletonList count={4} label={t("common.loading")} />
+		</div>
+	);
+}
+
+/** `GalleryView`: the heading, then a day's heading and two rows of tiles of mixed widths, at 1320px inside px-8. */
+function GalleryFallback() {
+	const { compact } = useLayout();
+	const { t } = useI18n();
+	const widths = compact ? [160, 120, 150] : [220, 300, 220, 170, 260];
+	return (
+		<div role="status" aria-label={t("common.loading")} className={`mx-auto w-full max-w-[1320px] pt-6 ${compact ? "px-4" : "px-8"}`}>
+			<SkeletonBar width="72px" height={22} />
+			<SkeletonBar width="48px" height={10} className="mt-3.5" />
+			<SkeletonBar width="64px" height={12} className="mt-8 mb-3" />
+			{[0, 1].map((row) => (
+				<div key={row} className="mb-2 flex gap-2">
+					{widths.map((width, index) => (
+						<span key={index} className="ly-skeleton block rounded-[10px]" style={{ width, height: compact ? 140 : 200, flex: `${width} 1 0` }} />
+					))}
+				</div>
+			))}
 		</div>
 	);
 }
@@ -422,7 +447,7 @@ function SettingsFallback() {
 }
 
 /** The views drawn in place of the conversations rather than as one of them. */
-const SOLO_VIEWS: ReadonlySet<string> = new Set(["plugins", "pull-requests", "scheduled"]);
+const SOLO_VIEWS: ReadonlySet<string> = new Set(["plugins", "pull-requests", "scheduled", "gallery"]);
 
 /**
  * The main area: the conversations on screen, or one of the views that is not a conversation.
@@ -442,10 +467,11 @@ function MainContent() {
 	return <>
 		<Workspace away={solo} />
 		<div className={solo ? "contents" : "hidden"}>
-			<RetainedViews active={active} limit={4} render={(key) => {
+			<RetainedViews active={active} limit={5} render={(key) => {
 				if (key === "plugins") return <SoloScreen><LazyScreen shape="plugins"><PluginsView /></LazyScreen></SoloScreen>;
 				if (key === "pull-requests") return <SoloScreen><LazyScreen shape="pull-requests"><PullRequestsView /></LazyScreen></SoloScreen>;
 				if (key === "scheduled") return <SoloScreen><LazyScreen shape="scheduled"><ScheduledView /></LazyScreen></SoloScreen>;
+				if (key === "gallery") return <SoloScreen><LazyScreen shape="gallery"><GalleryView /></LazyScreen></SoloScreen>;
 				return null;
 			}} />
 		</div>

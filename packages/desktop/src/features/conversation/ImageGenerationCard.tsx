@@ -112,11 +112,12 @@ function ImageGenerationCard({ call }: { call: ToolCallContent }) {
 		caption = `${details?.model.name ?? ""}${size}${missing > 0 ? ` · ${t("imageGen.partial", { n: missing })}` : ""}`;
 	}
 
-	const sources = pictures.map((picture) => ({ src: sessionMediaUrl(picture.media), alt: prompt, onAttach: attachToComposer(sessionId) }));
+	const sources = pictures.map((picture) => ({ src: sessionMediaUrl(picture.media), alt: prompt, onAttach: attachToComposer(sessionId, picture.media) }));
 	const frameOf = (event: React.MouseEvent<HTMLElement>) => event.currentTarget.closest<HTMLElement>("[data-ly-image-frame]");
 
 	return (
-		<figure data-ly-image-card={live ? "drawing" : "done"} className="m-0 flex w-fit max-w-full flex-col gap-2">
+		// `data-ly-image-call` is what the gallery asks the transcript to scroll to (`reveal.ts`).
+		<figure data-ly-image-card={live ? "drawing" : "done"} data-ly-image-call={call.id} className="m-0 flex w-fit max-w-full flex-col gap-2">
 			<figcaption className="truncate text-detail text-ink-muted">
 				<RollingText>{caption}</RollingText>
 			</figcaption>

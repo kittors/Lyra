@@ -87,6 +87,9 @@ export const METHODS = {
 		 */
 		clear: { channel: "usage:clear", remote: false, why: "删的是本机会话日志，不可撤销，只在桌面端问过两遍之后才做" },
 	},
+	gallery: {
+		list: { channel: "gallery:list", remote: false, why: "画廊里的图走 ly-media，手机上没有这条路由，列出来也一张都画不出来（ADR-0033）" },
+	},
 	workspace: {
 		pick: { channel: "workspace:pick", remote: false, why: "开的是本机的文件选择对话框" },
 		foreignConfigs: { channel: "workspace:foreignConfigs", remote: false, why: "读本机仓库目录；手机上没有这个提示" },

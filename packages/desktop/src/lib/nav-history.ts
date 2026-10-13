@@ -7,7 +7,7 @@
  * tested without a window.
  */
 
-type NavView = "chat" | "settings" | "pull-requests" | "scheduled" | "plugins";
+type NavView = "chat" | "settings" | "pull-requests" | "scheduled" | "plugins" | "gallery";
 
 export interface NavEntry {
 	view: NavView;

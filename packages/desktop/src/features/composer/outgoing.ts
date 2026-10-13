@@ -33,6 +33,8 @@ interface OutgoingAttachment {
 	label?: string;
 	/** The desktop's id for a file a phone uploaded; see `attachments/phone-upload.ts`. */
 	upload?: string;
+	/** What an annotated copy was marked up from; rides on its image part (`ImageContent.from`). */
+	markedFrom?: string;
 }
 
 export interface OutgoingDraft {
@@ -162,7 +164,7 @@ export function spellDraft(text: string, attachments: OutgoingAttachment[]): Use
 			 */
 			flush();
 			content.push({ type: "text", text: attachmentImageLabel(file.name, label) });
-			content.push({ type: "image", data: file.data, mimeType: file.mimeType });
+			content.push({ type: "image", data: file.data, mimeType: file.mimeType, ...(file.markedFrom ? { from: file.markedFrom } : {}) });
 			return;
 		}
 		if (file.upload && file.path) {

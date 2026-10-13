@@ -258,6 +258,8 @@ export function Composer({ centered = false }: {
 		field,
 		resetKey: draftKey,
 	});
+	/** A draft that asked to be sent is in, and goes with the next render (see the effect after this one). */
+	const sendDraft = useRef(false);
 	useEffect(() => {
 		/*
 		 * Only a draft left for this screen, and only while it is still in the slot.
@@ -270,6 +272,8 @@ export function Composer({ centered = false }: {
 		const files = draft.attachments ?? [];
 		const refs = draft.sessionRefs ?? [];
 		if (!draft.text && !files.length && !refs.length) return;
+		// Sent once it is in, by the effect below — and only into an empty field (see `ComposerDraft.send`).
+		sendDraft.current = Boolean(draft.send) && !textRef.current.trim() && attachmentsRef.current.length === 0 && sessionRefsRef.current.length === 0;
 		if (draft.text) {
 			setText((current) =>
 				draft.replace || !current.trim() ? draft.text : `${current.trimEnd()}\n\n${draft.text}`,
@@ -306,6 +310,18 @@ export function Composer({ centered = false }: {
 		shell.classList.add("ly-composer-catch");
 		shell.addEventListener("animationend", () => shell.classList.remove("ly-composer-catch"), { once: true });
 	}, [draft, activeSessionId, attach]);
+	/*
+	 * A draft that asked to be sent goes once the render that put it in has happened: `submit` reads the
+	 * text and attachments of the render it belongs to, and in the effect that took the draft they were
+	 * still the old ones. Keyed on them, not on every render, so it cannot fire in that same pass.
+	 */
+	useEffect(() => {
+		if (!sendDraft.current) return;
+		sendDraft.current = false;
+		void submit();
+		// `submit` is rebuilt every render; what this waits for is the draft's text and files arriving.
+		// oxlint-disable-next-line exhaustive-deps
+	}, [text, attachments]);
 
 
 	const commandCwd = workspace?.path ?? scratchCwd ?? "";

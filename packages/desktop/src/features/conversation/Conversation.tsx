@@ -24,6 +24,8 @@ import { MessageRow } from "./rows.tsx";
 import { TurnProcess } from "./TurnProcess.tsx";
 import { DispatchFaces, useDispatches } from "./DelegationCard.tsx";
 import { useTranscriptWindow } from "./view-state.ts";
+import { flash, settleReveal, useDrawingReveal } from "./reveal.ts";
+import { motionReduced } from "../../ui/motion/reduced.ts";
 import { useFollowBottom } from "../../ui/scroll/useFollowBottom.ts";
 import { tailSignature } from "../../ui/scroll/signature.ts";
 import { useLayout } from "../../app/layout.tsx";
@@ -126,7 +128,11 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
    */
   const allBlocks = useMemo(() => turnBlocks(allRuns), [allRuns]);
   const range = useTranscriptWindow(activeSessionId, WINDOW_TURNS, allBlocks.length);
-  const [jump, setJump] = useState<{ sessionId: string | null; index: number } | null>(null);
+  /*
+   * Where to scroll once the window has the target mounted: a question from the tick strip, or a
+   * drawing the gallery asked for. `lead` is the room left above it; a drawing goes in the middle.
+   */
+  const [jump, setJump] = useState<{ sessionId: string | null; selector: string; block: number; lead: number | "middle"; flash?: boolean } | null>(null);
   const { compact } = useLayout();
   const gutter = compact ? "ly-content-gutter-compact" : "ly-content-gutter";
   /*
@@ -248,13 +254,35 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
    */
   const blocks = useMemo(() => allBlocks.slice(range.start, range.end), [allBlocks, range.start, range.end]);
   const { scrollTo, detach } = follow;
+  /*
+   * A drawing the gallery asked to see. Taken only once this conversation has been read: before that
+   * the transcript is empty, and a request answered then would be answered with nothing.
+   */
+  const reveal = useDrawingReveal((state) => (state.sessionId && state.sessionId === activeSessionId ? state : null));
+  useLayoutEffect(() => {
+    if (!reveal || loadingSession) return;
+    settleReveal(reveal.nonce);
+    const at = allBlocks.findIndex((block) => foldedCalls(block.runs).some((call) => call.id === reveal.toolCallId));
+    if (at < 0) return;
+    detach();
+    range.reveal(at);
+    setJump({ sessionId: activeSessionId, selector: `[data-ly-image-call="${CSS.escape(reveal.toolCallId)}"]`, block: at, lead: "middle", flash: true });
+    // `range.reveal` is rebuilt every render; a new request or a finished read is what this answers.
+    // oxlint-disable-next-line exhaustive-deps
+  }, [reveal, loadingSession, allBlocks, activeSessionId, detach]);
   useLayoutEffect(() => {
     if (!jump || jump.sessionId !== activeSessionId) return;
     const el = scrollRef.current;
     if (!el) return;
-    const target = el.querySelector<HTMLElement>(`[data-question-index="${jump.index}"]`);
-    if (!target) return;
-    const top = el.scrollTop + target.getBoundingClientRect().top - el.getBoundingClientRect().top - 40;
+    const target = el.querySelector<HTMLElement>(jump.selector);
+    if (!target) {
+      // Its turn is mounted and the target is still not there — a drawing between two paragraphs of one reply has no card. Nothing to scroll to.
+      if (jump.block >= range.start && jump.block < range.end) setJump(null);
+      return;
+    }
+    const box = target.getBoundingClientRect();
+    const lead = jump.lead === "middle" ? Math.max(40, (el.clientHeight - box.height) / 2) : jump.lead;
+    const top = el.scrollTop + box.top - el.getBoundingClientRect().top - lead;
     /*
      * 目标挂着，可它下面挂着的东西不够把它顶上去：先把窗口往后放一截，下一次再滚。
      *
@@ -268,6 +296,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
       return;
     }
     scrollTo(top, true);
+    if (jump.flash) flash(target, motionReduced());
     setJump(null);
     // `range.later` is rebuilt every render; the window's own edges are what this reacts to.
     // oxlint-disable-next-line exhaustive-deps
@@ -585,7 +614,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
         if (at < 0) return;
         detach();
         range.reveal(at);
-        setJump({ sessionId: activeSessionId, index });
+        setJump({ sessionId: activeSessionId, selector: `[data-question-index="${index}"]`, block: at, lead: 40 });
       }} />}
       <BackToLatest
         show={follow.away || range.end < allBlocks.length}

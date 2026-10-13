@@ -64,6 +64,12 @@ export async function startFakeImageRelay(options: {
 	art: { day: string; night: string };
 	/** How long a drawing takes; long enough to watch the dots and the percentage move. */
 	drawMs: number;
+	/**
+	 * Which picture a drawing request gets, by what it asked for. Without it a generation gets `day`
+	 * and an edit `night` — enough for one edit, but a chain of edits would come back as the same bytes,
+	 * which the gallery rightly treats as the same picture.
+	 */
+	pick?: (path: string, body: Record<string, unknown>) => string | undefined;
 }): Promise<{ port: number; seen: Seen[]; close: () => void }> {
 	const seen: Seen[] = [];
 	const server = createServer(async (req, res) => {
@@ -80,7 +86,7 @@ export async function startFakeImageRelay(options: {
 				return json(429, { error: { message: JSON.stringify({ error: { code: 429, message: "You have exhausted your capacity on this model. Your quota will reset after 1h52m45s.", status: "RESOURCE_EXHAUSTED" } }), type: "invalid_request_error" } });
 			}
 			await pause(options.drawMs);
-			const picture = path.endsWith("/edits") ? options.art.night : options.art.day;
+			const picture = options.pick?.(path, body) ?? (path.endsWith("/edits") ? options.art.night : options.art.day);
 			return json(200, { created: Math.floor(Date.now() / 1000), data: [{ b64_json: picture }], output_format: "jpeg", size: "1408x792", usage: { input_tokens: 37, output_tokens: 1290, total_tokens: 1327 } });
 		}
 		if (!path.endsWith("/chat/completions")) return json(404, { error: { message: `not here: ${path}` } });

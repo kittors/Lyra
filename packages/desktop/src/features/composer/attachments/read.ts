@@ -51,6 +51,8 @@ export interface DraftAttachment {
 	 * The prompt names the upload and the desktop turns it into the path it wrote; see `phone-upload.ts`.
 	 */
 	upload?: string;
+	/** The drawn picture this is a marked-up copy of, by `session-media` name: see `ImageContent.from`. */
+	markedFrom?: string;
 }
 
 /**
