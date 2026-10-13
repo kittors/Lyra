@@ -82,6 +82,9 @@ const KIND: Record<string, MessageKey> = {
 	video_generate: "tools.video",
 	// Not a tool of its own: `image_generate` with pictures going in, told apart by its summary below.
 	image_edit: "tools.imageEdit",
+	// The desktop's session-level tools (`runtime/session-ops.ts`): the card says the rest, the row says what happened.
+	spawn_session: "tools.spawnSession",
+	archive_session: "tools.archiveSession",
 };
 
 /**
@@ -95,6 +98,8 @@ const ACTIVITY: [RegExp, string, (match: RegExpMatchArray) => string][] = [
 	[/^Edit image ?(.*)$/, "image_edit", (m) => m[1]],
 	[/^Image ?(.*)$/, "image_generate", (m) => m[1]],
 	[/^Video ?(.*)$/, "video_generate", (m) => m[1]],
+	[/^Suggest session ?(.*)$/, "spawn_session", (m) => m[1]],
+	[/^Archive session$/, "archive_session", () => ""],
 	[/^Read (.+)$/, "read", (m) => baseName(m[1])],
 	[/^Write (.+)$/, "write", (m) => baseName(m[1])],
 	[/^Edit (.+)$/, "edit", (m) => baseName(m[1])],

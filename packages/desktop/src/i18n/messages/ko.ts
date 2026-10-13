@@ -2696,4 +2696,12 @@ export const ko = {
 	"video.screenFull": "전체 화면",
 	"video.screenExit": "전체 화면 종료",
 	"video.screenFullDetail": "화면 전체를 채웁니다. Esc로 나갑니다",
+	"sessionOps.suggested": "새 대화 제안",
+	"sessionOps.start": "시작",
+	"sessionOps.startTip": "이 프로젝트에서 별도 대화로 시작합니다. 지금 화면은 그대로입니다",
+	"sessionOps.started": "시작됨",
+	"sessionOps.dismiss": "제안 닫기",
+	"sessionOps.startFailed": "대화를 시작하지 못했습니다: {reason}",
+	"tools.spawnSession": "새 대화 제안",
+	"tools.archiveSession": "대화 보관",
 } satisfies MessageCatalog;

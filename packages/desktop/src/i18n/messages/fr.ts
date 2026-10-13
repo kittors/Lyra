@@ -2696,4 +2696,12 @@ export const fr = {
 	"video.screenFull": "Plein écran",
 	"video.screenExit": "Quitter le plein écran",
 	"video.screenFullDetail": "Occupe tout l’écran ; Échap pour sortir",
+	"sessionOps.suggested": "Discussion suggérée",
+	"sessionOps.start": "Lancer",
+	"sessionOps.startTip": "La lance à part dans ce projet, sans quitter celle-ci.",
+	"sessionOps.started": "Lancée",
+	"sessionOps.dismiss": "Masquer la suggestion",
+	"sessionOps.startFailed": "Impossible de lancer la discussion : {reason}",
+	"tools.spawnSession": "Suggestion de discussion",
+	"tools.archiveSession": "Discussion archivée",
 } satisfies MessageCatalog;

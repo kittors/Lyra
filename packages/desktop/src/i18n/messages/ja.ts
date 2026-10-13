@@ -2696,4 +2696,12 @@ export const ja = {
 	"video.screenFull": "全画面表示",
 	"video.screenExit": "全画面表示を終了",
 	"video.screenFullDetail": "画面全体に表示します。Esc で戻ります",
+	"sessionOps.suggested": "新しい会話の提案",
+	"sessionOps.start": "開始",
+	"sessionOps.startTip": "このプロジェクトで別の会話として始めます。いまの画面はそのままです",
+	"sessionOps.started": "開始済み",
+	"sessionOps.dismiss": "提案を閉じる",
+	"sessionOps.startFailed": "会話を開始できませんでした：{reason}",
+	"tools.spawnSession": "新しい会話を提案",
+	"tools.archiveSession": "会話をアーカイブ",
 } satisfies MessageCatalog;

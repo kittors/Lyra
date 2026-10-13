@@ -2696,4 +2696,12 @@ export const zhTW = {
 	"video.screenFull": "佔滿螢幕",
 	"video.screenExit": "結束佔滿螢幕",
 	"video.screenFullDetail": "佔滿整個螢幕，按 Esc 結束",
+	"sessionOps.suggested": "建議的新對話",
+	"sessionOps.start": "開始",
+	"sessionOps.startTip": "在這個專案裡另開一個對話去做，目前的對話不受影響",
+	"sessionOps.started": "已開始",
+	"sessionOps.dismiss": "收起這則建議",
+	"sessionOps.startFailed": "無法開始這個對話：{reason}",
+	"tools.spawnSession": "建議新對話",
+	"tools.archiveSession": "封存對話",
 } satisfies MessageCatalog;

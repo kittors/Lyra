@@ -62,6 +62,11 @@ export function summarizeToolCall(name: string, args: Record<string, unknown>): 
 		}
 		case "video_generate":
 			return `Video ${(str("prompt") ?? "").replace(/\s+/g, " ").trim().slice(0, 80)}`.trim();
+		// Core's own words for the two session-level tools (`runtime/session-ops.ts`), for the same reason as the drawings above.
+		case "spawn_session":
+			return `Suggest session ${(str("title") ?? "").trim()}`.trim();
+		case "archive_session":
+			return "Archive session";
 		default:
 			// MCP tools are named mcp__<server>__<tool>; show the readable half.
 			if (name.startsWith("mcp__")) {

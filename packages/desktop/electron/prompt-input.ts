@@ -144,8 +144,21 @@ export function initialPrompt(value: unknown, origin: PromptOrigin = "local", up
 		...(value.synthetic === undefined ? {} : { synthetic: value.synthetic }),
 		// This conversation's own answer to "in a worktree?", from the switch beside the project. Absent follows the setting.
 		...(value.worktree === undefined ? {} : { worktree: value.worktree }),
+		...(value.spawnedFrom === undefined ? {} : { spawnedFrom: spawnedFrom(value.spawnedFrom) }),
 		...presentation(value, origin, uploads),
 	};
+}
+
+/**
+ * Which suggestion card a new conversation was started from (`SessionMeta.spawnedFrom`).
+ *
+ * Taken from a phone as well: two ids grant nothing — the worst a forged pair does is make some
+ * card read as started.
+ */
+function spawnedFrom(value: unknown): NonNullable<InitialPrompt["spawnedFrom"]> {
+	const id = (field: unknown) => typeof field === "string" && field.trim().length > 0 && field.length <= 200;
+	if (!object(value) || !id(value.sessionId) || !id(value.toolCallId)) throw new Error("Invalid spawnedFrom");
+	return { sessionId: value.sessionId as string, toolCallId: value.toolCallId as string };
 }
 
 export function promptOptions(

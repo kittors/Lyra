@@ -28,7 +28,7 @@ import { readTrajectoryChanges } from "../trajectory-changes.ts";
 import { ipcMain } from "electron";
 import { resolveSessionApproval } from "../approval-response.ts";
 import { cleanOldWorktrees } from "../git-worktrees.ts";
-import type { AgentCapabilities } from "../ipc-types.ts";
+import type { AgentCapabilities, LyraApi } from "../ipc-types.ts";
 import {
 	activateSession,
 	editSessionMessage,
@@ -90,7 +90,7 @@ export function registerSessionsIpc({
 	 */
 	const ensureSession = ensureLiveSession;
 
-	ipcMain.handle("sessions:create", async (_event, cwd: string, modelId: string, initial?: { content: UserContent[]; synthetic?: boolean; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[]; worktree?: boolean }) => createSession(cwd, modelId, initial));
+	ipcMain.handle("sessions:create", async (_event, cwd: string, modelId: string, initial?: Parameters<LyraApi["sessions"]["create"]>[2]) => createSession(cwd, modelId, initial));
 
 	/**
 	 * Read a transcript without starting anything.

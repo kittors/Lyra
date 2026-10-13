@@ -2885,6 +2885,14 @@ export const zhCN = {
 	"video.screenFull": "屏幕全屏",
 	"video.screenExit": "退出屏幕全屏",
 	"video.screenFullDetail": "占满整个屏幕，按 Esc 退出",
+	"sessionOps.suggested": "建议的新会话",
+	"sessionOps.start": "开始",
+	"sessionOps.startTip": "在这个项目里另开一个会话去做，当前对话不动",
+	"sessionOps.started": "已开始",
+	"sessionOps.dismiss": "收起这条建议",
+	"sessionOps.startFailed": "没能开始这个会话：{reason}",
+	"tools.spawnSession": "建议新会话",
+	"tools.archiveSession": "归档会话",
 } as const;
 
 export type MessageKey = keyof typeof zhCN;

@@ -1,4 +1,4 @@
-import type { Message, MessageAttachment, SessionStorage, Settings, UserContent } from "@lyra/core";
+import type { Message, MessageAttachment, SessionStorage, Settings, SpawnedFrom, UserContent } from "@lyra/core";
 import type { SessionSnapshot } from "./ipc-types.ts";
 
 export interface InitialPrompt {
@@ -10,6 +10,8 @@ export interface InitialPrompt {
 	attachments?: MessageAttachment[];
 	/** Run this conversation in a worktree of its own, or not. Absent follows `worktrees.autoCreateOnNewSession`. */
 	worktree?: boolean;
+	/** The suggestion card this conversation was started from; see `SessionMeta.spawnedFrom`. */
+	spawnedFrom?: SpawnedFrom;
 }
 
 /** Persist identity, title and the submitted message without starting MCP, Git or a provider. */
@@ -50,5 +52,7 @@ export async function createStoredSession(
 			...(worktree ? { workspaceSetup: "worktree" } : {}),
 		} })) ?? meta;
 	}
+	// Written before the snapshot goes back, so the card that started it reads as started the moment the session exists.
+	if (initial?.spawnedFrom) meta = (await store.append(meta, { type: "meta", meta: { ...meta, spawnedFrom: initial.spawnedFrom } })) ?? meta;
 	return { meta, messages, running: Boolean(initial), pendingApprovals: [] };
 }

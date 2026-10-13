@@ -199,6 +199,21 @@ const CHECKS = [
 		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/worktree-toggle.test.ts", "test/ui/worktree-conversation.test.ts"]],
 	},
 	{
+		id: "SESSION-spawn",
+		what: "建议新会话：参数不合格画出空卡、点了才开始却打断了这一轮、子代理拿到会话级工具",
+		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/session-ops.test.ts"]],
+	},
+	{
+		id: "SESSION-spawn-ui",
+		what: "建议卡片：点「开始」切走当前对话、开进工作树、spawnedFrom 没带下去；开始 → 已开始 · 打开 → 切过去；别的对话同一个调用 id 不算；关闭只收起",
+		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/session-suggestion-card.test.ts"]],
+	},
+	{
+		id: "SESSION-archive",
+		what: "归档自己：在工具里当场归档会把正在说话的那一轮砍掉（aborted、最后一条结果落不进去）；收尾和排着的话还在跑就放掉会话；停下或出错也照样归档；spawnedFrom 被建会话的白名单吃掉、重开后没了",
+		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--test", "--import", "./test/setup.ts", "--experimental-strip-types", "test/session-ops.test.ts"]],
+	},
+	{
 		id: "S7-annotate",
 		what: "标注拆成三个文件之后还画得出来吗",
 		window: true,
@@ -263,6 +278,12 @@ const CHECKS = [
 		what: "文件面板打开大图，先按 100% 画出来再缩到适配",
 		window: true,
 		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/image-pane-fit-probe.ts", "--tag=回归"]],
+	},
+	{
+		id: "SESSION-ops-window",
+		what: "跑起来的桌面端里：真鼠标点「开始」，新会话进侧栏、第一条是那段提示词、当前对话不切走、卡片变「已开始」、重启后还是；归档自己那一轮正常收尾、进了归档、界面离开它",
+		window: true,
+		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/session-ops-demo.ts", "/tmp/regression-session-ops"]],
 	},
 ];
 
