@@ -7,7 +7,7 @@
  */
 
 import { translate } from "../i18n/translate.ts";
-import { Activity, lazy, Suspense, useEffect, useState } from "react";
+import { Activity, Suspense, useEffect, useState } from "react";
 import { RetainedViews } from "../ui/layout/RetainedViews.tsx";
 import { BootScreen, MIN_BOOT_MS } from "./boot/BootScreen.tsx";
 import { SplitWorkspace } from "../features/split/SplitWorkspace.tsx";
@@ -35,47 +35,8 @@ import { useMemoryPass } from "../features/memory/useMemoryPass.ts";
 import { WINDOW_HEADER_HEIGHT } from "../../shared/window-chrome.ts";
 import { useBrowserWorkspace } from "../features/browser/index.ts";
 
-/*
- * The screens that are not a conversation, fetched when they are first opened.
- *
- * All four are reachable from the sidebar and none of them is where the window opens. Settings is
- * the largest by a distance — the appearance page alone carries the code themes and every font
- * preview — and until now all of it was in the bundle before the first message rendered.
- *
- * `lazy` rather than a hand-rolled dynamic import: React already knows how to hold the tree still
- * while a chunk arrives, and doing it by hand means a second state machine that has to agree with
- * the first about what "loading" means.
- *
- * The phone is why this is worth doing at all. It loads the same bundle over the network, and
- * through a relay that crosses the public internet twice.
- */
-/*
- * Pointed at the component file, not at the domain's `index.ts`.
- *
- * Going through the front door is the rule everywhere else, and here it silently undoes the split:
- * the index is also imported statically from elsewhere, so Rollup sees the whole domain reachable
- * from the entry and merges it back into the main chunk. The `lazy()` still works — the code is
- * just already there, which is the thing it was meant to avoid.
- *
- * Measured: through the index the main chunk is 2.32MB, through the component file it is 1.69MB.
- * `e2e/lazy-views.test.ts` opens each of these, and `scripts/bundle-report.mjs` watches the size,
- * because this is the kind of regression that changes no behaviour at all.
- */
-const PluginsView = lazy(() =>
-	import("../features/plugins/PluginsView.tsx").then((m) => ({ default: m.PluginsView })),
-);
-const PullRequestsView = lazy(() =>
-	import("../features/pull-requests/PullRequestsView.tsx").then((m) => ({ default: m.PullRequestsView })),
-);
-const ScheduledView = lazy(() =>
-	import("../features/scheduled/ScheduledView.tsx").then((m) => ({ default: m.ScheduledView })),
-);
-const GalleryView = lazy(() =>
-	import("../features/gallery/GalleryView.tsx").then((m) => ({ default: m.GalleryView })),
-);
-const SettingsShell = lazy(() =>
-	import("../features/settings/SettingsShell.tsx").then((m) => ({ default: m.SettingsShell })),
-);
+// The screens that are not a conversation, split into chunks of their own and fetched ahead — see `screens.tsx`.
+import { screens, usePreloadScreens } from "./screens.tsx";
 import { useOpenFile } from "../store/openFile.ts";
 import { watchFilePanelState } from "../store/file-panel-handoff.ts";
 import { useSchedulerNotices } from "../features/scheduled/index.ts";
@@ -84,6 +45,12 @@ import { applyAppearance, watchSystemTheme } from "../features/settings/index.ts
 import { bridge, onPhone } from "../services/index.ts";
 import { I18nProvider, useI18n } from "../i18n/index.ts";
 import { PhoneTouch } from "../mobile/PhoneTouch.tsx";
+
+const PluginsView = screens.plugins.View;
+const PullRequestsView = screens["pull-requests"].View;
+const ScheduledView = screens.scheduled.View;
+const GalleryView = screens.gallery.View;
+const SettingsShell = screens.settings.View;
 
 export function App() {
 	const ready = useApp((s) => s.ready);
@@ -97,6 +64,8 @@ export function App() {
 	// A shell running before the terminal is opened, so opening it costs nothing. Idle-scheduled
 	// and idempotent — see `terminal-prewarm.ts`.
 	useTerminalPrewarm();
+	// The rail's screens, fetched once the window is idle so a first visit does not sit on a skeleton.
+	usePreloadScreens();
 	// Whose files these are. Owned here rather than by the file pane, which is not always mounted.
 	useProjectFiles();
 

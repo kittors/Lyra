@@ -3,10 +3,11 @@
  */
 
 import { Layers, Play } from "lucide-react";
-import { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useMemo, useRef, useState } from "react";
 import { useI18n } from "../../i18n/index.ts";
 import { aspectOf, byDay, justify } from "../../lib/gallery-layout.ts";
 import { familyOf } from "../../lib/lineage-tree.ts";
+import { useSettledWidth } from "../../ui/layout/settled-width.ts";
 import { isVideo, MediaStill } from "./MediaStill.tsx";
 import { askText, type Entry, type GalleryIndex } from "./model.ts";
 
@@ -19,15 +20,12 @@ type Drawn = Extract<Entry, { kind: "drawn" }>;
 export function GalleryGrid({ entries, index, compact, onOpen }: { entries: Drawn[]; index: GalleryIndex; compact: boolean; onOpen: (media: string, tile: HTMLElement) => void }) {
 	const { t, formatDate } = useI18n();
 	const box = useRef<HTMLDivElement>(null);
-	const [width, setWidth] = useState(0);
-	useLayoutEffect(() => {
-		const el = box.current;
-		if (!el) return;
-		setWidth(el.clientWidth);
-		const observer = new ResizeObserver(() => setWidth(el.clientWidth));
-		observer.observe(el);
-		return () => observer.disconnect();
-	}, []);
+	/*
+	 * Not the width on every frame: coming here folds the sidebar away, and rows laid out at each step
+	 * of that fold gave every picture 13 sizes on the way in. Laid out once for the folded width, the
+	 * rows slide in with the panel, their overhang clipped by the scroller until the fold is done.
+	 */
+	const width = useSettledWidth(box);
 
 	const sections = useMemo(() => byDay(entries, (entry) => entry.at), [entries]);
 	// How many pictures each one's history holds, for the mark on its tile. One family is one walk.

@@ -19,6 +19,7 @@ import { useApp } from "../../store/index.ts";
 import { useScheduledNotices } from "../../features/scheduled/index.ts";
 import { UpdateBadge } from "../../features/update/index.ts";
 import { MAIN_RAIL_WIDTH } from "../../../shared/window-chrome.ts";
+import { reachScreen } from "../screen-reach.ts";
 
 /** The rail's width; the panel with the sidebar and the content starts right after it. */
 export const RAIL_WIDTH = MAIN_RAIL_WIDTH;
@@ -81,6 +82,9 @@ function RailButton({
 			data-ly-tip-side="right"
 			aria-label={tip}
 			aria-current={active ? "page" : undefined}
+			// Reaching for it is time enough to fetch it: settings in particular is not fetched any earlier (`screens.tsx`).
+			onPointerEnter={() => reachScreen(place)}
+			onFocus={() => reachScreen(place)}
 			onClick={onClick}
 			// `transition`, not `transition-all` — see `Workspace` in `app/App.tsx`.
 			className={`no-drag relative flex h-8 w-8 items-center justify-center rounded-lg transition duration-[var(--ly-t-quick)] ${

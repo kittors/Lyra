@@ -13,6 +13,7 @@
 import { translate } from "../i18n/translate.ts";
 import { useEffect, useRef, useState } from "react";
 import { ResizeHandle } from "../ui/layout/ResizeHandle.tsx";
+import { SLIDING_EDGE } from "../ui/layout/settled-width.ts";
 import { useFocusTrap, useLayout } from "./layout.tsx";
 import { NATIVE_HEADER_HEIGHT } from "../../shared/window-chrome.ts";
 import { drawerWidth } from "../mobile/drawer-gesture.ts";
@@ -178,6 +179,8 @@ export function NavPane({
 				snap ? "transition-none" : "transition-[margin-left,opacity] duration-[var(--ly-t-base)] ease-out"
 			}`}
 			style={{ width, marginLeft: navOpen ? 0 : -width, opacity: navOpen ? 1 : 0 }}
+			// The content beside this widens on every frame of that margin; layouts that follow the width wait it out (`useSettledWidth`).
+			{...{ [SLIDING_EDGE]: "" }}
 		>
 			{pane}
 

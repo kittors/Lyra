@@ -47,6 +47,15 @@ function useLiveGallery(): void {
 }
 
 /**
+ * Read the list before the first visit, so it opens on the album rather than its skeleton. The rail
+ * asks when the pointer reaches its button; every visit reads again on its own, so only a first is
+ * worth starting early.
+ */
+export function warmGallery(): void {
+	if (!useGallery.getState().gallery) void refreshGallery();
+}
+
+/**
  * Where an open picture is drawn: over the window's whole panel when the window has one beside the
  * rail, so the picture gets the room the sidebar would take if it were opened there. The rail stays
  * out of it, and with it every way to somewhere else. In a narrow window it covers the gallery's own
