@@ -280,7 +280,8 @@ async function main(): Promise<void> {
 		await press('[data-ly-suggestion-action="start"]', "开始");
 		const started = await until(`document.querySelector('[data-ly-session-suggestion="started"]')`, "卡片翻成已开始");
 		const action = await app.evaluate<string>(`document.querySelector("[data-ly-suggestion-action]")?.textContent ?? ""`);
-		check("卡片变成「已开始 · 打开」", started && action === "已开始 · 打开", action);
+		// The card says what the conversation it started is doing: running at once, done once it has answered.
+		check("卡片翻过来，说出那个会话在做什么", started && /^(进行中|已完成) · 打开$/.test(action), action);
 		const child = (await listed()).find((meta) => meta.spawnedFrom?.toolCallId === callId);
 		check("新会话记着它是从这张卡片开出来的", Boolean(child) && child?.spawnedFrom?.sessionId === origin, JSON.stringify(child?.spawnedFrom ?? null));
 		const inSidebar = child ? await until(`document.querySelector('[data-ly-row="${child.id}"]')`, "侧栏里的新会话") : false;
@@ -290,6 +291,8 @@ async function main(): Promise<void> {
 		const childAsk = asked.find((one) => one.who === "child");
 		check("新会话自己在后台跑了：发给模型的第一条就是卡片背后那段提示词", childAnswered && childAsk?.firstUser === CHILD, childAsk?.firstUser ?? "（新会话没有问过模型）");
 		await pause(1500);
+		const finished = await until(`document.querySelector("[data-ly-suggestion-action]")?.textContent === "已完成 · 打开"`, "卡片说已完成");
+		check("它跑完以后，卡片说「已完成 · 打开」，不用去别处找", finished, await app.evaluate<string>(`document.querySelector("[data-ly-suggestion-action]")?.textContent ?? ""`));
 		check("当前视图没切走：打开的还是原来那个对话", (await activeRow()) === origin && (await transcript()).includes("SPAWN-DONE"), `${await activeRow()} vs ${origin}`);
 		if (child) {
 			const stored = await app.evaluate<{ role: string; text: string }[]>(`window.lyra.sessions.transcript(${JSON.stringify(child.projectId)}, ${JSON.stringify(child.id)}).then((s) => (s?.messages ?? []).map((m) => ({ role: m.role, text: (Array.isArray(m.content) ? m.content : []).filter((c) => c.type === "text").map((c) => c.text).join("") })))`);
@@ -316,7 +319,7 @@ async function main(): Promise<void> {
 		await shot("03_重启后仍是已开始");
 
 		console.log("\n【四】点「已开始 · 打开」切到那个会话");
-		await press('[data-ly-suggestion-action="open"]', "已开始 · 打开");
+		await press('[data-ly-suggestion-action="open"]', "打开");
 		const switched = child ? await until(`document.querySelector('[data-ly-row="${child.id}"] [aria-current="page"]') && document.body.innerText.includes("CHILD-OK")`, "切到新会话") : false;
 		check("切过去了，看得到新会话自己的回答", switched, String(await activeRow()));
 		await pause(1500);

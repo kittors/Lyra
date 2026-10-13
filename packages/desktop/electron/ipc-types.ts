@@ -357,8 +357,9 @@ export interface LyraApi {
 		/**
 		 * `initial.worktree`: this conversation in a worktree of its own, or not; absent follows the setting.
 		 * `initial.spawnedFrom`: the suggestion card it was started from (`SessionMeta.spawnedFrom`).
+		 * `initial.title`: its name in the list, instead of one cut from the first message.
 		 */
-		create(cwd: string, modelId: string, initial?: { content: UserContent[]; synthetic?: boolean; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[]; worktree?: boolean; spawnedFrom?: SpawnedFrom }): Promise<SessionSnapshot>;
+		create(cwd: string, modelId: string, initial?: { content: UserContent[]; synthetic?: boolean; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[]; worktree?: boolean; spawnedFrom?: SpawnedFrom; title?: string }): Promise<SessionSnapshot>;
 		/** Start the agent for this session — skills, MCP servers, the lot. For running things. */
 		open(projectId: string, sessionId: string): Promise<SessionSnapshot | null>;
 		/**

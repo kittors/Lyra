@@ -17,6 +17,7 @@ import { bridge } from "../services/index.ts";
 import { draftFromUserMessage } from "../lib/revert-draft.ts";
 import { outlivingTurn } from "../lib/approval-scope.ts";
 import { sessionWorkspace } from "./session-workspace.ts";
+import { sessionHome } from "../lib/session-home.ts";
 
 type Get = () => AppState;
 type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void;
@@ -233,10 +234,9 @@ export function turnSlice(set: Set, get: Get) {
 		const source = get().activeSessionId === from.sessionId ? get().meta : (get().sessionCache[from.sessionId]?.meta ?? get().sessions.find((session) => session.id === from.sessionId));
 		/*
 		 * In the project of the conversation that suggested it — the project, not its directory: one
-		 * running in its own git worktree has `cwd` inside the worktree and names the project it belongs
-		 * to in `meta.worktree`. Read structurally so this compiles before and after that field lands.
+		 * running in its own git worktree has `cwd` inside the worktree (`sessionHome`).
 		 */
-		const cwd = (source as { worktree?: { project?: string } } | null | undefined)?.worktree?.project ?? source?.cwd;
+		const cwd = source ? sessionHome(source) : undefined;
 		if (!cwd) return null;
 		const content: UserContent[] = [{ type: "text", text: prompt }];
 		let snapshot: SessionSnapshot;

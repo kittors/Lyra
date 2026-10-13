@@ -6,7 +6,7 @@
  * first, and disposing aborts the turn — the very turn still waiting for the tool to return. So the
  * tool leaves a request here and ends its turn (`terminate`); this watches the session's events,
  * archives it after its `agent_end`, and lets the session go once nothing is running on it any more.
- * See ADR-0038.
+ * See ADR-0039.
  */
 
 import type { AgentEvent } from "@lyra/core";

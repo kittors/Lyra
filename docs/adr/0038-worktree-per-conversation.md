@@ -5,7 +5,7 @@
 - 相关：core `session/types.ts`（`SessionMeta.worktree`）、`config/settings.ts`（`worktrees`）；desktop
   `electron/create-session.ts`、`electron/prompt-input.ts`（`initialPrompt`）、`electron/git-worktrees.ts`
   （`autoCreateSessionWorktree`）、`electron/session-hub.ts`、`electron/i18n.ts`（`worktree.notCreated`）、
-  `src/features/composer/WorktreeToggle.tsx`、`src/features/conversation/SessionStatus.tsx`、`src/lib/session-home.ts`、
+  `src/ui/inputs/WorktreeToggle.tsx`、`src/features/conversation/SessionStatus.tsx`、`src/lib/session-home.ts`、
   `src/store/session-workspace.ts`、`src/lib/sidebar-grouping.ts`；测试 `test/git-worktrees.test.ts`、
   `test/create-session.test.ts`、`test/sidebar-grouping.test.ts`、`test/ui/worktree-toggle.test.ts`、
   `test/ui/worktree-conversation.test.ts`；探针 `e2e/worktree-choice-demo.ts`

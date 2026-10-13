@@ -139,12 +139,15 @@ export function initialPrompt(value: unknown, origin: PromptOrigin = "local", up
 	if (!object(value)) throw new Error("initial must be an object");
 	if (value.synthetic !== undefined && typeof value.synthetic !== "boolean") throw new Error("synthetic must be boolean");
 	if (value.worktree !== undefined && typeof value.worktree !== "boolean") throw new Error("worktree must be boolean");
+	if (value.title !== undefined && typeof value.title !== "string") throw new Error("title must be a string");
 	return {
 		content: promptContent(value.content),
 		...(value.synthetic === undefined ? {} : { synthetic: value.synthetic }),
 		// This conversation's own answer to "in a worktree?", from the switch beside the project. Absent follows the setting.
 		...(value.worktree === undefined ? {} : { worktree: value.worktree }),
 		...(value.spawnedFrom === undefined ? {} : { spawnedFrom: spawnedFrom(value.spawnedFrom) }),
+		// A name for the list, held to the length a title from the first message gets.
+		...(typeof value.title === "string" && value.title.trim() ? { title: value.title.replace(/\s+/g, " ").trim().slice(0, 60) } : {}),
 		...presentation(value, origin, uploads),
 	};
 }

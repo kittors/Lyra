@@ -36,7 +36,7 @@ const run = (status: ToolRun["status"], details?: unknown): ToolRun => ({
 });
 
 /** What the card asked the main process for. */
-let created: { cwd: string; modelId: string; initial: { content: UserContent[]; spawnedFrom?: unknown; displayText?: string } }[];
+let created: { cwd: string; modelId: string; initial: { content: UserContent[]; spawnedFrom?: unknown; displayText?: string; title?: string; worktree?: boolean } }[];
 let prompted: { id: string; content: UserContent[]; options: unknown }[];
 const realOpen = useApp.getState().openSessionById;
 
@@ -63,7 +63,7 @@ beforeEach(() => {
 	useApp.setState({
 		activeSessionId: "s-origin", meta: meta("s-origin"), sessions: [meta("s-origin")], sessionCache: {}, activity: {}, turns: {}, notices: [],
 		workspace: { path: "/work/project", name: "project", isGitRepo: true, branch: "main" },
-		settings: { defaultModelId: "fake/model" } as never,
+		settings: { defaultModelId: "fake/model", projects: [] } as never,
 		toolRuns: { [CALL.id]: run("done", DETAILS) },
 	});
 });
@@ -98,7 +98,7 @@ test("建议：小标签、标题、说明、一颗「开始」、一个关闭",
 	}
 });
 
-test("开始：在这个对话的项目里建会话、发出那段提示词，当前对话不切走；卡片变成「已开始 · 打开」", async () => {
+test("开始：在这个对话的项目里建会话、发出那段提示词，当前对话不切走；卡片变成「进行中 · 打开」", async () => {
 	const view = await mount(card());
 	try {
 		await click(view.find('[data-ly-suggestion-action="start"]'));
@@ -107,7 +107,8 @@ test("开始：在这个对话的项目里建会话、发出那段提示词，�
 		assert.deepEqual(created, [{
 			cwd: "/work/project",
 			modelId: "fake/model",
-			initial: { content: [{ type: "text", text: DETAILS.prompt }], spawnedFrom: { sessionId: "s-origin", toolCallId: CALL.id } },
+			// Named by the card, and asked the composer's question with the setting's answer (off here).
+			initial: { title: DETAILS.title, worktree: false, content: [{ type: "text", text: DETAILS.prompt }], spawnedFrom: { sessionId: "s-origin", toolCallId: CALL.id } },
 		}]);
 		assert.deepEqual(prompted, [{ id: "s-new", content: [{ type: "text", text: DETAILS.prompt }], options: { resumePending: true } }]);
 
@@ -119,7 +120,55 @@ test("开始：在这个对话的项目里建会话、发出那段提示词，�
 		await waitFor(() => view.find("[data-ly-session-suggestion]").getAttribute("data-ly-session-suggestion") === "started", "卡片翻成已开始");
 		const action = view.find("[data-ly-suggestion-action]");
 		assert.equal(action.getAttribute("data-ly-suggestion-action"), "open");
-		assert.equal(action.textContent, `${translate("sessionOps.started")} · ${translate("common.open")}`);
+		assert.equal(action.textContent, `${translate("sessionOps.running")} · ${translate("common.open")}`, "the conversation it started is running, and the card says so");
+	} finally {
+		await view.unmount();
+	}
+});
+
+test("卡片上也能选在新工作树里开始：默认跟设置，选了就带下去，开始以后这个开关就没了", async () => {
+	useApp.setState({ settings: { defaultModelId: "fake/model", projects: [], worktrees: { autoCreateOnNewSession: false } } as never });
+	const view = await mount(card());
+	try {
+		const toggle = () => view.all<HTMLButtonElement>("[data-ly-worktree-toggle]")[0];
+		assert.equal(toggle()?.getAttribute("aria-pressed"), "false");
+		await click(toggle());
+		assert.equal(toggle()?.getAttribute("aria-pressed"), "true");
+		await click(view.find('[data-ly-suggestion-action="start"]'));
+		await waitFor(() => created.length === 1, "建会话");
+		assert.equal(created[0].initial.worktree, true);
+		await waitFor(() => view.find("[data-ly-session-suggestion]").getAttribute("data-ly-session-suggestion") === "started", "卡片翻成已开始");
+		assert.equal(toggle(), undefined, "a started conversation cannot be moved into a copy");
+	} finally {
+		await view.unmount();
+	}
+});
+
+test("项目不是 Git 仓库：卡片上没有工作树开关，请求里也没有这一项", async () => {
+	useApp.setState({ workspace: { path: "/work/project", name: "project", isGitRepo: false, branch: null } });
+	const view = await mount(card());
+	try {
+		assert.equal(view.all("[data-ly-worktree-toggle]").length, 0);
+		await click(view.find('[data-ly-suggestion-action="start"]'));
+		await waitFor(() => created.length === 1, "建会话");
+		assert.equal(Object.hasOwn(created[0].initial, "worktree"), false);
+	} finally {
+		await view.unmount();
+	}
+});
+
+test("开始以后，卡片说出那个会话在做什么：进行中、已完成、没跑完，看过之后回到已开始", async () => {
+	useApp.setState({ sessions: [meta("s-origin"), meta("s-new", { spawnedFrom: { sessionId: "s-origin", toolCallId: CALL.id } })] });
+	const view = await mount(card());
+	try {
+		const said = () => view.find("[data-ly-suggestion-action]").textContent;
+		const open = translate("common.open");
+		for (const [activity, key] of [["running", "sessionOps.running"], ["waiting", "sessionOps.running"], ["done", "sessionOps.done"], ["failed", "sessionOps.failed"]] as const) {
+			useApp.setState({ activity: { "s-new": activity } });
+			await waitFor(() => said() === `${translate(key)} · ${open}`, `${activity} 时说 ${translate(key)}`);
+		}
+		useApp.setState({ activity: {} });
+		await waitFor(() => said() === `${translate("sessionOps.started")} · ${open}`, "看过之后");
 	} finally {
 		await view.unmount();
 	}

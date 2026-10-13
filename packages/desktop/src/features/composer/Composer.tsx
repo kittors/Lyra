@@ -5,7 +5,7 @@ import { Camera, ChevronDown, CircleAlert, Folder, GitBranch, MessageSquare, Plu
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { motionReduced } from "../../ui/motion/reduced.ts";
 import { ChangeBar } from "../git/index.ts";
-import { WorktreeToggle } from "./WorktreeToggle.tsx";
+import { WorktreeToggle } from "../../ui/inputs/WorktreeToggle.tsx";
 import { CommandMenu } from "./CommandMenu.tsx";
 import { QueuedMessages } from "./QueuedMessages.tsx";
 import { buildOutgoing, queuePreview, queueThumbnail } from "./outgoing.ts";

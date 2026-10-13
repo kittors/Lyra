@@ -6,7 +6,7 @@
  * Start; then the new conversation opens in this one's project, in the background, and this screen
  * stays where it is. The card reads "Started · Open" from then on, across restarts, because what it
  * reads is not its own memory but the session list: the conversation whose `spawnedFrom` names this
- * call (`SessionMeta.spawnedFrom`). See ADR-0038.
+ * call (`SessionMeta.spawnedFrom`). See ADR-0039.
  *
  * Drawn outside the turn's process block, like the image cards (`Conversation.tsx`): a suggestion
  * folded away with the working would never be seen.
@@ -15,7 +15,8 @@
 import { ArrowUpRight, SquarePen, X } from "lucide-react";
 import { useState } from "react";
 import type { SessionSuggestionDetails, ToolCallContent } from "@lyra/core";
-import { focusScreenOf, useScopedFromToolRuns, useScopedSessionId } from "../../app/session-scope.tsx";
+import { focusScreenOf, useScopedFromToolRuns, useScopedSessionId, useScopedWorkspace } from "../../app/session-scope.tsx";
+import { WorktreeToggle } from "../../ui/inputs/WorktreeToggle.tsx";
 import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
 import { RollingText } from "../../ui/motion/RollingText.tsx";
@@ -66,17 +67,37 @@ function SessionSuggestionCard({ call }: { call: ToolCallContent }) {
 	const startedId = useApp((s) =>
 		sessionId ? (s.sessions.find((one) => one.spawnedFrom?.sessionId === sessionId && one.spawnedFrom.toolCallId === call.id)?.id ?? null) : null,
 	);
+	/*
+	 * What the conversation it started is doing, told on the card that started it: the place someone
+	 * looking for it already is, rather than a toast over whatever they are reading.
+	 */
+	const activity = useApp((s) => (startedId ? (s.activity[startedId] ?? null) : null));
+	// In a worktree of its own or in the project, asked as the composer asks it, from the same setting.
+	const { workspace } = useScopedWorkspace();
+	const worktreeByDefault = useApp((s) => Boolean(s.settings?.worktrees?.autoCreateOnNewSession));
+	const [worktreePick, setWorktreePick] = useState<boolean | null>(null);
+	const inWorktree = worktreePick ?? worktreeByDefault;
 	const [dismissed, setDismissed] = useState(() => dismissedIds().includes(call.id));
 	const [starting, setStarting] = useState(false);
 	const details = run?.status === "done" ? (run.result?.details as SessionSuggestionDetails | undefined) : undefined;
 	// Refused arguments leave no card: the tool's own row says what was wrong.
 	if (!sessionId || details?.kind !== "session_suggestion" || dismissed) return null;
+	const offersWorktree = !startedId && Boolean(workspace?.isGitRepo);
+	const status =
+		activity === "running" || activity === "waiting"
+			? t("sessionOps.running")
+			: activity === "done"
+				? t("sessionOps.done")
+				: activity === "failed"
+					? t("sessionOps.failed")
+					: t("sessionOps.started");
 
 	const start = async () => {
 		if (starting) return;
 		setStarting(true);
 		try {
-			await useApp.getState().startSession(details.prompt, { sessionId, toolCallId: call.id });
+			// Named by the card's title, not by the first sixty characters of a prompt written for the model.
+			await useApp.getState().startSession(details.prompt, { sessionId, toolCallId: call.id }, { title: details.title, ...(offersWorktree ? { worktree: inWorktree } : {}) });
 		} finally {
 			setStarting(false);
 		}
@@ -110,11 +131,8 @@ function SessionSuggestionCard({ call }: { call: ToolCallContent }) {
 			<p className="mt-0.5 text-detail text-ink-muted" data-ly-suggestion-summary>
 				{details.summary}
 			</p>
-			{/*
-			 * A group of one for now. Starting in a new worktree joins it as a menu beside this button,
-			 * so the button stays one control rather than turning into two different ones.
-			 */}
-			<div className="mt-2.5 flex items-center" data-ly-suggestion-start>
+			{/* Start, and beside it the composer's own question — in a worktree of its own? — while it can still be asked. */}
+			<div className="mt-2.5 flex items-center gap-1.5" data-ly-suggestion-start>
 				<Button
 					size="sm"
 					variant={startedId ? "subtle" : "primary"}
@@ -124,8 +142,9 @@ function SessionSuggestionCard({ call }: { call: ToolCallContent }) {
 					onClick={() => (startedId ? open() : void start())}
 					data-ly-suggestion-action={startedId ? "open" : "start"}
 				>
-					<RollingText>{startedId ? `${t("sessionOps.started")} · ${t("common.open")}` : t("sessionOps.start")}</RollingText>
+					<RollingText>{startedId ? `${status} · ${t("common.open")}` : t("sessionOps.start")}</RollingText>
 				</Button>
+				{offersWorktree && <WorktreeToggle size="sm" on={inWorktree} onChange={setWorktreePick} />}
 			</div>
 		</section>
 	);

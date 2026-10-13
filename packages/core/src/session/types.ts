@@ -93,7 +93,7 @@ export interface SessionMeta {
 	 *
 	 * The card that made the suggestion finds out it was taken by looking for the conversation that
 	 * names it here — the one fact that survives a restart and reaches every window and phone with
-	 * the session list, without a second record kept beside the card. See ADR-0038.
+	 * the session list, without a second record kept beside the card. See ADR-0039.
 	 */
 	spawnedFrom?: SpawnedFrom;
 	/** Highest sequence number written. Sync clients compare against this. */

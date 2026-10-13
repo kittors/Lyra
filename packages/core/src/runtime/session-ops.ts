@@ -4,7 +4,7 @@
  * `spawn_session` puts a suggested conversation in front of the person — a card with a Start button
  * — and returns at once. `archive_session` files this conversation away once the turn that asked for
  * it has ended. Both need a host with conversations to offer: the desktop passes them in as
- * `extraTools`, the CLI does not and so has neither. Design and trade-offs: ADR-0038.
+ * `extraTools`, the CLI does not and so has neither. Design and trade-offs: ADR-0039.
  */
 
 import { errorResult } from "../agent/tool-run.ts";
