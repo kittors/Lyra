@@ -16,6 +16,7 @@ import { parseSessionImageUrl, SESSION_IMAGE_HOST, SESSION_MEDIA_HOST } from "..
 import { isVideoMediaName, safeMediaName, sessionMediaHome, sessionMediaPath } from "@lyra/core";
 import { cachedThumb, parkedThumb } from "./media-thumbs.ts";
 import { attachmentFile } from "./attachment-reads.ts";
+import { serveRanged } from "./ranged-file.ts";
 
 export const MEDIA_SCHEME = "ly-media";
 export const PREVIEW_SCHEME = "ly-preview";
@@ -194,11 +195,11 @@ async function serveParkedMedia(url: URL, request: Request): Promise<Response> {
 	const name = safeMediaName(decodeURIComponent(url.pathname.replace(/^\//, "")));
 	if (!name) return new Response("not found", { status: 404 });
 	/*
-	 * 视频交给 file 协议，请求头原样带过去——`<video>` 拖进度条发的是 Range 请求，而下面那条路把
-	 * 整个文件读进内存、只会答 200。几十 MB 的片子每拖一下读一遍，进度条也拖不动。也没有缩略图：
-	 * nativeImage 解不了视频，网格里画的是 `<video>` 自己的第一帧。
+	 * 视频按 Range 一段一段答（`ranged-file.ts`）——`<video>` 拖进度条发的是 Range 请求，而下面那条路
+	 * 把整个文件读进内存、只会答 200，`net.fetch(file://)` 也一样只答 200：Chromium 于是当它不能拖，
+	 * 一拖就回到第一帧。也没有缩略图：nativeImage 解不了视频，网格里画的是 `<video>` 自己的第一帧。
 	 */
-	if (isVideoMediaName(name)) return net.fetch(pathToFileURL(sessionMediaPath(name)).toString(), { headers: request.headers, method: request.method });
+	if (isVideoMediaName(name)) return serveRanged(sessionMediaPath(name), request, contentTypeFor(name));
 	const home = sessionMediaHome();
 	const thumb = Number(url.searchParams.get("thumb"));
 	/*
@@ -303,6 +304,9 @@ export function registerPreviewProtocols(options: {
 		 */
 		const allowed = target ? ((await resolveMedia(target)) ?? (await attachmentFile(target))) : null;
 		if (!allowed) return new Response("forbidden", { status: 403 });
+		// Audio and video by range, or the file pane's player cannot seek either (`ranged-file.ts`).
+		const type = contentTypeFor(allowed);
+		if (type.startsWith("video/") || type.startsWith("audio/")) return serveRanged(allowed, request, type);
 		return net.fetch(pathToFileURL(allowed).toString(), { headers: request.headers, method: request.method });
 	});
 

@@ -32,8 +32,10 @@
    重启也丢）——第一次 `done` 当场取地址；查不到就说「任务找不到了」。
 6. **拿到就流式落盘**：`session-media/<sha1>.mp4`，不进内存 base64；从 `moov` 读宽高和时长，卡片按真实形状占位。
    签名的 CDN 链接不带 key 去取，只有内容端点和 Google 的文件 URI 带。
-7. **播放走 file 协议**：`ly-media://m/*.mp4` 交给 `net.fetch(file://)`，Range 请求原样带过去，拖进度条不读整个
-   文件。没有缩略图——`nativeImage` 解不了视频，网格和链路里是 `<video preload="metadata">` 自己的第一帧。
+7. **播放按 Range 答**：`ly-media://m/*.mp4` 自己按 Range 回 206 和那一段字节（`electron/ranged-file.ts`），拖进度条
+   不读整个文件。不能交给 `net.fetch(file://)`：它不管 Range 一律回 200 和整个文件，Chromium 就当这个源不能拖
+   （`seekable` 是 [0, 0]），一拖就回到第一帧——文件面板里项目自己的音视频原来也是这样，一并改了。没有缩略图——`nativeImage`
+   解不了视频，网格和链路里是 `<video preload="metadata">` 自己的第一帧。
 8. **自己的播放器，不用系统控件**（`ui/media/VideoPlayer.tsx`）：对话卡片、创作详情、文件面板同一个。全屏按钮
    只铺满应用窗口——用 `popover="manual"` 把播放器提进顶层，元素不挪，`<video>` 不重建，视频不从头开始；铺满时整层
    `no-drag`（同图片查看器，标题栏 44px 的拖动区否则会吃掉点击），按键、Tab、焦点都留在播放器里，Esc 先于页面拿到。
