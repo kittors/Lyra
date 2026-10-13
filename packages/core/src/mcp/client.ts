@@ -12,8 +12,9 @@ import { DEFAULT_INHERITED_ENV_VARS, StdioClientTransport } from "@modelcontextp
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { commandEnv } from "../sandbox/login-path.ts";
-import type { JsonSchema, Tool, ToolResult, UserContent } from "../types.ts";
+import type { Tool, ToolResult, UserContent } from "../types.ts";
 import { McpMissingValues, resolveServer } from "./placeholders.ts";
+import { normalizeInputSchema } from "./schema.ts";
 import type { McpOrigin, McpServerConfig } from "./types.ts";
 
 /*
@@ -404,7 +405,7 @@ function toAgentTool(server: McpServerConfig, client: Client, raw: RawMcpTool): 
 		description,
 		// The prompt's tool list gets one line each; MCP descriptions are often paragraphs.
 		snippet: `${firstSentence(description)} (via ${server.name})`,
-		parameters: normalizeSchema(raw.inputSchema),
+		parameters: normalizeInputSchema(raw.inputSchema),
 		mutating: true,
 		summarize: () => `${server.name}: ${raw.name}`,
 
@@ -457,12 +458,6 @@ function normalizeContent(raw: unknown): UserContent[] {
 		}
 	}
 	return out;
-}
-
-/** MCP servers may omit the schema or send a non-object; the providers require an object schema. */
-function normalizeSchema(schema: unknown): JsonSchema {
-	if (schema && typeof schema === "object" && (schema as JsonSchema).type === "object") return schema as JsonSchema;
-	return { type: "object", properties: {}, additionalProperties: true };
 }
 
 function sanitize(value: string): string {
