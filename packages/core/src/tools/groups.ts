@@ -21,6 +21,7 @@ import { editTool } from "./edit.ts";
 import { globTool } from "./glob.ts";
 import { grepTool } from "./grep.ts";
 import { imageTool } from "./image.ts";
+import { videoTool } from "./video.ts";
 import { learnTool } from "./learn.ts";
 import { lsTool } from "./ls.ts";
 import { lspTool } from "./lsp.ts";
@@ -62,7 +63,7 @@ export const AGENT_TOOLS = [
 ] as unknown as Tool[];
 
 /** Reaching outside the machine, and showing the result. */
-export const WEB_TOOLS = [webFetchTool, webSearchTool, previewTool, imageTool] as unknown as Tool[];
+export const WEB_TOOLS = [webFetchTool, webSearchTool, previewTool, imageTool, videoTool] as unknown as Tool[];
 
 /** Every built-in, in the order they are advertised to the model. */
 export function builtinToolGroups(): Tool[][] {

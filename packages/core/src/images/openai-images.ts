@@ -13,7 +13,7 @@ import { fetchWithRetry, RetryBudget } from "../ai/retry.ts";
 import type { ModelConfig, ProviderConfig } from "../types/provider.ts";
 import { sniffImageType } from "./dimensions.ts";
 import { quotaGuard } from "./quota.ts";
-import { editsAsJson, imageFields, perRequestLimit } from "./shape.ts";
+import { editsAsJson, imageFields, jsonEditPictures, perRequestLimit } from "./shape.ts";
 import type { GeneratedImage, ImageCallOptions, ImageRequest, ImageResult } from "./types.ts";
 
 interface ImagesResponse {
@@ -61,7 +61,7 @@ export async function viaImagesApi(
 	const body = (n: number): { body: string | FormData; headers: Record<string, string> } => {
 		if (!edit || editsAsJson(model.modelId)) {
 			const json: Record<string, unknown> = { model: model.modelId, prompt: request.prompt, n, ...fields };
-			if (edit) json.image = pictures.map((picture) => `data:${picture.mimeType};base64,${picture.data}`);
+			if (edit) Object.assign(json, jsonEditPictures(model.modelId, pictures.map((picture) => `data:${picture.mimeType};base64,${picture.data}`)));
 			return { body: JSON.stringify(json), headers: { "content-type": "application/json" } };
 		}
 		/*

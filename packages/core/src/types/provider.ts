@@ -56,6 +56,14 @@ export interface ModelPricingTier {
 	cacheWrite?: number;
 }
 
+/**
+ * The task APIs a video model can be reached through. Every one is submit → poll → fetch, and no two
+ * agree on a path, a field or a status word, so the model says which (or `auto`, judged from the
+ * address and the name). The list as a value is `VIDEO_APIS` in `images/models.ts`, where the
+ * renderer can import it.
+ */
+export type VideoApi = "auto" | "xai" | "ark" | "openai" | "veo" | "dashscope";
+
 export interface ModelConfig {
 	/** Stable local id, unique across providers: `${providerId}/${modelId}`. */
 	id: string;
@@ -72,11 +80,19 @@ export interface ModelConfig {
 	/**
 	 * Draws images rather than writing replies.
 	 *
-	 * Absent means "judge by the name" (`isImageModel` in `images/models.ts`), which is what every
+	 * Absent means "judge by the name" (`mediaKind` in `images/models.ts`), which is what every
 	 * model stored before this existed gets. An image model is left out of the chat pickers and offered
 	 * to the `image_generate` tool instead.
 	 */
 	imageOutput?: boolean;
+	/**
+	 * Makes videos rather than writing replies: `imageOutput`'s counterpart, with the same rule that
+	 * absent means "judge by the name". A video model is left out of the chat pickers and offered to
+	 * the `video_generate` tool instead.
+	 */
+	videoOutput?: boolean;
+	/** The task API a video model is reached through. Absent or `auto` judges by address and name (`videos/protocol.ts`). */
+	videoApi?: VideoApi;
 	pricing?: ModelPricing;
 	/** Explicit upstream identity for opaque relay aliases; never changes the wire modelId. */
 	catalogRef?: { providerId: string; modelId: string };

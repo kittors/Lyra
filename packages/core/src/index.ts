@@ -80,7 +80,21 @@ export type { AgentEvent, AgentEventSink, CommandRun, QueuedTask } from "./agent
 export type { TodoItem } from "./tools/todo.ts";
 export { imageDimensions } from "./images/dimensions.ts";
 export { generateImages } from "./images/generate.ts";
-export { imageModelRows, isImageModel, isImageModelId, resolveImageModel } from "./images/models.ts";
+export {
+	imageModelRows,
+	isImageModel,
+	isImageModelId,
+	isMediaModel,
+	isVideoModel,
+	isVideoModelId,
+	mediaKind,
+	mediaModelRows,
+	resolveImageModel,
+	resolveMediaModel,
+	type MediaKind,
+} from "./images/models.ts";
+export { generateVideo } from "./videos/generate.ts";
+export { VIDEO_TOOL_NAME, type VideoGenerationDetails, type VideoRequest, type VideoResult } from "./videos/types.ts";
 export type { ImageGenerationDetails, ImageRequest, ImageResult } from "./images/types.ts";
 export { GalleryReader, type Gallery, type GalleryInput, type GalleryPicture, type GallerySession } from "./images/gallery.ts";
 export type { Ask as GalleryAsk } from "./images/lineage.ts";
@@ -203,6 +217,7 @@ export {
 export {
 	INLINE_IMAGE_CHARS,
 	materializeJsonlLine,
+	isVideoMediaName,
 	persistSessionImage,
 	safeMediaName,
 	sessionMediaHome,

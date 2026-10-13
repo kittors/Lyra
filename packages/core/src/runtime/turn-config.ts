@@ -32,6 +32,8 @@ import { compactWith } from "./compaction.ts";
 import type { ArtifactSink } from "./prune.ts";
 import { textTokens, toolTokens } from "./context.ts";
 import { imageHost } from "../images/host.ts";
+import { videoHost } from "../videos/host.ts";
+import { type ConversationPicks, type MediaSource, NamedPicks } from "../images/picks.ts";
 import { writePreview } from "./previews.ts";
 import { runSubAgent } from "./sub-agent.ts";
 import type { SubAgentRegistry } from "./sub-agents.ts";
@@ -95,6 +97,17 @@ export interface TurnConfigDeps {
 	allowedPaths?: ReadonlySet<string>;
 	/** 见 `AgentRunConfig.liveModel`：人一轮中途换了模型，从下一个请求起就换。 */
 	liveModel?: AgentRunConfig["liveModel"];
+	/**
+	 * This conversation's image and video picks, read and written at the moment of drawing
+	 * (`images/picks.ts`). Absent for a host with no conversation to keep a pick in — the CLI, a
+	 * test — where drawings follow the settings alone.
+	 */
+	mediaPicks?: ConversationPicks;
+}
+
+/** Where this turn's drawings read their model: the settings as they are now, and the conversation's picks. */
+function mediaSource(deps: Pick<TurnConfigDeps, "settings" | "getSettings" | "mediaPicks">): MediaSource {
+	return { settings: () => deps.getSettings?.() ?? deps.settings, picks: deps.mediaPicks };
 }
 
 export function buildTurnConfig(
@@ -117,6 +130,9 @@ export function buildTurnConfig(
 	 * a tool that looked it up itself could disagree with the one running beside it.
 	 */
 	const projectRoots = projectRootsFor(deps.settings.projects, deps.cwd);
+	// One tally for the turn, shared by pictures and videos: "named two models in one reply" is per turn.
+	const named = new NamedPicks(deps.mediaPicks);
+	const media = mediaSource(deps);
 	return {
 
 			sessionId: deps.sessionId,
@@ -142,15 +158,12 @@ export function buildTurnConfig(
 			writePreview: (input) =>
 				writePreview(lyraHome(), { ...input, sessionId: deps.sessionId }),
 			/*
-			 * From this turn's settings, like the tool list it decides (`session-turn.ts`): an image model
-			 * added halfway through a turn arrives with the next one, together with the tool.
+			 * Whether there is a host at all follows this turn's settings, like the tool list it decides
+			 * (`session-turn.ts`): an image model added halfway through a turn arrives with the next one,
+			 * together with the tool. Which model draws is read at each call (`images/picks.ts`).
 			 */
-			images: imageHost({
-				providers: deps.settings.providers,
-				preferred: deps.settings.imageModelId,
-				messages: turn.messages,
-				state: deps.state,
-			}),
+			images: imageHost({ source: media, named, messages: turn.messages, state: deps.state }),
+			videos: videoHost({ source: media, named, messages: turn.messages, state: deps.state }),
 			requestApproval: (request) => deps.requestApproval(request),
 			/*
 			 * What this turn's commands may change, derived from the permission mode.
@@ -223,6 +236,9 @@ export function buildTurnConfig(
 						},
 						dispatch: rootDispatch(),
 						allowedPaths: deps.allowedPaths,
+						// Read, not write: a delegated run draws with the conversation's pick as it stands,
+						// and a model it names for its own calls does not change the conversation's.
+						mediaPicks: deps.mediaPicks && { get: (kind) => deps.mediaPicks?.get(kind) },
 					},
 					input,
 					// 派出去那一刻会话在用哪个——一轮中途换过模型的，后派的子代理跟着新的走。

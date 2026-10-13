@@ -15,6 +15,7 @@ import { safeMediaName } from "../session/payload.ts";
 import type { Message, UserMessage } from "../types/message.ts";
 import { conversationPictures } from "./recent.ts";
 import { IMAGE_TOOL_NAME, type ImageGenerationDetails } from "./types.ts";
+import { VIDEO_TOOL_NAME, type VideoGenerationDetails } from "../videos/types.ts";
 
 /** What the person said that led to a picture: the newest message they typed before the call. */
 export interface Ask {
@@ -45,6 +46,8 @@ export interface DrawnPicture {
 	aspectRatio?: string;
 	quality?: string;
 	durationMs?: number;
+	/** A video's length, in seconds; absent on a picture (its `mimeType` says which it is). */
+	seconds?: number;
 	/** The pictures that went in, as given; empty for a drawing from words alone. */
 	sources: string[];
 	/** Inputs that cannot be traced to a picture: a workspace file named in a call from before `sources`. */
@@ -126,9 +129,17 @@ function traceCall(call: Call | undefined, messages: readonly Message[], edit: b
 	return { sources, untraced };
 }
 
-const mimeOfName = (media: string): string => (media.endsWith(".jpg") ? "image/jpeg" : media.endsWith(".webp") ? "image/webp" : "image/png");
+const MIME_OF_EXTENSION: Record<string, string> = { jpg: "image/jpeg", webp: "image/webp", mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime" };
+const mimeOfName = (media: string): string => MIME_OF_EXTENSION[media.split(".").pop() ?? ""] ?? "image/png";
 
-/** Every picture drawn in this conversation, oldest first, with what each was drawn from. */
+/** The pictures a call pointed at: an edit's `images`, a video's first and last frame and references. */
+function refsOf(tool: string, args: unknown): string[] {
+	const given = (args ?? {}) as { images?: unknown; image?: unknown; last_image?: unknown; references?: unknown };
+	const list = tool === VIDEO_TOOL_NAME ? [given.image, given.last_image, ...(Array.isArray(given.references) ? given.references : [])] : Array.isArray(given.images) ? given.images : [];
+	return list.filter((ref): ref is string => typeof ref === "string" && Boolean(ref.trim()));
+}
+
+/** Every picture and video made in this conversation, oldest first, with what each was made from. */
 export function drawingsIn(entries: readonly TranscriptEntry[]): Drawings {
 	const messages = entries.map((entry) => entry.message);
 	const calls = new Map<string, Call>();
@@ -154,14 +165,43 @@ export function drawingsIn(entries: readonly TranscriptEntry[]): Drawings {
 		}
 		if (message.role === "assistant") {
 			for (const part of message.content) {
-				if (part.type !== "toolCall" || part.name !== IMAGE_TOOL_NAME) continue;
-				const images = (part.arguments as { images?: unknown } | undefined)?.images;
-				const refs = Array.isArray(images) ? images.filter((ref): ref is string => typeof ref === "string") : [];
-				calls.set(part.id, { refs, before: index, ask });
+				if (part.type !== "toolCall" || (part.name !== IMAGE_TOOL_NAME && part.name !== VIDEO_TOOL_NAME)) continue;
+				calls.set(part.id, { refs: refsOf(part.name, part.arguments), before: index, ask });
 			}
 			return;
 		}
 		for (const part of message.content) if (part.type === "image") see(part.media, part.mimeType, seq, message.timestamp);
+		if (message.toolName === VIDEO_TOOL_NAME) {
+			const film = message.details as Partial<VideoGenerationDetails> | undefined;
+			if (film?.status !== "done" || !film.videos?.length) return;
+			// Every video result records its inputs; there is no older form to trace back from.
+			const sources = Array.isArray(film.sources) ? [...new Set(film.sources.map((name) => safeMediaName(name)).filter(Boolean))] : [];
+			const call = calls.get(message.toolCallId);
+			film.videos.forEach((video, at) => {
+				const media = safeMediaName(video.media ?? "");
+				if (!media) return;
+				drawn.push({
+					media,
+					mimeType: video.mimeType || mimeOfName(media),
+					width: video.width,
+					height: video.height,
+					seconds: video.seconds,
+					seq,
+					toolCallId: message.toolCallId,
+					index: at,
+					count: film.videos?.length ?? 1,
+					at: message.timestamp,
+					prompt: film.prompt ?? "",
+					model: film.model ?? { id: "", name: "", provider: "" },
+					aspectRatio: film.aspectRatio,
+					durationMs: film.durationMs,
+					sources,
+					untraced: 0,
+					ask: call?.ask,
+				});
+			});
+			return;
+		}
 		if (message.toolName !== IMAGE_TOOL_NAME) return;
 		const details = message.details as Partial<ImageGenerationDetails> | undefined;
 		if (details?.status !== "done" || !details.images?.length) return;

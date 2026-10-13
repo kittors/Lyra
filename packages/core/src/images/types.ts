@@ -75,11 +75,18 @@ export interface ImageTarget {
  * is the default are settings — a tool sees none — and the conversation's pictures are the session's.
  */
 export interface ImageHost {
-	/** The model a call means: the one named, else the default; a sentence for the model when neither. */
+	/**
+	 * The model a call means, read at the call: the one named, else the conversation's pick, else the
+	 * default, else the first (`picks.ts`); a sentence for the model when a name finds none or several.
+	 */
 	resolve(asked?: string): ImageTarget | { problem: string };
 	generate(target: ImageTarget, request: ImageRequest, options?: { signal?: AbortSignal; onRetry?: ImageCallOptions["onRetry"] }): Promise<ImageResult>;
 	/** The conversation's pictures, newest first, including what was drawn earlier this turn. */
 	pictures(): ImagePointer[];
+	/** Every image model by the name `resolve` takes back; `pictures` keeps those that take pictures in. */
+	names?(filter?: { pictures?: boolean }): string[];
+	/** A drawing asked for by name went through on `target`: the conversation's pick follows (`NamedPicks`). */
+	adopt?(target: ImageTarget): void;
 }
 
 /**

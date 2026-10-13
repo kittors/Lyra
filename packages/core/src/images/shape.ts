@@ -26,15 +26,19 @@ export function parseRatio(value: string | undefined): { width: number; height: 
 	return width > 0 && height > 0 ? { width, height } : null;
 }
 
-type Family = "gpt-image" | "dall-e-3" | "dall-e-2" | "gemini-image" | "other";
+type Family = "gpt-image" | "dall-e-3" | "dall-e-2" | "gemini-image" | "grok-image" | "other";
 
-/** The relay's own test for a Gemini image model: `gemini-…` with one dash-separated part exactly `image`. */
+/**
+ * The relay's own test for a Gemini image model: `gemini-…` with one dash-separated part exactly
+ * `image`; xAI's the same way round (`grok-imagine-image`, `grok-2-image`).
+ */
 function family(modelId: string): Family {
 	const id = modelId.toLowerCase().split("/").at(-1) ?? "";
 	if (/^(?:gpt-image|chatgpt-image)/.test(id)) return "gpt-image";
 	if (id.startsWith("dall-e-3")) return "dall-e-3";
 	if (id.startsWith("dall-e-2")) return "dall-e-2";
 	if (id.startsWith("gemini-") && id.split("-").includes("image")) return "gemini-image";
+	if (id.startsWith("grok-") && id.split("-").includes("image")) return "grok-image";
 	return "other";
 }
 
@@ -82,6 +86,12 @@ export function imageFields(modelId: string, request: Pick<ImageRequest, "aspect
 		if (quality && GEMINI_SIZE[quality] !== "1K") fields.image_size = GEMINI_SIZE[quality];
 		return fields;
 	}
+	if (kind === "grok-image") {
+		// xAI reads the ratio as a ratio and has no size; quality it does not take. A relay that strips
+		// `aspect_ratio` too is found out afterwards, from the picture (`offRatio` in `tools/image.ts`).
+		if (ratio) fields.aspect_ratio = `${ratio.width}:${ratio.height}`;
+		return fields;
+	}
 	if (ratio) {
 		const wide = ratio.width / ratio.height;
 		fields.size = wide >= 1 ? `1024x${snap(1024 / wide)}` : `${snap(1024 * wide)}x1024`;
@@ -107,8 +117,20 @@ export function perRequestLimit(modelId: string): number {
  *
  * The relay takes both for Gemini, and refuses a disallowed model on JSON with a clear 403 where the
  * multipart form gets past its model check and fails later as a bare 502. OpenAI's own edits endpoint
- * is multipart only.
+ * is multipart only. xAI's is JSON only — a multipart edit reached it with the pictures stripped, and
+ * came back as a fresh drawing from the words alone, passed off as the edit.
  */
 export function editsAsJson(modelId: string): boolean {
-	return family(modelId) === "gemini-image";
+	const kind = family(modelId);
+	return kind === "gemini-image" || kind === "grok-image";
+}
+
+/**
+ * The pictures of a JSON edit, in the family's own shape: a list of data URLs for the relay's Gemini,
+ * xAI's `{type, url}` objects — one as `image`, several as `images`.
+ */
+export function jsonEditPictures(modelId: string, urls: readonly string[]): Record<string, unknown> {
+	if (family(modelId) !== "grok-image") return { image: [...urls] };
+	const parts = urls.map((url) => ({ type: "image_url", url }));
+	return parts.length === 1 ? { image: parts[0] } : { images: parts };
 }

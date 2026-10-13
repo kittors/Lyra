@@ -46,7 +46,14 @@ export async function forkSession(
 	 * from the one before.
 	 */
 	const switchedAt = source.modelSwitchedAt === undefined ? 0 : Math.min(source.modelSwitchedAt, history.messages);
-	if (switchedAt > 0) meta = (await store.append(meta, { type: "meta", meta: { ...meta, modelSwitchedAt: switchedAt } })) ?? meta;
+	// The image and video picks go with the conversation like its model does: a fork made to try the
+	// poster another way should not quietly start drawing it with somebody else's default.
+	const carried = {
+		...(switchedAt > 0 ? { modelSwitchedAt: switchedAt } : {}),
+		...(source.imageModelId ? { imageModelId: source.imageModelId } : {}),
+		...(source.videoModelId ? { videoModelId: source.videoModelId } : {}),
+	};
+	if (Object.keys(carried).length > 0) meta = (await store.append(meta, { type: "meta", meta: { ...meta, ...carried } })) ?? meta;
 	for (const item of history.items) {
 		// A copy: these replies were paid for once, in the session they were first given in.
 		meta = (await store.append(meta, "message" in item ? { type: "message", message: item.message } : { type: "event", event: item.compacted }, { copy: true })) ?? meta;

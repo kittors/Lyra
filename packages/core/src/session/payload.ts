@@ -8,9 +8,10 @@
  * next to the log and keep a pointer.
  */
 
-import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { once } from "node:events";
+import { createWriteStream, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdir, readFile, rename, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Message, UserContent } from "../types.ts";
@@ -188,8 +189,69 @@ async function readSessionImage(name: string): Promise<string | null> {
 	return bytes ? bytes.toString("base64") : null;
 }
 
+/**
+ * A `session-media` file name, or "" for anything that is not one: a content hash and a known extension.
+ * Videos (`video_generate`) live beside the pictures under the same rule; `isVideoMediaName` tells them apart.
+ */
 export function safeMediaName(name: string): string {
 	const base = name.replace(/^.*[/\\]/, "");
-	if (!/^[a-f0-9]{40}\.(png|jpg|webp)$/.test(base)) return "";
+	if (!/^[a-f0-9]{40}\.(png|jpg|webp|mp4|webm|mov)$/.test(base)) return "";
 	return base;
+}
+
+export function isVideoMediaName(name: string): boolean {
+	return /\.(mp4|webm|mov)$/.test(name);
+}
+
+/** What a video's first bytes say it is: the ISO family (`ftyp`, MP4 or QuickTime) or WebM. */
+function sniffVideoType(head: Uint8Array): "video/mp4" | "video/quicktime" | "video/webm" | null {
+	if (head.length >= 12 && String.fromCharCode(...head.subarray(4, 8)) === "ftyp") {
+		return String.fromCharCode(...head.subarray(8, 10)) === "qt" ? "video/quicktime" : "video/mp4";
+	}
+	if (head.length >= 4 && head[0] === 0x1a && head[1] === 0x45 && head[2] === 0xdf && head[3] === 0xa3) return "video/webm";
+	return null;
+}
+
+const VIDEO_EXTENSIONS: Record<string, string> = { "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm" };
+
+/**
+ * A video as it downloads, into `session-media` under the hash of its bytes.
+ *
+ * Streamed to a temporary file and named when it ends: a 1080p clip runs to tens of megabytes, and
+ * the picture path — base64 in memory, then decoded beside it — would hold it twice over in the main
+ * process. What the bytes are is read from their own header; a host answering `application/octet-
+ * stream`, or nothing, is common, and the extension is what the window's `<video>` is served by.
+ */
+export async function persistSessionVideo(body: AsyncIterable<Uint8Array>, claimed?: string | null): Promise<{ name: string; mimeType: string; bytes: number }> {
+	const dir = sessionMediaHome();
+	await mkdir(dir, { recursive: true });
+	const temp = join(dir, `.incoming-${randomUUID()}`);
+	const hash = createHash("sha1");
+	const out = createWriteStream(temp);
+	let head: Uint8Array | undefined;
+	let size = 0;
+	try {
+		for await (const chunk of body) {
+			head ??= chunk.subarray(0, 16);
+			hash.update(chunk);
+			size += chunk.byteLength;
+			if (!out.write(chunk)) await once(out, "drain");
+		}
+		await new Promise<void>((resolve, reject) => out.end((error?: Error | null) => (error ? reject(error) : resolve())));
+	} catch (error) {
+		out.destroy();
+		await rm(temp, { force: true });
+		throw error;
+	}
+	if (size === 0) {
+		await rm(temp, { force: true });
+		throw new Error("The video download was empty.");
+	}
+	const declared = claimed?.split(";")[0].trim() ?? "";
+	const mimeType = (head && sniffVideoType(head)) ?? (VIDEO_EXTENSIONS[declared] ? declared : "video/mp4");
+	const name = `${hash.digest("hex")}.${VIDEO_EXTENSIONS[mimeType] ?? "mp4"}`;
+	const path = join(dir, name);
+	if (existsSync(path)) await rm(temp, { force: true });
+	else await rename(temp, path);
+	return { name, mimeType, bytes: size };
 }
