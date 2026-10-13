@@ -56,6 +56,13 @@ export interface ImageContent {
 	 * request boundary, not when a conversation is opened.
 	 */
 	media?: string;
+	/**
+	 * The `session-media` picture this one is a marked-up copy of, when it is one.
+	 *
+	 * For the gallery's history: an annotated copy is new bytes, so without this the edit made from it
+	 * would start a history of its own. Never reaches a provider — the adapters read `data` and `mimeType`.
+	 */
+	from?: string;
 }
 
 export interface ToolCallContent {

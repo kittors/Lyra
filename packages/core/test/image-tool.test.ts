@@ -128,6 +128,29 @@ test("an earlier drawing can be passed back by the path the model was given", as
 	assert.equal(host.requests[0].images?.[0].data, PNG);
 });
 
+test("an edit records what went in by session-media name, so the gallery can draw where it started", async () => {
+	const fresh = await imageTool.execute({ prompt: "a boat" }, context(fakeHost(drawn)));
+	assert.equal((fresh.details as ImageGenerationDetails).sources, undefined, "a drawing from words alone has no sources");
+	const media = (fresh.details as ImageGenerationDetails).images?.[0].media ?? "";
+
+	// #1 names a picture already in session-media, #2 an inline attachment, and the path a workspace file.
+	const logo = Buffer.from(PNG, "base64");
+	logo.writeUInt32BE(2, 16);
+	await writeFile(join(workspace, "badge.png"), logo);
+	const inline = Buffer.from(PNG, "base64");
+	inline.writeUInt32BE(3, 16);
+	const host = fakeHost(drawn, () => [
+		{ media, mimeType: "image/png" },
+		{ data: inline.toString("base64"), mimeType: "image/png" },
+	]);
+	const edit = await imageTool.execute({ prompt: "put the badge on the boat", images: ["#1", "#2", "badge.png"] }, context(host));
+	const sources = (edit.details as ImageGenerationDetails).sources ?? [];
+	assert.equal(sources.length, 3);
+	assert.equal(sources[0], media);
+	for (const name of sources) assert.ok(existsSync(sessionMediaPath(name)), `${name} is a file the gallery can show`);
+	assert.notEqual(sources[1], sources[2], "two different pictures are two names");
+});
+
 test("without an image model, or with one the user did not configure, the model is told what to say", async () => {
 	const none = await imageTool.execute({ prompt: "a boat" }, context(undefined));
 	assert.match(none.content[0].type === "text" ? none.content[0].text : "", /No image model is configured/);

@@ -591,4 +591,18 @@ export class SessionStore implements SessionStorage, PartialSink {
 		const rows = db.prepare("SELECT session_id, SUM(length(CAST(body AS BLOB))) AS bytes FROM records GROUP BY session_id").all() as { session_id: string; bytes: number }[];
 		return Object.fromEntries(rows.map((row) => [row.session_id, row.bytes]));
 	}
+
+	/**
+	 * A scan of the record text, not a lookup: nothing indexes what is inside a body. Measured on a
+	 * copy of a real history (12.6k records, 23MB of bodies) it takes 10–20ms, which is why it is not
+	 * kept incrementally — a cursor on `records.id` would also miss rows, since ids are reused after
+	 * the newest session is deleted.
+	 */
+	async sessionsWithResultOf(toolName: string): Promise<{ id: string; seq: number }[]> {
+		const db = await this.ready();
+		const needle = `%"toolName":${JSON.stringify(toolName).replace(/[\\%_]/g, "\\$&")}%`;
+		return db
+			.prepare("SELECT s.id AS id, s.seq AS seq FROM sessions s WHERE EXISTS (SELECT 1 FROM records r WHERE r.session_id = s.id AND r.kind = 'message' AND r.body LIKE ? ESCAPE '\\')")
+			.all(needle) as { id: string; seq: number }[];
+	}
 }

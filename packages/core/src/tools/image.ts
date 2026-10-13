@@ -45,12 +45,19 @@ function ownMedia(path: string): string | null {
 	return safeMediaName(rel) || null;
 }
 
-/** `#1`, `#2` from the conversation, or paths; a sentence for the model on the first one that fails. */
-async function inputsFor(refs: string[], ctx: ToolContext): Promise<ImageInput[] | string> {
+/**
+ * `#1`, `#2` from the conversation, or paths; a sentence for the model on the first one that fails.
+ *
+ * Each input also comes back as a `session-media` name — what the result records as its sources. A
+ * picture that is not in `session-media` yet (a workspace file, a small inline attachment) is stored
+ * there under its hash, so the gallery can still show where an edit started after the file changed.
+ */
+async function inputsFor(refs: string[], ctx: ToolContext): Promise<{ inputs: ImageInput[]; sources: string[] } | string> {
 	if (refs.length > MAX_INPUTS) return `At most ${MAX_INPUTS} images can go into one call; ${refs.length} were given.`;
 	const host = ctx.images;
 	let pictures: ImagePointer[] | null = null;
 	const inputs: ImageInput[] = [];
+	const sources: string[] = [];
 	for (const raw of refs) {
 		const ref = raw.trim();
 		const numbered = /^#\s*(\d+)$/.exec(ref);
@@ -65,6 +72,7 @@ async function inputsFor(refs: string[], ctx: ToolContext): Promise<ImageInput[]
 					: `"${ref}" is out of range: this conversation has ${pictures.length} image${pictures.length === 1 ? "" : "s"} (#1 is the newest).`;
 			}
 			inputs.push(loaded);
+			sources.push(safeMediaName(picture?.media ?? "") || persistSessionImage(loaded.data, loaded.mimeType));
 			continue;
 		}
 		const absolute = toAbsolute(ctx.cwd, ref);
@@ -78,9 +86,11 @@ async function inputsFor(refs: string[], ctx: ToolContext): Promise<ImageInput[]
 		if (bytes.length > MAX_INPUT_BYTES) return `${ref} is ${Math.round(bytes.length / 1048576)}MB; images over 20MB cannot be sent.`;
 		const mimeType = sniffImageType(bytes);
 		if (!mimeType) return `${ref} is not a PNG, JPEG or WebP image.`;
-		inputs.push({ data: bytes.toString("base64"), mimeType, name: absolute.split(/[/\\]/).pop() });
+		const data = bytes.toString("base64");
+		inputs.push({ data, mimeType, name: absolute.split(/[/\\]/).pop() });
+		sources.push(media ?? persistSessionImage(data, mimeType));
 	}
-	return inputs;
+	return { inputs, sources };
 }
 
 function seconds(ms: number): string {
@@ -169,8 +179,9 @@ export const imageTool: Tool<ImageArgs> = {
 		const target = ctx.images.resolve(args.model);
 		if ("problem" in target) return errorResult(target.problem);
 
-		const inputs = await inputsFor(Array.isArray(args.images) ? args.images.filter((ref) => typeof ref === "string") : [], ctx);
-		if (typeof inputs === "string") return errorResult(inputs);
+		const given = await inputsFor(Array.isArray(args.images) ? args.images.filter((ref) => typeof ref === "string") : [], ctx);
+		if (typeof given === "string") return errorResult(given);
+		const { inputs, sources } = given;
 
 		const ratio = args.aspect_ratio && args.aspect_ratio !== "auto" ? args.aspect_ratio : undefined;
 		const quality = (QUALITIES as readonly string[]).includes(args.quality ?? "") ? (args.quality as ImageRequest["quality"]) : undefined;
@@ -186,6 +197,7 @@ export const imageTool: Tool<ImageArgs> = {
 			quality,
 			count,
 			edit: inputs.length > 0,
+			...(sources.length ? { sources } : {}),
 			...(ratio ? {} : { shapeHint: shapeOf(inputs[0]) }),
 			startedAt,
 		};
