@@ -58,6 +58,17 @@ function webp(bytes: Uint8Array): Dimensions | null {
 	return null;
 }
 
+/** Where a four-letter chunk name first appears in the header region; -1 if not there. */
+function findAscii(bytes: Uint8Array, name: string, limit = 64 * 1024): number {
+	const end = Math.min(bytes.length, limit) - name.length;
+	for (let at = 8; at <= end; at++) {
+		let hit = true;
+		for (let i = 0; i < name.length && hit; i++) hit = bytes[at + i] === name.charCodeAt(i);
+		if (hit) return at;
+	}
+	return -1;
+}
+
 export function imageDimensions(bytes: Uint8Array): Dimensions | null {
 	return png(bytes) ?? jpeg(bytes) ?? webp(bytes);
 }
@@ -68,4 +79,26 @@ export function sniffImageType(bytes: Uint8Array): string | null {
 	if (bytes[0] === 0xff && bytes[1] === 0xd8) return "image/jpeg";
 	if (webp(bytes)) return "image/webp";
 	return null;
+}
+
+/**
+ * Whether the format leaves room for transparency at all — an alpha channel, or a PNG palette with a
+ * transparent entry. Not whether any pixel is see-through: that takes decoding, and the question asked
+ * here is only "did a model told `transparent` ignore it", which a JPEG or an alpha-less PNG answers.
+ */
+export function canBeTransparent(bytes: Uint8Array): boolean {
+	if (png(bytes)) {
+		const colourType = bytes[25];
+		if (colourType === 4 || colourType === 6) return true;
+		// Palette and greyscale/RGB images carry transparency in a `tRNS` chunk before the pixel data.
+		const trns = findAscii(bytes, "tRNS");
+		const idat = findAscii(bytes, "IDAT");
+		return trns > 0 && (idat < 0 || trns < idat);
+	}
+	if (webp(bytes)) {
+		const chunk = String.fromCharCode(...bytes.subarray(12, 16));
+		if (chunk === "VP8X") return (bytes[20] & 0x10) !== 0;
+		return chunk === "VP8L";
+	}
+	return false;
 }

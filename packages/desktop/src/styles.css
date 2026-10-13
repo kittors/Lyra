@@ -62,6 +62,7 @@
 @import "./styles/avatar.css";
 @import "./styles/image-gen.css";
 @import "./styles/gallery.css";
+@import "./styles/video.css";
 
 /* Last, so it can override anything above when the interface is on a phone. */
 @import "./styles/phone.css";

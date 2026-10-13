@@ -198,3 +198,34 @@ test("a refusal that is about the request, not the endpoint, is not tried elsewh
 	await assert.rejects(generateImages(provider(), model("gemini-3.1-flash-image"), { prompt: "a boat" }, { fetch: forbidden.fetch, retryAttempts: 1 }), /没有访问权限|not allowed/);
 	assert.equal(forbidden.seen.length, 1);
 });
+
+test("an xAI edit is JSON with its own picture objects, never a form the relay strips", async () => {
+	const relay = host(() => json({ data: [{ b64_json: PNG }] }));
+	await viaImagesApi(provider(), model("grok-imagine-image"), { prompt: "make it blue", aspectRatio: "16:9", quality: "high", background: "transparent", images: [{ data: PNG, mimeType: "image/png" }] }, { fetch: relay.fetch, retryAttempts: 1 });
+	assert.equal(relay.seen[0].url, "https://relay.example/v1/images/edits");
+	assert.equal(relay.seen[0].form, undefined, "not multipart");
+	assert.deepEqual(relay.seen[0].json?.image, { type: "image_url", url: `data:image/png;base64,${PNG}` });
+	assert.equal(relay.seen[0].json?.aspect_ratio, "16:9");
+	assert.equal(relay.seen[0].json?.quality, undefined, "xAI takes no quality");
+	assert.equal(relay.seen[0].json?.background, undefined);
+
+	const several = host(() => json({ data: [{ b64_json: PNG }] }));
+	await viaImagesApi(provider(), model("grok-imagine-image-quality"), { prompt: "put them together", images: [{ data: PNG, mimeType: "image/png" }, { data: JPEG, mimeType: "image/jpeg" }] }, { fetch: several.fetch, retryAttempts: 1 });
+	assert.deepEqual(several.seen[0].json?.images, [
+		{ type: "image_url", url: `data:image/png;base64,${PNG}` },
+		{ type: "image_url", url: `data:image/jpeg;base64,${JPEG}` },
+	]);
+	assert.equal(several.seen[0].json?.image, undefined);
+});
+
+test("over chat, one picture failing costs that picture, not the ones already drawn", async () => {
+	const picture = json({ choices: [{ message: { content: null, images: [{ type: "image_url", image_url: { url: `data:image/png;base64,${PNG}` } }] } }] });
+	const flaky = host((_, index) => (index === 1 ? json({ error: { message: "upstream exploded" } }, 500) : picture.clone()));
+	const result = await viaChatCompletions(provider(), model("gemini-2.5-flash-image"), { prompt: "boats", count: 3 }, { fetch: flaky.fetch, retryAttempts: 1 });
+	assert.equal(result.images.length, 2);
+	assert.equal(result.failures?.length, 1);
+
+	const spent = host(() => json({ error: { message: "You exceeded your current quota", type: "insufficient_quota" } }, 429));
+	await assert.rejects(viaChatCompletions(provider(), model("gemini-2.5-flash-image"), { prompt: "boats", count: 3 }, { fetch: spent.fetch, retryAttempts: 1 }));
+	assert.equal(spent.seen.length, 1, "a spent quota is not asked again for the other pictures");
+});

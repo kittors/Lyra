@@ -530,6 +530,7 @@ export function bridgeScript(connection: Connection): string {
 			approve: call("agent.approve"),
 			setModel: call("agent.setModel"),
 			setThinking: call("agent.setThinking"),
+			setMediaModel: call("agent.setMediaModel"),
 			onEvent: subscribe(subscribers.agent),
 		},
 		subAgents: {

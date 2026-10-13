@@ -12,13 +12,18 @@
 import { ImageOff } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ImageGenerationDetails, ToolCallContent } from "@lyra/core";
+import { mediaModelRows } from "@lyra/core/image-models";
 import { sessionMediaUrl } from "../../../shared/session-image.ts";
 import { useScopedFromToolRuns, useScopedSessionId } from "../../app/session-scope.tsx";
 import { useI18n } from "../../i18n/index.ts";
 import { expectedMs, progressAt, stageAt } from "../../lib/image-progress.ts";
+import { useApp } from "../../store/index.ts";
 import { RollingText } from "../../ui/motion/RollingText.tsx";
+import { usePopover } from "../../ui/overlay/Popover.tsx";
 import { attachToComposer, openViewer } from "../image/index.ts";
+import { MediaPickMenu } from "../models/index.ts";
 import { ImageFrame } from "./ImageFrame.tsx";
+import { filmFrom, remakeWith } from "./regenerate.ts";
 import { stoppedByUser } from "./tool-status.ts";
 
 /** `"16:9"` as a width/height ratio, or `null` for auto and anything unreadable. */
@@ -79,6 +84,9 @@ function ImageGenerationCard({ call }: { call: ToolCallContent }) {
 	const watched = useRef(false);
 	if (live) watched.current = true;
 	const now = useNow(live);
+	const providers = useApp((s) => s.settings?.providers);
+	const again = usePopover();
+	const [chosen, setChosen] = useState(0);
 	if (!run) return null;
 
 	const details = run.result?.details as ImageGenerationDetails | undefined;
@@ -98,6 +106,7 @@ function ImageGenerationCard({ call }: { call: ToolCallContent }) {
 	const columns = slots > 1 ? 2 : 1;
 	const prompt = known ? details.prompt : typeof args.prompt === "string" ? args.prompt : "";
 
+	const imageRows = mediaModelRows(providers, "image");
 	let caption: string;
 	let percent: number | null = null;
 	if (live) {
@@ -109,10 +118,16 @@ function ImageGenerationCard({ call }: { call: ToolCallContent }) {
 		const first = pictures[0];
 		const size = first?.width && first.height && pictures.length === 1 ? ` · ${first.width}×${first.height}` : "";
 		const missing = count - pictures.length;
-		caption = `${details?.model.name ?? ""}${size}${missing > 0 ? ` · ${t("imageGen.partial", { n: missing })}` : ""}`;
+		caption = `${madeBy(details, imageRows)}${size}${missing > 0 ? ` · ${t("imageGen.partial", { n: missing })}` : ""}`;
 	}
 
 	const sources = pictures.map((picture) => ({ src: sessionMediaUrl(picture.media), alt: prompt, onAttach: attachToComposer(sessionId, picture.media) }));
+	/*
+	 * Another model, or a video made from it — offered only when there is another model to offer: a
+	 * second image model to redraw with, or any video model to film it with.
+	 */
+	const videoCount = mediaModelRows(providers, "video").length;
+	const regenerable = !live && known && (imageRows.length > 1 || videoCount > 0);
 	const frameOf = (event: React.MouseEvent<HTMLElement>) => event.currentTarget.closest<HTMLElement>("[data-ly-image-frame]");
 
 	return (
@@ -151,12 +166,43 @@ function ImageGenerationCard({ call }: { call: ToolCallContent }) {
 									: undefined
 							}
 							onDownload={picture ? () => save(sources[index].src) : undefined}
+							onRegenerate={
+								picture && regenerable
+									? (event) => {
+											setChosen(index);
+											again.openAt(event.currentTarget);
+										}
+									: undefined
+							}
 						/>
 					);
 				})}
 			</div>
+			{again.open && known && pictures[chosen] && (
+				<MediaPickMenu
+					anchor={again.anchor}
+					onClose={again.close}
+					label={t("imageGen.regenerateTip")}
+					made={details.model.id}
+					sections={[
+						...(imageRows.length > 1 ? [{ kind: "image" as const, title: t("imageGen.redrawWith") }] : []),
+						...(videoCount > 0 ? [{ kind: "video" as const, title: t("imageGen.toVideo") }] : []),
+					]}
+					onPick={(kind, modelId) => {
+						if (kind === "image") remakeWith(sessionId, "image", modelId, prompt);
+						else void filmFrom(sessionId, pictures[chosen], modelId);
+					}}
+				/>
+			)}
 		</figure>
 	);
+}
+
+/** The model's name — with its provider when another provider has a model of the same name. */
+function madeBy(details: ImageGenerationDetails | undefined, rows: { model: { name: string } }[]): string {
+	const name = details?.model.name ?? "";
+	const twins = rows.filter((row) => row.model.name.trim().toLowerCase() === name.trim().toLowerCase()).length;
+	return twins > 1 && details?.model.provider ? `${name} · ${details.model.provider}` : name;
 }
 
 function DrawFailed({ details, stopped }: { details?: ImageGenerationDetails; stopped: boolean }) {

@@ -213,3 +213,40 @@ test("a marked-up copy hangs off the picture it was marked up on", () => {
 		[[SKETCH, DOG, "照圈出来的地方改"]],
 	);
 });
+
+test("a video made from a drawing joins the chain, with its length, and its frame as its source", () => {
+	const FILM = `${"f".repeat(40)}.mp4`;
+	const filmed: Message = {
+		role: "toolResult",
+		toolCallId: "v1",
+		toolName: "video_generate",
+		content: [{ type: "text", text: "Made." }],
+		details: {
+			kind: "video_generation",
+			status: "done",
+			model: { id: "relay/grok-imagine-video-1.5", name: "grok-imagine-video-1.5", provider: "relay" },
+			prompt: "the dog runs",
+			count: 1,
+			startedAt: clock,
+			sources: [DOG],
+			videos: [{ media: FILM, mimeType: "video/mp4", width: 1280, height: 720, seconds: 6 }],
+		},
+		isError: false,
+		timestamp: tick(),
+	} as unknown as Message;
+	const entries = numbered([
+		said("画一只小狗"),
+		calls({ id: "c1" }),
+		drew("c1", [DOG]),
+		said("让它跑起来"),
+		{ role: "assistant", content: [{ type: "toolCall", id: "v1", name: "video_generate", arguments: { prompt: "the dog runs", image: "#1" } }], timestamp: tick() } as unknown as Message,
+		filmed,
+	]);
+	const drawn = drawingsIn(entries).drawn;
+	const film = drawn.find((item) => item.media === FILM);
+	assert.ok(film, "the video is listed beside the pictures");
+	assert.equal(film.mimeType, "video/mp4");
+	assert.equal(film.seconds, 6);
+	assert.deepEqual(film.sources, [DOG]);
+	assert.equal(film.ask?.text, "让它跑起来");
+});

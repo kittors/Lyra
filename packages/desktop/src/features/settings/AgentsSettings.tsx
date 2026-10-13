@@ -14,7 +14,7 @@ import { Button } from "../../ui/primitives/Button.tsx";
 import { InlineSelect } from "./controls.tsx";
 import { ModelSelect } from "../models/index.ts";
 import { AgentDefinitionEditor } from "./AgentDefinitionEditor.tsx";
-import { ImageModelRow, SessionControl, SessionMark } from "./SessionRows.tsx";
+import { MediaModelRow, SessionControl, SessionMark } from "./SessionRows.tsx";
 import { useAgentDefinitions } from "./useAgentDefinitions.ts";
 import type { AgentDefinitionRecord } from "@lyra/core";
 import { Popover, MenuBody, MenuItem, MenuSeparator, usePopover } from "../../ui/overlay/Popover.tsx";
@@ -153,7 +153,8 @@ export function AgentsSettings() {
 								onChange={(modelId) => { const current = useApp.getState().settings; if (current) void persist({ ...current, sideChatModelId: modelId || null }); }} />
 						</SessionControl>
 					</div>
-					<ImageModelRow settings={settings} disabled={saving} onChange={(imageModelId) => { const current = useApp.getState().settings; if (current) void persist({ ...current, imageModelId }); }} />
+					<MediaModelRow kind="image" settings={settings} disabled={saving} onChange={(imageModelId) => { const current = useApp.getState().settings; if (current) void persist({ ...current, imageModelId }); }} />
+					<MediaModelRow kind="video" settings={settings} disabled={saving} onChange={(videoModelId) => { const current = useApp.getState().settings; if (current) void persist({ ...current, videoModelId }); }} />
 				</Section>
 			)}
 		</div>

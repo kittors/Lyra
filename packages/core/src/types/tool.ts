@@ -7,6 +7,7 @@
  */
 
 import type { ImageHost } from "../images/types.ts";
+import type { VideoHost } from "../videos/types.ts";
 import type { SandboxMode, SandboxNetwork } from "../sandbox/policy.ts";
 import type { ResourceRouter } from "../resources/router.ts";
 import type { RiskCode, RiskParams } from "../tools/risk-reasons.ts";
@@ -165,6 +166,8 @@ export interface ToolContext {
 	 * `image_generate` is not offered at all.
 	 */
 	images?: ImageHost;
+	/** Film with one of the user's video models; see `videos/types.ts`. Absent, and `video_generate` is not offered. */
+	videos?: VideoHost;
 	logger?: Logger;
 }
 

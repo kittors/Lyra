@@ -4,8 +4,8 @@
  * does — is `FetchModelsModal`.
  */
 
-import { Palette, Plus } from "lucide-react";
-import { isImageModelId, isImageModel } from "@lyra/core/image-models";
+import { Palette, Plus, Clapperboard } from "lucide-react";
+import { mediaKind, mediaKindOfId } from "@lyra/core/image-models";
 import { useI18n } from "../../i18n/index.ts";
 import { ChoiceMark } from "../../ui/primitives/ChoiceMark.tsx";
 import { formatWindow, ModelIcon } from "../models/index.ts";
@@ -76,7 +76,8 @@ export function Group({
  */
 export function ModelRow({ row, checked, onToggle }: { row: SyncRow; checked: boolean; onToggle: (checked: boolean) => void }) {
 	const { t } = useI18n();
-	const image = row.existing ? isImageModel(row.existing) : isImageModelId(row.modelId);
+	const media = row.existing ? mediaKind(row.existing) : mediaKindOfId(row.modelId);
+	const image = media !== null;
 	const removing = Boolean(row.existing) && !checked;
 	// A configured model shows its own window; a new one, the default the import will write. A model
 	// that draws has no window, and the column stays empty so the rest still line up.
@@ -105,9 +106,9 @@ export function ModelRow({ row, checked, onToggle }: { row: SyncRow; checked: bo
 				<span className={`truncate font-mono text-label transition-colors ${removing ? "text-ink-faint line-through decoration-ink-faint/60" : "text-ink"}`}>
 					{row.modelId}
 				</span>
-				{image && (
-					<span role="img" aria-label={t("modelEditor.imageOutput")} data-ly-tip={t("modelEditor.imageOutput")} className="grid h-[18px] w-[18px] shrink-0 place-items-center rounded-[5px] bg-accent/12 text-accent">
-						<Palette size={10.5} strokeWidth={2} />
+				{media && (
+					<span role="img" aria-label={t(media === "video" ? "modelEditor.videoOutput" : "modelEditor.imageOutput")} data-ly-tip={t(media === "video" ? "modelEditor.videoOutput" : "modelEditor.imageOutput")} className="grid h-[18px] w-[18px] shrink-0 place-items-center rounded-[5px] bg-accent/12 text-accent">
+						{media === "video" ? <Clapperboard size={10.5} strokeWidth={2} /> : <Palette size={10.5} strokeWidth={2} />}
 					</span>
 				)}
 				{removing ? (

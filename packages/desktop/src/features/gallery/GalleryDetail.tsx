@@ -21,11 +21,13 @@ import { motionReduced } from "../../ui/motion/reduced.ts";
 import { DURATION, EASING } from "../../ui/motion/tokens.ts";
 import { Button } from "../../ui/primitives/Button.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
+import { VideoPlayer } from "../../ui/media/VideoPlayer.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { useApp } from "../../store/index.ts";
 import { openViewer } from "../image/index.ts";
 import { editInConversation, showInConversation } from "./actions.ts";
 import { EditBar } from "./EditBar.tsx";
+import { isVideo } from "./MediaStill.tsx";
 import { TILE_THUMB } from "./GalleryGrid.tsx";
 import { Lineage, useFamily } from "./Lineage.tsx";
 import { drawingFor, type Entry, type GalleryIndex } from "./model.ts";
@@ -85,7 +87,7 @@ export function GalleryDetail({
 	const { compact } = useLayout();
 	const backdrop = useRef<HTMLDivElement>(null);
 	const stage = useRef<HTMLDivElement>(null);
-	const frame = useRef<HTMLButtonElement>(null);
+	const frame = useRef<HTMLElement>(null);
 	const chrome = useRef<HTMLElement[]>([]);
 	const [space, setSpace] = useState<{ width: number; height: number } | null>(null);
 	const [full, setFull] = useState<string | null>(null);
@@ -199,6 +201,8 @@ export function GalleryDetail({
 	}, []);
 
 	const src = sessionMediaUrl(entry.media);
+	// A video plays where a picture would be zoomed, and has no edit bar: there is nothing to mark up or change in place.
+	const film = isVideo(entry);
 	const keep = (el: HTMLElement | null) => {
 		if (el && !chrome.current.includes(el)) chrome.current.push(el);
 	};
@@ -242,9 +246,23 @@ export function GalleryDetail({
 					)}
 				</div>
 				<div ref={stage} className="relative flex min-h-0 flex-1 items-center justify-center">
-					{box && (
+					{box && film && (
+						<div
+							ref={(el) => {
+								frame.current = el;
+							}}
+							data-ly-gallery-stage=""
+							className="relative overflow-hidden bg-black"
+							style={{ width: box.width, height: box.height, borderRadius: RADIUS }}
+						>
+							<VideoPlayer key={entry.media} src={src} label={entry.kind === "drawn" ? entry.prompt : ""} className="absolute inset-0 size-full" />
+						</div>
+					)}
+					{box && !film && (
 						<button
-							ref={frame}
+							ref={(el) => {
+								frame.current = el;
+							}}
 							type="button"
 							data-ly-gallery-stage=""
 							aria-label={t("gallery.zoom")}
@@ -265,7 +283,7 @@ export function GalleryDetail({
 						</button>
 					)}
 				</div>
-				<div ref={keep} className={`shrink-0 ${compact ? "px-3 py-3" : "px-8 pt-4 pb-6"}`}>
+				<div ref={keep} className={`shrink-0 ${compact ? "px-3 py-3" : "px-8 pt-4 pb-6"}`} hidden={film}>
 					<EditBar
 						marked={marked}
 						running={running}
@@ -337,7 +355,8 @@ export function GalleryDetail({
 								<Fact name={t("gallery.model")} value={entry.model.name} />
 								<Fact name={t("gallery.size")} value={entry.width && entry.height ? `${entry.width} × ${entry.height}` : ""} />
 								<Fact name={t("gallery.ratio")} value={entry.aspectRatio ?? t("gallery.auto")} />
-								<Fact name={t("gallery.quality")} value={entry.quality ?? t("gallery.auto")} />
+								<Fact name={t("gallery.length")} value={entry.seconds ? `${entry.seconds}s` : ""} />
+								{!film && <Fact name={t("gallery.quality")} value={entry.quality ?? t("gallery.auto")} />}
 								<Fact name={t("gallery.duration")} value={entry.durationMs ? `${(entry.durationMs / 1000).toFixed(1)}s` : ""} />
 							</dl>
 						</section>

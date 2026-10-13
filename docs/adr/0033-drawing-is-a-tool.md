@@ -39,6 +39,8 @@
 
 ## 没做的
 
+（后续：生图模型的选择与切换见 ADR-0035；视频生成见 ADR-0036。）
+
 - 流式中间稿（`partial_images`）：CliRelay 对 `stream:true` 直接 400，Gemini 那条也没有中间稿。
 - 生图花费没有进花销统计：Gemini 那边按 token 有 `usage`，gpt-image 经中转没有；定价也不在目录里。
 - 手机端：`ly-media://` 在手机上没有对应的路由，图出不来。

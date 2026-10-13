@@ -31,7 +31,7 @@ function useLiveGallery(): void {
 		 */
 		const drawing = new Set<string>();
 		const offEvent = bridge.agent.onEvent(({ sessionId, event }) => {
-			if (event.type === "tool_end" && event.toolName === "image_generate" && !event.isError) drawing.add(sessionId);
+			if (event.type === "tool_end" && (event.toolName === "image_generate" || event.toolName === "video_generate") && !event.isError) drawing.add(sessionId);
 		});
 		const offChange = bridge.sessions.onChanged((change) => {
 			const known = useGallery.getState().gallery?.sessions.find((session) => session.id === change.id);

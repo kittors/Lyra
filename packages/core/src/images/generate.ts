@@ -34,7 +34,7 @@ function firstRoute(provider: ProviderConfig): ImageRoute {
  * the same answer from a host that words it differently. A refusal on content or quota is not, and
  * trying the other endpoint would only spend a second request on the same refusal.
  */
-function endpointMissing(error: unknown): boolean {
+export function endpointMissing(error: unknown): boolean {
 	const failure = failureOf(error);
 	if (failure.hint === "check-model") return true;
 	if (failure.hint === "check-key" || failure.hint === "check-billing" || failure.hint === "blocked") return false;

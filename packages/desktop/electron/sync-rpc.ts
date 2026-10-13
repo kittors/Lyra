@@ -214,6 +214,11 @@ export const RPC: Record<string, Handler> = {
 		await session?.setThinking(thinkingLevel(thinking));
 		return null;
 	},
+	"agent.setMediaModel": async (deps, [sessionId, kind, modelId]) => {
+		const session = await live(deps, s(sessionId));
+		await session?.setMediaModel(kind === "video" ? "video" : "image", typeof modelId === "string" && modelId ? modelId : null);
+		return null;
+	},
 	/*
 	 * 只收该收的两样。
 	 *
@@ -482,6 +487,8 @@ const ARGS: Record<string, (args: unknown[]) => ArgsError | null> = {
 		fail(all(str(sessionId, "sessionId"), str(requestId, "requestId"), checkApprovalDecision(decision))),
 	"agent.setModel": ([sessionId, modelId]) => fail(all(str(sessionId, "sessionId"), str(modelId, "modelId"))),
 	"agent.setThinking": ([sessionId, thinking]) => fail(all(str(sessionId, "sessionId"), nullableStr(thinking, "thinking"))),
+	"agent.setMediaModel": ([sessionId, kind, modelId]) =>
+		fail(all(str(sessionId, "sessionId"), oneOf(kind, "kind", ["image", "video"] as const), nullableStr(modelId, "modelId"))),
 
 	/*
 	 * `settings.save` takes the whole settings object, and `phone-settings.ts` is what decides

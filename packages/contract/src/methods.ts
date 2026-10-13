@@ -139,6 +139,7 @@ export const METHODS = {
 		approve: { channel: "agent:approve", remote: true },
 		setModel: { channel: "agent:setModel", remote: true },
 		setThinking: { channel: "agent:setThinking", remote: true },
+		setMediaModel: { channel: "agent:setMediaModel", remote: true },
 	},
 	subAgents: {
 		/*

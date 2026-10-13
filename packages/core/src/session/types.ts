@@ -58,6 +58,18 @@ export interface SessionMeta {
 	 */
 	thinking?: ThinkingLevel;
 	/**
+	 * The image and video models this conversation draws and films with, by local id.
+	 *
+	 * Absent follows `Settings.imageModelId` / `videoModelId` as they move — unlike `thinking`, which
+	 * is written at creation. A picture model carries no provider handles into the transcript, so
+	 * there is nothing to pin, and a conversation nobody chose for should keep up with the default the
+	 * person keeps choosing. Set from the composer's model button, by `@` naming a model, or by a
+	 * drawing the model was asked by name to make (`media-picks.ts`); a pick that no longer resolves
+	 * is stepped over, not obeyed (`resolveMediaModel`).
+	 */
+	imageModelId?: string;
+	videoModelId?: string;
+	/**
 	 * Someone typed this title, so nothing else gets to replace it.
 	 *
 	 * The first prompt names the conversation after itself, which is the right default for the

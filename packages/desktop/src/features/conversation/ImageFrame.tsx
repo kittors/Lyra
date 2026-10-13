@@ -10,7 +10,7 @@
  * that has stopped meaning anything.
  */
 
-import { Download, PencilLine } from "lucide-react";
+import { Download, PencilLine, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { useI18n } from "../../i18n/index.ts";
 import { Halftone } from "../../ui/motion/Halftone.tsx";
@@ -21,7 +21,7 @@ const MAX_HEIGHT = 460;
 const GAP = 8;
 
 /** Width for a picture of this shape, so a tall one is held to the height cap rather than running on. */
-function frameWidth(ratio: number, columns: number): number {
+export function frameWidth(ratio: number, columns: number): number {
 	const room = columns === 1 ? MAX_WIDTH : (MAX_WIDTH - GAP) / 2;
 	const tallest = columns === 1 ? MAX_HEIGHT : room * 1.5;
 	return Math.round(Math.min(room, tallest * ratio));
@@ -38,6 +38,7 @@ export function ImageFrame({
 	onOpen,
 	onEdit,
 	onDownload,
+	onRegenerate,
 }: {
 	ratio: number;
 	columns: number;
@@ -53,6 +54,8 @@ export function ImageFrame({
 	onOpen?: (event: React.MouseEvent<HTMLElement>) => void;
 	onEdit?: (event: React.MouseEvent<HTMLElement>) => void;
 	onDownload?: () => void;
+	/** Another model, or a video made from it: opens the card's list of models at the button. */
+	onRegenerate?: (event: React.MouseEvent<HTMLElement>) => void;
 }) {
 	const { t } = useI18n();
 	const [loaded, setLoaded] = useState(false);
@@ -106,7 +109,7 @@ export function ImageFrame({
 					{percent}%
 				</span>
 			)}
-			{src && loaded && (onEdit || onDownload) && (
+			{src && loaded && (onEdit || onDownload || onRegenerate) && (
 				<div className="pointer-events-none absolute inset-x-2.5 bottom-2.5 flex items-end justify-between opacity-0 transition-opacity duration-200 group-hover/frame:opacity-100 group-focus-within/frame:opacity-100">
 					{onEdit ? (
 						<button type="button" onClick={onEdit} className="ly-image-action pointer-events-auto gap-1.5 px-3 text-detail font-medium" aria-label={t("imageGen.edit")}>
@@ -116,11 +119,18 @@ export function ImageFrame({
 					) : (
 						<span />
 					)}
-					{onDownload && (
-						<button type="button" onClick={onDownload} className="ly-image-action pointer-events-auto w-8 justify-center" aria-label={t("imageGen.download")} data-ly-tip={t("imageGen.download")}>
-							<Download size={15} strokeWidth={2} />
-						</button>
-					)}
+					<span className="flex items-end gap-1.5">
+						{onRegenerate && (
+							<button type="button" onClick={onRegenerate} className="ly-image-action pointer-events-auto w-8 justify-center" aria-label={t("imageGen.regenerate")} data-ly-tip={t("imageGen.regenerateTip")} data-ly-regenerate="">
+								<RefreshCw size={15} strokeWidth={2} />
+							</button>
+						)}
+						{onDownload && (
+							<button type="button" onClick={onDownload} className="ly-image-action pointer-events-auto w-8 justify-center" aria-label={t("imageGen.download")} data-ly-tip={t("imageGen.download")}>
+								<Download size={15} strokeWidth={2} />
+							</button>
+						)}
+					</span>
 				</div>
 			)}
 		</div>

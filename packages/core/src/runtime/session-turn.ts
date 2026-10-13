@@ -21,8 +21,11 @@ import { runTurn } from "../agent/runner.ts";
 import { streamAssistant } from "../ai/index.ts";
 import type { Settings } from "../config/settings.ts";
 import { projectRootsFor } from "../config/project-roots.ts";
-import { imageModelRows } from "../images/models.ts";
+import { imageModelRows, mediaModelRows } from "../images/models.ts";
+import type { ConversationPicks } from "../images/picks.ts";
 import { IMAGE_TOOL_NAME } from "../images/types.ts";
+import { VIDEO_TOOL_NAME } from "../videos/types.ts";
+import { adoptMentionedMedia, describeMediaTools } from "./media-turn.ts";
 import { buildSystemPrompt, loadProjectInstructions } from "../prompt/system.ts";
 import { TODOS_KEY, type TodoItem } from "../tools/todo.ts";
 import { continueWhileWorkRemains } from "./continuation.ts";
@@ -93,6 +96,8 @@ export interface TurnInputs {
 	delegations?: DelegationWaits;
 	/** 这场对话此刻设定的模型——一轮之内也会变。见 `AgentRunConfig.liveModel`。 */
 	liveModel?: AgentRunConfig["liveModel"];
+	/** This conversation's image and video picks — see `TurnConfigDeps.mediaPicks`. */
+	mediaPicks?: ConversationPicks;
 }
 
 /**
@@ -306,16 +311,24 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 	 */
 	const delegation = delegationDecision(input);
 	can.state.set(DELEGATION_KEY, delegation);
+	// `@grok-imagine-image` in what the person just said: this conversation draws with it from here on.
+	adoptMentionedMedia({ messages: log.messages, providers: settings.providers, picks: input.mediaPicks, agents: [...can.agents.map((agent) => agent.name), ...Object.keys(RENAMED_AGENTS)] });
 	/*
 	 * `image_generate` only once there is something to draw with. Every call is billed to a provider the
 	 * user configured, and a tool that can only answer "no image model" costs a turn to find that out.
 	 */
 	const drawing = imageModelRows(settings.providers).length > 0;
-	const tools = can.tools.filter(
-		(tool) =>
-			(tool.name !== "learn" || memoryEnabled) &&
-			(tool.name !== "task" || delegation.tier !== "off" || delegation.mentioned.length > 0) &&
-			(tool.name !== IMAGE_TOOL_NAME || drawing),
+	const filming = mediaModelRows(settings.providers, "video").length > 0;
+	const tools = describeMediaTools(
+		can.tools.filter(
+			(tool) =>
+				(tool.name !== "learn" || memoryEnabled) &&
+				(tool.name !== "task" || delegation.tier !== "off" || delegation.mentioned.length > 0) &&
+				(tool.name !== IMAGE_TOOL_NAME || drawing) &&
+				(tool.name !== VIDEO_TOOL_NAME || filming),
+		),
+		settings.providers,
+		{ image: IMAGE_TOOL_NAME, video: VIDEO_TOOL_NAME },
 	);
 
 	/*
@@ -410,6 +423,7 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 			subAgents: input.subAgents,
 			delegations: input.delegations,
 			liveModel: input.liveModel,
+			mediaPicks: input.mediaPicks,
 			signal: input.signal,
 			streamFn: input.streamFn,
 			requestApproval: input.requestApproval,

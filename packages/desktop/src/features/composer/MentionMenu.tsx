@@ -1,6 +1,6 @@
 import type { MessageKey } from "../../i18n/messages/index.ts";
 import { translate } from "../../i18n/translate.ts";
-import { Minimize2, Bot, FileCode, FolderArchive, MessageSquare, Paperclip, Puzzle } from "lucide-react";
+import { Minimize2, Bot, Clapperboard, FileCode, FolderArchive, MessageSquare, Palette, Paperclip, Puzzle } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
@@ -13,6 +13,7 @@ const GROUPS: Record<MentionKind, MessageKey> = {
 	action: "mention.actions",
 	file: "mention.filesAndFolders",
 	subagent: "mention.agents",
+	model: "mention.models",
 	plugin: "mention.pluginsAndSkills",
 	session: "mention.sessions",
 };
@@ -100,6 +101,8 @@ export function MentionMenu({
 								? Paperclip
 								: item.kind === "subagent"
 									? Bot
+									: item.kind === "model"
+										? item.data?.mediaKind === "video" ? Clapperboard : Palette
 									: item.kind === "plugin"
 										? Puzzle
 										: item.kind === "session"

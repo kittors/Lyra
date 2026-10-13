@@ -2,7 +2,7 @@ import { activeLocale, translate } from "../../i18n/translate.ts";
 import type { SessionMeta } from "@lyra/core";
 import type { SkillEntry } from "../../../electron/ipc-types.ts";
 
-export type MentionKind = "action" | "file" | "subagent" | "plugin" | "session";
+export type MentionKind = "action" | "file" | "subagent" | "model" | "plugin" | "session";
 
 export interface MentionItem {
 	id: string;
@@ -17,7 +17,17 @@ export interface MentionItem {
 		subagentId?: string;
 		pluginId?: string;
 		skillId?: string;
+		/** An image or video model: which kind, for the row's mark. */
+		mediaKind?: "image" | "video";
 	};
+}
+
+/** An image or video model offered by `@`, under the name the agent's side takes back (`mediaModelLabel`). */
+export interface MentionModel {
+	id: string;
+	label: string;
+	provider: string;
+	kind: "image" | "video";
 }
 
 export interface MentionCompletion {
@@ -99,6 +109,7 @@ export function rankMentions(
 	options: {
 		files?: Array<string | MentionFile>;
 		agents?: Array<{ id: string; name: string; description: string; avatar?: string }>;
+		models?: MentionModel[];
 		sessions?: SessionMeta[];
 		skills?: SkillEntry[];
 		allowAction?: boolean;
@@ -147,6 +158,23 @@ export function rankMentions(
 				kind: "subagent",
 				data: { subagentId: sub.id },
 				origin: translate("mention.agents"),
+			});
+		}
+	}
+
+	/*
+	 * Image and video models: `@` one, and this conversation draws or films with it from that message
+	 * on (`runtime/media-turn.ts`). After the agents, which `@` meant first and keep meaning.
+	 */
+	for (const model of options.models ?? []) {
+		if (!lower || model.label.toLowerCase().includes(lower) || model.provider.toLowerCase().includes(lower)) {
+			items.push({
+				id: `model:${model.id}`,
+				title: model.label,
+				description: translate(model.kind === "video" ? "mediaMenu.videoSection" : "mediaMenu.imageSection"),
+				kind: "model",
+				data: { mediaKind: model.kind },
+				origin: model.provider,
 			});
 		}
 	}

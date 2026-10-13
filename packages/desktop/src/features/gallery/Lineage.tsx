@@ -8,9 +8,10 @@
  */
 
 import { useLayoutEffect, useMemo, useRef } from "react";
-import { sessionMediaUrl, SESSION_THUMB_EDGE } from "../../../shared/session-image.ts";
+import { SESSION_THUMB_EDGE } from "../../../shared/session-image.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { familyOf, lineageTree, type TreeLink } from "../../lib/lineage-tree.ts";
+import { isVideo, MediaStill } from "./MediaStill.tsx";
 import { askText, type Entry, type GalleryIndex } from "./model.ts";
 
 const ROW = 64;
@@ -51,7 +52,8 @@ export function Lineage({ current, index, onSelect }: { current: string; index: 
 				 * carried it is the instruction for the next step, and saying it twice reads as two requests.
 				 */
 				const words = entry.kind === "given" ? (entry.from ? t("gallery.markedStep") : t("gallery.givenStep")) : askText(entry) || t("gallery.noWords");
-				const kind = entry.kind === "given" ? "" : entry.sources.length || entry.untraced ? t("gallery.edited") : t("gallery.drawn");
+				const film = entry.kind === "drawn" && isVideo(entry);
+				const kind = entry.kind === "given" ? "" : film ? (entry.sources.length ? t("gallery.filmed") : t("gallery.madeVideo")) : entry.sources.length || entry.untraced ? t("gallery.edited") : t("gallery.drawn");
 				const meta = [
 					kind,
 					formatDate(entry.at, { hour: "2-digit", minute: "2-digit" }),
@@ -73,10 +75,11 @@ export function Lineage({ current, index, onSelect }: { current: string; index: 
 							}`}
 							style={{ paddingLeft: INSET }}
 						>
-							<img
-								src={sessionMediaUrl(node.id, SESSION_THUMB_EDGE)}
-								alt=""
-								draggable={false}
+							<MediaStill
+								media={node.id}
+								mimeType={entry.mimeType}
+								edge={SESSION_THUMB_EDGE}
+								lazy={false}
 								className={`shrink-0 rounded-[8px] bg-card object-cover ${active ? "ly-lineage-current" : ""}`}
 								style={{ width: THUMB, height: THUMB }}
 							/>

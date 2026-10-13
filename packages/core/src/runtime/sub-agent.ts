@@ -43,7 +43,10 @@ import {
 import { textTokens, toolTokens } from "./context.ts";
 import { makeAfterToolCall, makeBeforeToolCall } from "./hooks.ts";
 import { imageHost } from "../images/host.ts";
-import { imageModelRows } from "../images/models.ts";
+import { imageModelRows, mediaModelRows } from "../images/models.ts";
+import { videoHost } from "../videos/host.ts";
+import { VIDEO_TOOL_NAME } from "../videos/types.ts";
+import type { ConversationPicks } from "../images/picks.ts";
 import { IMAGE_TOOL_NAME } from "../images/types.ts";
 import { writePreview } from "./previews.ts";
 import { makeYieldTool, renderYield, yieldInstruction, YIELD_KEY, type YieldOutcome } from "./yield-tool.ts";
@@ -131,6 +134,8 @@ export interface SubAgentOptions {
 	settings: Settings;
 	/** Resolve preferences at dispatch time without altering an already running model request. */
 	getSettings?: () => Settings;
+	/** The parent conversation's image and video picks, read at each drawing; never written from here. */
+	mediaPicks?: ConversationPicks;
 	tools: Tool[];
 	skills: Skill[];
 	agents: AgentDefinition[];
@@ -258,7 +263,8 @@ export async function runSubAgent(
 	const delegationOff = normalizeDelegationPolicy((options.getSettings?.() ?? options.settings).subAgentDelegation) === "off";
 	const withoutTask = (maySpawn && deepEnough && !delegationOff ? fromSession : fromSession.filter((tool) => tool.name !== "task"))
 		// The same rule as the session's: no image model, no drawing tool (`session-turn.ts`).
-		.filter((tool) => tool.name !== IMAGE_TOOL_NAME || imageModelRows(options.settings.providers).length > 0);
+		.filter((tool) => tool.name !== IMAGE_TOOL_NAME || imageModelRows(options.settings.providers).length > 0)
+		.filter((tool) => tool.name !== VIDEO_TOOL_NAME || mediaModelRows(options.settings.providers, "video").length > 0);
 
 	/*
 	 * A declared output shape turns the reply into an object.
@@ -682,10 +688,18 @@ export async function runSubAgent(
 				 * finishes, the page would outlive nothing and be found by no one.
 				 */
 				writePreview: (input) => writePreview(lyraHome(), { ...input, sessionId: options.sessionId }),
-				// Its own pictures only: a delegated run sees the brief it was given, not the attachments upstream.
+				/*
+				 * Its own pictures only: a delegated run sees the brief it was given, not the attachments
+				 * upstream. Its model is the parent conversation's, read at each drawing like the parent's
+				 * own; a model it names stays with that call (no `named`), the conversation is not its to move.
+				 */
 				images: imageHost({
-					providers: options.settings.providers,
-					preferred: options.settings.imageModelId,
+					source: { settings: () => options.getSettings?.() ?? options.settings, picks: options.mediaPicks },
+					messages: [],
+					state: subState,
+				}),
+				videos: videoHost({
+					source: { settings: () => options.getSettings?.() ?? options.settings, picks: options.mediaPicks },
 					messages: [],
 					state: subState,
 				}),

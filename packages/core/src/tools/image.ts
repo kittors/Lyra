@@ -11,18 +11,15 @@
  * user's provider, and a tool that can only fail is a turn spent finding that out.
  */
 
-import { readFile } from "node:fs/promises";
-import { isAbsolute, relative } from "node:path";
 import { errorResult } from "../agent/tool-run.ts";
-import { failureOf } from "../ai/failure.ts";
-import { imageDimensions, sniffImageType } from "../images/dimensions.ts";
-import { loadPicture, RECENT_IMAGES_KEY } from "../images/recent.ts";
+import { canBeTransparent, imageDimensions, sniffImageType } from "../images/dimensions.ts";
+import { RECENT_IMAGES_KEY } from "../images/recent.ts";
 import { ASPECT_RATIOS, QUALITIES } from "../images/shape.ts";
 import { type ImageGenerationDetails, type ImageInput, type ImagePointer, type ImageRequest } from "../images/types.ts";
-import { persistSessionImage, safeMediaName, sessionMediaHome, sessionMediaPath } from "../session/payload.ts";
-import type { Tool, ToolContext, ToolResult } from "../types.ts";
+import { persistSessionImage, sessionMediaPath } from "../session/payload.ts";
+import type { Tool, ToolResult } from "../types.ts";
+import { failureText, offRatio, picturesFor, seconds } from "./media-inputs.ts";
 import { displayPath } from "./paths.ts";
-import { authorizeRead, toAbsolute } from "./read-access.ts";
 
 interface ImageArgs {
 	prompt: string;
@@ -32,100 +29,6 @@ interface ImageArgs {
 	count?: number;
 	background?: string;
 	model?: string;
-}
-
-/** Bigger than any reference picture needs to be, and small enough not to time out an upload. */
-const MAX_INPUT_BYTES = 20 * 1024 * 1024;
-const MAX_INPUTS = 8;
-
-/** A file the tool drew earlier is in the app's own directory, not the workspace, and needs no asking. */
-function ownMedia(path: string): string | null {
-	const rel = relative(sessionMediaHome(), path);
-	if (!rel || rel.startsWith("..") || isAbsolute(rel)) return null;
-	return safeMediaName(rel) || null;
-}
-
-/**
- * `#1`, `#2` from the conversation, or paths; a sentence for the model on the first one that fails.
- *
- * Each input also comes back as a `session-media` name — what the result records as its sources. A
- * picture that is not in `session-media` yet (a workspace file, a small inline attachment) is stored
- * there under its hash, so the gallery can still show where an edit started after the file changed.
- */
-async function inputsFor(refs: string[], ctx: ToolContext): Promise<{ inputs: ImageInput[]; sources: string[] } | string> {
-	if (refs.length > MAX_INPUTS) return `At most ${MAX_INPUTS} images can go into one call; ${refs.length} were given.`;
-	const host = ctx.images;
-	let pictures: ImagePointer[] | null = null;
-	const inputs: ImageInput[] = [];
-	const sources: string[] = [];
-	for (const raw of refs) {
-		const ref = raw.trim();
-		const numbered = /^#\s*(\d+)$/.exec(ref);
-		if (numbered) {
-			pictures ??= host?.pictures() ?? [];
-			const index = Number(numbered[1]);
-			const picture = index >= 1 ? pictures[index - 1] : undefined;
-			const loaded = picture ? await loadPicture(picture) : null;
-			if (!loaded) {
-				return pictures.length === 0
-					? `There are no images in this conversation, so "${ref}" refers to nothing. Ask the user to attach the picture.`
-					: `"${ref}" is out of range: this conversation has ${pictures.length} image${pictures.length === 1 ? "" : "s"} (#1 is the newest).`;
-			}
-			inputs.push(loaded);
-			sources.push(safeMediaName(picture?.media ?? "") || persistSessionImage(loaded.data, loaded.mimeType));
-			continue;
-		}
-		const absolute = toAbsolute(ctx.cwd, ref);
-		const media = ownMedia(absolute);
-		if (!media) {
-			const access = await authorizeRead(ctx, ref);
-			if (!access.ok) return access.message;
-		}
-		const bytes = await readFile(media ? sessionMediaPath(media) : absolute).catch(() => null);
-		if (!bytes) return `Could not read ${ref}.`;
-		if (bytes.length > MAX_INPUT_BYTES) return `${ref} is ${Math.round(bytes.length / 1048576)}MB; images over 20MB cannot be sent.`;
-		const mimeType = sniffImageType(bytes);
-		if (!mimeType) return `${ref} is not a PNG, JPEG or WebP image.`;
-		const data = bytes.toString("base64");
-		inputs.push({ data, mimeType, name: absolute.split(/[/\\]/).pop() });
-		sources.push(media ?? persistSessionImage(data, mimeType));
-	}
-	return { inputs, sources };
-}
-
-function seconds(ms: number): string {
-	return ms < 10_000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms / 1000)}s`;
-}
-
-function wait(ms: number): string {
-	const minutes = Math.round(ms / 60_000);
-	if (minutes < 1) return `${Math.ceil(ms / 1000)} seconds`;
-	if (minutes < 60) return `${minutes} minutes`;
-	return `${Math.floor(minutes / 60)}h${minutes % 60 ? ` ${minutes % 60}m` : ""}`;
-}
-
-/** What the model is told when it did not work, so it can tell the person something true. */
-function failureText(model: string, error: unknown): { text: string; error: NonNullable<ImageGenerationDetails["error"]> } {
-	const failure = failureOf(error);
-	const detail = failure.detail ?? (error instanceof Error ? error.message : String(error));
-	const recorded = { summary: failure.summary, detail: detail.slice(0, 2000), hint: failure.hint, retryAfterMs: failure.retryAfterMs };
-	if (failure.hint === "check-billing") {
-		const when = failure.retryAfterMs ? ` It resets in about ${wait(failure.retryAfterMs)}.` : "";
-		return { error: recorded, text: `${model} has no quota left.${when} Tell the user; trying again now will fail the same way.` };
-	}
-	if (failure.hint === "blocked") {
-		return {
-			error: recorded,
-			text: `The provider refused this request under its content policy (${detail.slice(0, 300)}). Tell the user it was refused; the same request will be refused the same way, so don't retry it unchanged.`,
-		};
-	}
-	if (failure.hint === "check-key") {
-		return {
-			error: recorded,
-			text: `The provider refused ${model} for this key (${detail.slice(0, 300)}). The user may need to allow the model for the key, or use a provider address whose group includes it. Don't retry.`,
-		};
-	}
-	return { error: recorded, text: `Image generation with ${model} failed: ${failure.summary}. ${detail.slice(0, 600)}` };
 }
 
 export const imageTool: Tool<ImageArgs> = {
@@ -142,7 +45,8 @@ export const imageTool: Tool<ImageArgs> = {
 		"Keep the user's language for text inside the picture. For an edit, say what to change and what must stay the same.\n\n" +
 		"To edit or use pictures as reference, list them in `images`: \"#1\" is the newest image in this conversation — something the user attached, or an earlier result — \"#2\" the one before it, and so on. " +
 		"A file can be given by path, including the path an earlier result reported.\n\n" +
-		"Pass `model` only when the user names an image model.",
+		"Pass `model` when the user names an image model, in words or with @. A picture drawn with a named model switches this conversation to it, " +
+		"so later drawings and edits use it without naming it again; naming two models in one reply, to compare them, leaves the conversation's model as it was.",
 	parameters: {
 		type: "object",
 		properties: {
@@ -168,7 +72,7 @@ export const imageTool: Tool<ImageArgs> = {
 				enum: ["auto", "transparent", "opaque"],
 				description: "transparent for stickers, icons and logos, where the model supports it.",
 			},
-			model: { type: "string", description: "Only when the user names an image model, e.g. \"gpt-image-2.5\"." },
+			model: { type: "string", description: "When the user names an image model, e.g. \"gpt-image-2.5\". Where two providers share a model, write it exactly as listed." },
 		},
 		required: ["prompt"],
 		additionalProperties: false,
@@ -185,9 +89,22 @@ export const imageTool: Tool<ImageArgs> = {
 		const target = ctx.images.resolve(args.model);
 		if ("problem" in target) return errorResult(target.problem);
 
-		const given = await inputsFor(Array.isArray(args.images) ? args.images.filter((ref) => typeof ref === "string") : [], ctx);
+		const given = await picturesFor(Array.isArray(args.images) ? args.images.filter((ref) => typeof ref === "string") : [], ctx, () => ctx.images?.pictures() ?? []);
 		if (typeof given === "string") return errorResult(given);
 		const { inputs, sources } = given;
+		/*
+		 * A model set up without picture input is not sent pictures. It used to be, and the provider's
+		 * answer to an edit it cannot do is either a refusal billed as a call or — worse — a fresh
+		 * picture drawn from the words alone, presented as the edit.
+		 */
+		if (inputs.length > 0 && target.model.supportsImages === false) {
+			const able = ctx.images.names?.({ pictures: true }) ?? [];
+			return errorResult(
+				`${target.model.name} is set up without picture input, so it cannot edit or draw from a picture.` +
+					(able.length ? ` Image models that take pictures: ${able.join(", ")} — pass one as \`model\`.` : "") +
+					` If ${target.model.name} does take pictures, the user can turn picture input on for it in Settings → Models.`,
+			);
+		}
 
 		const ratio = args.aspect_ratio && args.aspect_ratio !== "auto" ? args.aspect_ratio : undefined;
 		const quality = (QUALITIES as readonly string[]).includes(args.quality ?? "") ? (args.quality as ImageRequest["quality"]) : undefined;
@@ -218,7 +135,7 @@ export const imageTool: Tool<ImageArgs> = {
 			});
 		} catch (error) {
 			if (ctx.signal?.aborted) throw error;
-			const failed = failureText(target.model.name, error);
+			const failed = failureText("Image generation", target.model.name, error);
 			return {
 				content: [{ type: "text", text: failed.text }],
 				isError: true,
@@ -226,13 +143,17 @@ export const imageTool: Tool<ImageArgs> = {
 			};
 		}
 
+		let opaque = false;
 		const saved = result.images.map((image) => {
 			const bytes = Buffer.from(image.data, "base64");
 			const mimeType = sniffImageType(bytes) ?? image.mimeType;
 			const media = persistSessionImage(image.data, mimeType);
 			const size = imageDimensions(bytes);
+			if (background === "transparent" && !canBeTransparent(bytes)) opaque = true;
 			return { media, mimeType, ...size };
 		});
+		// Named for this drawing and it arrived: the conversation draws with it from now on (`NamedPicks`).
+		if (typeof args.model === "string" && args.model.trim() && saved.length > 0) ctx.images.adopt?.(target);
 		// Newest first, ahead of what was there: `#1` is now this turn's last picture.
 		const drawn = (ctx.state.get(RECENT_IMAGES_KEY) as ImagePointer[] | undefined) ?? [];
 		ctx.state.set(RECENT_IMAGES_KEY, [...[...saved].reverse().map(({ media, mimeType }) => ({ media, mimeType })), ...drawn]);
@@ -246,6 +167,16 @@ export const imageTool: Tool<ImageArgs> = {
 		];
 		if (result.failures?.length) lines.push(`${result.failures.length} of ${count} did not arrive: ${result.failures[0]}.`);
 		if (result.revisedPrompt) lines.push(`The provider rewrote the prompt as: ${result.revisedPrompt}`);
+		/*
+		 * What arrived, measured, against what was asked. Some models — and some relays in front of
+		 * them — drop the ratio or the transparent background without a word, and the person should
+		 * hear that from the model rather than find it in the picture.
+		 */
+		const first = saved[0];
+		if (ratio && first?.width && first.height && offRatio(ratio, first.width, first.height)) {
+			lines.push(`${target.model.name} did not keep to ${ratio}: the picture is ${first.width}×${first.height}. Tell the user if the shape matters — this model may not take a ratio.`);
+		}
+		if (opaque) lines.push(`${target.model.name} drew an opaque background, not a transparent one. Tell the user if they need transparency — gpt-image models support it.`);
 		return {
 			content: [{ type: "text", text: lines.join("\n") }],
 			details: {

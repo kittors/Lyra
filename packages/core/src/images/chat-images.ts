@@ -8,7 +8,7 @@
  */
 
 import { joinUrl } from "../ai/endpoint.ts";
-import { classifyFailure, FailureError } from "../ai/failure.ts";
+import { classifyFailure, FailureError, failureOf } from "../ai/failure.ts";
 import { fetchWithRetry, RetryBudget } from "../ai/retry.ts";
 import type { ModelConfig, ProviderConfig } from "../types/provider.ts";
 import { quotaGuard } from "./quota.ts";
@@ -109,33 +109,55 @@ export async function viaChatCompletions(
 	let note = "";
 	const usage = { input: 0, output: 0, total: 0 };
 	const total = Math.max(1, Math.min(4, Math.round(request.count ?? 1)));
+	/*
+	 * One request failing costs that one picture, not the ones already drawn — the Images API path
+	 * has always worked that way (`openai-images.ts`), and this one used to throw away three good
+	 * pictures because the fourth timed out. A failure the next request would only repeat — quota,
+	 * key, content, a missing endpoint — stops the asking; the rest are counted as not arrived.
+	 */
+	const failures: string[] = [];
+	let firstError: unknown;
 	// One picture per completion: `n` on chat is a count of alternative answers, and few hosts honour it.
 	for (let round = 0; round < total; round++) {
-		const response = await fetchWithRetry(
-			doFetch,
-			joinUrl(provider.baseUrl, "/v1/chat/completions"),
-			{
-				method: "POST",
-				headers: { "content-type": "application/json", authorization: `Bearer ${provider.apiKey}`, ...provider.headers },
-				body: JSON.stringify(body),
-				signal: options.signal,
-			},
-			{ budget, signal: options.signal, onRetry: options.onRetry },
-		);
-		const parsed = (await response.json().catch(() => ({}))) as ChatResponse;
-		const found = picturesIn(parsed);
-		images.push(...found.images);
-		for (const link of found.links) {
-			const fetched = await doFetch(link, { signal: options.signal }).catch(() => null);
-			if (!fetched?.ok) continue;
-			const bytes = Buffer.from(await fetched.arrayBuffer());
-			images.push({ data: bytes.toString("base64"), mimeType: fetched.headers.get("content-type") ?? "image/png" });
+		try {
+			const response = await fetchWithRetry(
+				doFetch,
+				joinUrl(provider.baseUrl, "/v1/chat/completions"),
+				{
+					method: "POST",
+					headers: { "content-type": "application/json", authorization: `Bearer ${provider.apiKey}`, ...provider.headers },
+					body: JSON.stringify(body),
+					signal: options.signal,
+				},
+				{ budget, signal: options.signal, onRetry: options.onRetry },
+			);
+			const parsed = (await response.json().catch(() => ({}))) as ChatResponse;
+			const found = picturesIn(parsed);
+			images.push(...found.images);
+			for (const link of found.links) {
+				const fetched = await doFetch(link, { signal: options.signal }).catch(() => null);
+				if (!fetched?.ok) continue;
+				const bytes = Buffer.from(await fetched.arrayBuffer());
+				images.push({ data: bytes.toString("base64"), mimeType: fetched.headers.get("content-type") ?? "image/png" });
+			}
+			note ||= found.text;
+			usage.input += parsed.usage?.prompt_tokens ?? 0;
+			usage.output += parsed.usage?.completion_tokens ?? 0;
+			usage.total += parsed.usage?.total_tokens ?? 0;
+			if (total > 1 && found.images.length === 0 && found.links.length === 0) failures.push(found.text ? `answered in words: ${found.text.slice(0, 120)}` : "answered without an image");
+		} catch (error) {
+			if (options.signal?.aborted) throw error;
+			firstError ??= error;
+			const failure = failureOf(error);
+			failures.push(failure.summary);
+			if (failure.hint === "check-billing" || failure.hint === "check-key" || failure.hint === "blocked" || failure.hint === "check-model") {
+				for (let rest = round + 1; rest < total; rest++) failures.push(failure.summary);
+				break;
+			}
 		}
-		note ||= found.text;
-		usage.input += parsed.usage?.prompt_tokens ?? 0;
-		usage.output += parsed.usage?.completion_tokens ?? 0;
-		usage.total += parsed.usage?.total_tokens ?? 0;
 	}
+	// A refusal in words says more than a transport error that came before it.
+	if (images.length === 0 && firstError && !note) throw firstError;
 	if (images.length === 0) {
 		/*
 		 * Words instead of a picture are usually the model refusing. Classified like any reply that ended
@@ -150,5 +172,5 @@ export async function viaChatCompletions(
 			}),
 		);
 	}
-	return { images, route: "chat", usage: usage.total ? usage : undefined };
+	return { images, route: "chat", usage: usage.total ? usage : undefined, ...(failures.length ? { failures } : {}) };
 }

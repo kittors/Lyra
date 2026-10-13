@@ -1,0 +1,314 @@
+/*
+ * The app's video player (`ui/media/VideoPlayer.tsx`): the glass of the buttons on a drawn picture
+ * (`image-gen.css`) and the history chip in 创作 (`gallery.css`), so a clip's controls read as part
+ * of the same surface as everything around it rather than as the system's player dropped in.
+ *
+ * The bar floats inside the picture instead of under it — the card and the 创作 stage are sized to the
+ * clip's own shape, and a strip below would change that shape the moment the video arrived.
+ */
+
+/*
+ * Where it sits is the caller's: `absolute inset-0` over a frame, or in the flow. Layered under the
+ * utilities so a position class wins — unlayered, this would quietly beat it.
+ */
+@layer components {
+  .ly-video {
+    position: relative;
+  }
+}
+
+.ly-video {
+  overflow: hidden;
+  background: rgb(0 0 0);
+  container-type: inline-size;
+  outline: none;
+}
+
+.ly-video-media:focus {
+  outline: none;
+}
+
+/*
+ * Filling the app's window: the player in the top layer (`popover`), over every panel, the window left
+ * where it is. The attribute form is the fallback where the popover API is missing — plain fixed
+ * positioning, which is enough wherever no ancestor transforms. Every UA popover default is undone:
+ * a popover is drawn as a bordered, padded, canvas-coloured box sized to its content.
+ *
+ * `no-drag` over all of it, as over the image viewer: the window's top 44px is a drag region, which
+ * takes the press before the page sees it — a click on the top of the picture moved the window, and a
+ * double click there zoomed it. Electron lays regions down in layout order, and the top layer comes
+ * after the whole page, so nothing re-covers this. Wheel turns stop here too, rather than scrolling
+ * the conversation hidden behind.
+ */
+.ly-video:popover-open,
+.ly-video[data-size="window"] {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: rgb(0 0 0);
+  color: inherit;
+  overflow: hidden;
+  overscroll-behavior: contain;
+  -webkit-app-region: no-drag;
+}
+
+.ly-video::backdrop {
+  background: rgb(0 0 0);
+}
+
+/* The screen's own full screen: the element is the screen; its corners and frame go with it. */
+.ly-video:fullscreen {
+  border-radius: 0;
+}
+
+/* Larger, the bar stands a little further in from the edges, where the eye is. */
+.ly-video:not([data-size="inline"]) .ly-video-bar {
+  inset: auto 24px 20px;
+  height: 42px;
+  padding: 0 6px;
+}
+
+/* The pointer goes with the bar: a still pointer over a playing clip should not sit on the picture. */
+.ly-video[data-idle],
+.ly-video[data-idle] .ly-video-media {
+  cursor: none;
+}
+
+.ly-video-media {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  cursor: pointer;
+}
+
+.ly-video-big {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin: auto;
+  border-radius: 9999px;
+  background: rgb(0 0 0 / 0.42);
+  color: rgb(255 255 255 / 0.96);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  backdrop-filter: blur(14px) saturate(1.4);
+  transition:
+    background-color var(--ly-t-quick) var(--ly-e-out),
+    transform var(--ly-t-quick) var(--ly-e-out);
+}
+
+.ly-video-big:hover {
+  background: rgb(0 0 0 / 0.58);
+  transform: scale(1.04);
+}
+
+.ly-video-bar {
+  position: absolute;
+  inset: auto 8px 8px;
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  height: 36px;
+  padding: 0 4px;
+  border-radius: 9999px;
+  background: rgb(0 0 0 / 0.42);
+  color: rgb(255 255 255 / 0.96);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  backdrop-filter: blur(14px) saturate(1.4);
+  opacity: 0;
+  transform: translateY(4px);
+  pointer-events: none;
+  transition:
+    opacity var(--ly-t-quick) var(--ly-e-out),
+    transform var(--ly-t-quick) var(--ly-e-out);
+}
+
+/* Tabbed to, a control is seen: the bar stays while one of its controls has the keyboard's focus. */
+.ly-video-bar[data-shown],
+.ly-video-bar:has(:focus-visible) {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.ly-video-btn {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
+  color: inherit;
+  transition: background-color var(--ly-t-quick) var(--ly-e-out);
+}
+
+.ly-video-btn:hover {
+  background: rgb(255 255 255 / 0.14);
+}
+
+.ly-video-time {
+  flex-shrink: 0;
+  padding: 0 6px 0 2px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  opacity: 0.92;
+}
+
+.ly-video-track {
+  position: relative;
+  flex: 1;
+  align-self: stretch;
+  min-width: 40px;
+  margin: 0 6px;
+  outline: none;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.ly-video-rail,
+.ly-video-buffered,
+.ly-video-played {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  height: 3px;
+  margin-top: -1.5px;
+  border-radius: 9999px;
+  transition: height var(--ly-t-quick) var(--ly-e-out);
+}
+
+.ly-video-rail {
+  right: 0;
+  background: rgb(255 255 255 / 0.22);
+}
+
+.ly-video-buffered {
+  background: rgb(255 255 255 / 0.34);
+}
+
+.ly-video-played {
+  background: var(--color-accent);
+}
+
+.ly-video-thumb {
+  position: absolute;
+  top: 50%;
+  width: 11px;
+  height: 11px;
+  margin: -5.5px 0 0 -5.5px;
+  border-radius: 9999px;
+  background: rgb(255 255 255);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
+  transform: scale(0);
+  transition: transform var(--ly-t-quick) var(--ly-e-out);
+}
+
+.ly-video-track:hover .ly-video-thumb,
+.ly-video-track:focus-visible .ly-video-thumb,
+.ly-video-track[data-active] .ly-video-thumb {
+  transform: scale(1);
+}
+
+/* The bar's menu, drawn inside the player so it is there in both of the larger sizes too. */
+.ly-video-menu {
+  position: absolute;
+  right: 8px;
+  bottom: 52px;
+  z-index: 1;
+  min-width: 200px;
+  max-width: calc(100% - 16px);
+  padding: 4px;
+  border-radius: 14px;
+  background: rgb(0 0 0 / 0.62);
+  color: rgb(255 255 255 / 0.96);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  backdrop-filter: blur(18px) saturate(1.4);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.28);
+}
+
+.ly-video:not([data-size="inline"]) .ly-video-menu {
+  right: 24px;
+  bottom: 70px;
+}
+
+.ly-video-menu-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 10px;
+  font-size: 13px;
+  text-align: left;
+  transition: background-color var(--ly-t-quick) var(--ly-e-out);
+}
+
+.ly-video-menu-item > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.ly-video-menu-item:hover {
+  background: rgb(255 255 255 / 0.12);
+}
+
+.ly-video-menu-detail {
+  display: block;
+  margin-top: 1px;
+  font-size: 11px;
+  opacity: 0.64;
+}
+
+.ly-video-wait {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: rgb(255 255 255 / 0.9);
+  pointer-events: none;
+}
+
+.ly-video-failed {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  color: rgb(255 255 255 / 0.7);
+  font-size: 12px;
+}
+
+/* A narrow card keeps the controls it can fit: the time goes first, then the sound switch. */
+@container (max-width: 300px) {
+  .ly-video-time {
+    display: none;
+  }
+}
+
+@container (max-width: 200px) {
+  .ly-video-mute {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ly-video-big,
+  .ly-video-bar,
+  .ly-video-thumb {
+    transition: none;
+  }
+}

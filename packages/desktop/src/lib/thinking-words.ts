@@ -77,6 +77,7 @@ const BY_TOOL: Record<string, Mood> = {
 	browser_act: "connecting",
 	// Something new being made, which is what the sash is for; the words are dropped (`RunningIndicator`).
 	image_generate: "composing",
+	video_generate: "composing",
 };
 
 /** Commands that are really a test run, whatever tool they arrived through. */

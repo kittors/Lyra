@@ -10,6 +10,8 @@
   `desktop/test/lineage-tree.test.ts`、`gallery-layout.test.ts`、`test/ui/gallery.test.ts`；
   探针 `desktop/e2e/gallery-demo.ts`；指南 [生成图片 › 画廊](../guide/image-generation.md#画廊)；ADR-0033
 
+> 2026-10-13：画廊改名为「创作」，并收进视频（ADR-0036）。下文按当时的名字写。
+
 ## 背景
 
 用户要的是：图标栏里一个画廊，所有对话里画过的图像相册一样排开；点开能看这张图的详情，以及它是怎么一步

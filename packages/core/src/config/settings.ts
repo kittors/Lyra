@@ -516,12 +516,15 @@ export interface Settings {
 	/** Default for new side chats; null follows the main conversation. */
 	sideChatModelId?: string | null;
 	/**
-	 * The image model `image_generate` draws with unless the conversation names another.
+	 * The image model `image_generate` draws with when neither the request nor the conversation has
+	 * picked one (`SessionMeta.imageModelId`).
 	 *
 	 * Null or unset means the first image model configured — so adding one is all it takes to start
 	 * drawing, and this only matters to someone with several.
 	 */
 	imageModelId?: string | null;
+	/** `imageModelId` for `video_generate`, with the same fallback to the first video model. */
+	videoModelId?: string | null;
 	/**
 	 * Models pinned to the top of the picker, in the order they were starred.
 	 *

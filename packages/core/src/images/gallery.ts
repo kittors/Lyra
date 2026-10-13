@@ -9,6 +9,7 @@ import type { SessionStorage } from "../session/storage.ts";
 import type { SessionMeta } from "../session/types.ts";
 import { drawingsIn, type Drawings, type DrawnPicture, type GivenPicture } from "./lineage.ts";
 import { IMAGE_TOOL_NAME } from "./types.ts";
+import { VIDEO_TOOL_NAME } from "../videos/types.ts";
 
 export interface GalleryPicture extends DrawnPicture {
 	sessionId: string;
@@ -48,7 +49,9 @@ export class GalleryReader {
 	}
 
 	async list(): Promise<Gallery> {
-		const found = (await this.store.sessionsWithResultOf?.(IMAGE_TOOL_NAME)) ?? [];
+		// Conversations with a drawing or a video in them, each once, at the newer of its two answers' seq.
+		const results = [...((await this.store.sessionsWithResultOf?.(IMAGE_TOOL_NAME)) ?? []), ...((await this.store.sessionsWithResultOf?.(VIDEO_TOOL_NAME)) ?? [])];
+		const found = [...new Map(results.map((entry) => [entry.id, entry])).values()];
 		const metas = new Map((found.length ? await this.store.listSessions() : []).map((meta) => [meta.id, meta]));
 		const live = new Set<string>();
 		for (const { id, seq } of found) {

@@ -176,3 +176,23 @@ test("a fork keeps where the model changed, so one provider's handles are not re
 		await c.cleanup();
 	}
 });
+
+test("a fork keeps the conversation's image and video picks; one without picks stays following the defaults", async () => {
+	const c = await conversation();
+	try {
+		await c.say(user("画一只猫", 10), reply("好", 11));
+		const plain = await forkSession(c.store, c.meta.projectId, c.meta.id, c.meta.seq);
+		const plainMeta = (await c.load(plain!.meta))!.meta;
+		assert.equal(plainMeta.imageModelId, undefined);
+		assert.equal(plainMeta.videoModelId, undefined);
+
+		await c.store.append(c.meta, { type: "meta", meta: { ...c.meta, imageModelId: "relay/grok-imagine-image", videoModelId: "ark/doubao-seedance-2-5-260628" } });
+		const picked = (await c.store.listSessions()).find((meta) => meta.id === c.meta.id)!;
+		const fork = await forkSession(c.store, picked.projectId, picked.id, picked.seq);
+		const forkMeta = (await c.load(fork!.meta))!.meta;
+		assert.equal(forkMeta.imageModelId, "relay/grok-imagine-image");
+		assert.equal(forkMeta.videoModelId, "ark/doubao-seedance-2-5-260628");
+	} finally {
+		await c.cleanup();
+	}
+});

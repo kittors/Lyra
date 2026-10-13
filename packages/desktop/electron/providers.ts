@@ -6,7 +6,7 @@
  */
 
 import type { ProviderTestResult, SyncStatus } from "./ipc-types.ts";
-import { generateImages, imageDimensions, isImageModel, streamAssistant, type AssistantMessage, type ModelConfig, type Settings, type StreamEvent, type ThinkingLevel } from "@lyra/core";
+import { generateImages, generateVideo, imageDimensions, isImageModel, isVideoModel, streamAssistant, type AssistantMessage, type ModelConfig, type Settings, type StreamEvent, type ThinkingLevel } from "@lyra/core";
 import { getSettings } from "./app-settings.ts";
 import { nativeText } from "./i18n.ts";
 
@@ -99,6 +99,7 @@ export async function testProvider(
 	}
 
 	if (isImageModel(model)) return drawOnce(provider, model);
+	if (isVideoModel(model)) return filmOnce(provider, model);
 	const reply = await firstToken(provider, model, thinking);
 	return reply.ok
 		? { ok: true, latencyMs: reply.latencyMs, message: nativeText("provider.responded", { model: model.name || model.modelId }), models }
@@ -218,6 +219,34 @@ const DRAW_TIMEOUT_MS = 180_000;
  * Images API has no free way to ask "would this work". So it is one real, cheap drawing; the button
  * says so in its tooltip, and nothing is kept.
  */
+/** Long enough for the shortest clip on a busy pool; a video test that takes longer is reported, not waited out. */
+const FILM_TIMEOUT_MS = 8 * 60_000;
+
+/**
+ * A video model is tested the way it is used: one task, as short and as small as the model makes —
+ * a second at 480p where it takes that, its own floor where it does not — polled to the end and
+ * fetched. Nothing cheaper says the API, the key and the model all work together, and the button
+ * says it is billed. The clip lands in `session-media` like any other and is not referenced anywhere.
+ */
+async function filmOnce(provider: Provider, model: ModelConfig): Promise<ProviderTestResult> {
+	const started = Date.now();
+	try {
+		const result = await generateVideo(
+			provider,
+			model,
+			{ prompt: "A single small red dot on a plain white background, perfectly still.", duration: 1, resolution: "480p", audio: false },
+			{ retryAttempts: 1, signal: AbortSignal.timeout(FILM_TIMEOUT_MS) },
+		);
+		const video = result.videos[0];
+		const size = video?.width && video.height ? `${video.width}×${video.height}${video.seconds ? ` · ${video.seconds}s` : ""}` : `${Math.round((video?.bytes ?? 0) / 1024)} KB`;
+		return { ok: true, latencyMs: Date.now() - started, message: nativeText("provider.filmed", { model: model.name || model.modelId, size }) };
+	} catch (error) {
+		const failure = error as { failure?: { summary?: string; detail?: string } };
+		const message = failure.failure ? [failure.failure.summary, failure.failure.detail?.slice(0, 300)].filter(Boolean).join(" · ") : error instanceof Error ? error.message : String(error);
+		return { ok: false, latencyMs: Date.now() - started, message };
+	}
+}
+
 async function drawOnce(provider: Provider, model: ModelConfig): Promise<ProviderTestResult> {
 	const started = Date.now();
 	try {

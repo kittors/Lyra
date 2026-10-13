@@ -150,6 +150,7 @@ async function executeOne(
 		projectRoots: config.projectRoots,
 		writePreview: config.writePreview,
 		images: config.images,
+		videos: config.videos,
 		spawnSubAgent: config.spawnSubAgent,
 		resources: config.resources,
 		scratchDir: config.scratchDir,

@@ -12,7 +12,7 @@
  * goes back to the caller so the window can say the file was not entirely understood.
  */
 
-import { isImageModel } from "@lyra/core/image-models";
+import { isMediaModel, VIDEO_APIS } from "@lyra/core/image-models";
 import type { ApiFormat, ModelConfig, ModelPricing, ModelPricingTier, ProviderConfig } from "@lyra/core";
 
 /** Identifies the file as ours before anything reads what is in it. */
@@ -197,8 +197,8 @@ export function applyImport(
 	const stillThere = providers.some((provider) => provider.models.some((model) => model.id === defaultModelId));
 	return {
 		providers,
-		// The first model that can hold a conversation; an image model as the default would fail every turn.
-		defaultModelId: stillThere ? defaultModelId : (providers.flatMap((provider) => provider.models).find((model) => !isImageModel(model))?.id ?? null),
+		// The first model that can hold a conversation; an image or video model as the default would fail every turn.
+		defaultModelId: stillThere ? defaultModelId : (providers.flatMap((provider) => provider.models).find((model) => !isMediaModel(model))?.id ?? null),
 	};
 }
 
@@ -260,8 +260,10 @@ function readModel(raw: unknown, providerId: string): ModelConfig | null {
 		supportsThinking: raw.supportsThinking !== false,
 		supportsImages: raw.supportsImages !== false,
 		supportsTools: raw.supportsTools !== false,
-		// Only when said: absent means "judge by the name" (`isImageModel`), which is what a hand-written file wants.
+		// Only when said: absent means "judge by the name" (`mediaKind`), which is what a hand-written file wants.
 		...(typeof raw.imageOutput === "boolean" ? { imageOutput: raw.imageOutput } : {}),
+		...(typeof raw.videoOutput === "boolean" ? { videoOutput: raw.videoOutput } : {}),
+		...(typeof raw.videoApi === "string" && (VIDEO_APIS as readonly string[]).includes(raw.videoApi) ? { videoApi: raw.videoApi as ModelConfig["videoApi"] } : {}),
 		...(pricing ? { pricing } : {}),
 		...(catalogRef?.providerId && catalogRef.modelId ? { catalogRef } : {}),
 		...(raw.metadataSource === "manual" || raw.metadataSource === "catalog"

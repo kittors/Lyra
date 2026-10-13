@@ -13,6 +13,7 @@ import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { useApp } from "../../store/index.ts";
 import { useOpenFile } from "../../store/openFile.ts";
 import { available, bridge } from "../../services/index.ts";
+import { VideoPlayer } from "../../ui/media/VideoPlayer.tsx";
 
 const IMAGE = new Set(["png", "jpg", "jpeg", "gif", "webp", "avif", "bmp", "ico", "svg"]);
 const VIDEO = new Set(["mp4", "webm", "mov", "mkv", "m4v"]);
@@ -130,8 +131,8 @@ export function FileViewer({
 				<WordView key={path} path={path} />
 			) : kind === "video" ? (
 				<div className="flex min-h-0 flex-1 items-center justify-center bg-black/85 p-2">
-					{/* useMediaCaption 在这里不适用（本仓库用 oxlint，不认 biome 的抑制注释，所以这只是一句说明）: a file preview has no caption track. */}
-					<video src={media} controls className="max-h-full max-w-full rounded-md" />
+					{/* The app's player, as in a conversation and in 创作: one set of controls for every video. */}
+					<VideoPlayer key={path} src={media} label={name} className="size-full rounded-md" />
 				</div>
 			) : kind === "audio" ? (
 				<div className="flex min-h-0 flex-1 items-center justify-center p-4">

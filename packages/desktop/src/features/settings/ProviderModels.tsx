@@ -6,8 +6,8 @@
  * fill them in, and the part you come back to later.
  */
 
-import { CircleAlert, CloudDownload, Image, Lightbulb, MoreHorizontal, Palette, Pencil, Play, Plus, Star, Trash2, Wrench } from "lucide-react";
-import { isImageModel } from "@lyra/core/image-models";
+import { CircleAlert, Clapperboard, CloudDownload, Image, Lightbulb, MoreHorizontal, Palette, Pencil, Play, Plus, Star, Trash2, Wrench } from "lucide-react";
+import { isImageModel, isMediaModel, isVideoModel, mediaKind, resolveMediaModel } from "@lyra/core/image-models";
 import { useApp } from "../../store/index.ts";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import type { ModelConfig } from "@lyra/core";
@@ -55,14 +55,29 @@ export function ProviderModels({
 }) {
 	const { t } = useI18n();
 	/*
-	 * An image model's "default" is a different setting from a chat model's: the model `image_generate`
-	 * draws with. A pointer and nothing else, so it is written straight away rather than with the
-	 * provider being edited — a model not saved yet is simply not found, and the first one is used.
+	 * An image or video model's "default" is a different setting from a chat model's: the model the
+	 * drawing tools use. A pointer and nothing else, so it is written straight away rather than with
+	 * the provider being edited — a model not saved yet is simply not found, and the first one is used.
 	 */
-	const imageModelId = useApp((state) => state.settings?.imageModelId ?? null);
-	const setDefaultImage = (modelId: string) => {
+	const settings = useApp((state) => state.settings);
+	const setDefaultMedia = (model: ModelConfig) => {
 		const current = useApp.getState().settings;
-		if (current) void useApp.getState().saveSettings({ ...current, imageModelId: modelId });
+		if (current) void useApp.getState().saveSettings({ ...current, [isVideoModel(model) ? "videoModelId" : "imageModelId"]: model.id });
+	};
+	/*
+	 * Which media model is in use with no default set, or with one that no longer resolves: the first
+	 * of its kind. Marked as such, so 「自动」 is a row you can see rather than a rule you have to know.
+	 */
+	const auto = {
+		image: resolveMediaModel(settings?.providers, "image", { preferred: settings?.imageModelId }),
+		video: resolveMediaModel(settings?.providers, "video", { preferred: settings?.videoModelId }),
+	};
+	const defaultOf = (model: ModelConfig): "set" | "auto" | null => {
+		const kind = mediaKind(model);
+		if (!kind) return defaultModelId === model.id ? "set" : null;
+		const pick = auto[kind];
+		if (!pick.row || pick.row.model.id !== model.id) return null;
+		return pick.source === "default" ? "set" : "auto";
 	};
 	return (
 		<section className="pt-7">
@@ -108,13 +123,14 @@ export function ProviderModels({
 						<ModelRow
 							key={model.id}
 							model={model}
-							isDefault={isImageModel(model) ? imageModelId === model.id : defaultModelId === model.id}
+							isDefault={defaultOf(model) === "set"}
+							autoDefault={defaultOf(model) === "auto"}
 							testing={testingModelId === model.id}
 							testResult={modelTestResults?.[model.id]}
 							onTest={() => onTestModel?.(model.id)}
 							onEdit={() => onEdit(model)}
 							onRemove={() => onRemove(model.id)}
-							onSetDefault={() => (isImageModel(model) ? setDefaultImage(model.id) : onSetDefault(model.id))}
+							onSetDefault={() => (isMediaModel(model) ? setDefaultMedia(model) : onSetDefault(model.id))}
 						/>
 					))
 				) : (
@@ -130,16 +146,18 @@ export function ProviderModels({
  * up down the list whichever of them a row has.
  */
 const CAPABILITIES: { has: (model: ModelConfig) => boolean; label: MessageKey; Icon: typeof Lightbulb; tone: string }[] = [
-	// First, because it changes what the row is: a model that draws is not offered for conversations.
+	// First, because it changes what the row is: a model that draws or films is not offered for conversations.
 	{ has: (m) => isImageModel(m), label: "modelEditor.imageOutput", Icon: Palette, tone: "bg-accent/12 text-accent" },
-	{ has: (m) => m.supportsThinking && !isImageModel(m), label: "modelEditor.thinking", Icon: Lightbulb, tone: "bg-violet/12 text-violet" },
+	{ has: (m) => isVideoModel(m), label: "modelEditor.videoOutput", Icon: Clapperboard, tone: "bg-accent/12 text-accent" },
+	{ has: (m) => m.supportsThinking && !isMediaModel(m), label: "modelEditor.thinking", Icon: Lightbulb, tone: "bg-violet/12 text-violet" },
 	{ has: (m) => m.supportsImages, label: "modelEditor.images", Icon: Image, tone: "bg-ok/12 text-ok" },
-	{ has: (m) => m.supportsTools && !isImageModel(m), label: "modelEditor.toolCalls", Icon: Wrench, tone: "bg-info/12 text-info" },
+	{ has: (m) => m.supportsTools && !isMediaModel(m), label: "modelEditor.toolCalls", Icon: Wrench, tone: "bg-info/12 text-info" },
 ];
 
 function ModelRow({
 	model,
 	isDefault,
+	autoDefault,
 	testing,
 	testResult,
 	onTest,
@@ -149,6 +167,8 @@ function ModelRow({
 }: {
 	model: ModelConfig;
 	isDefault: boolean;
+	/** The image or video model in use because none is set: the first of its kind. */
+	autoDefault?: boolean;
 	testing: boolean;
 	testResult?: ProviderTestResult;
 	onTest: () => void;
@@ -173,6 +193,7 @@ function ModelRow({
 					<ScrollText text={model.modelId} className="min-w-0 shrink font-mono text-label text-ink" />
 					{alias && <span className="min-w-0 shrink-[2] truncate text-detail text-ink-muted">{alias}</span>}
 					{isDefault && <Badge tone="accent">{t("common.default")}</Badge>}
+					{autoDefault && <Badge tone="muted">{t("providerModels.defaultAuto")}</Badge>}
 				</button>
 
 				{testResult && !testing && (
@@ -195,14 +216,14 @@ function ModelRow({
 					))}
 				</span>
 
-				<span className={`grid h-5 w-[46px] shrink-0 place-items-center rounded-[5px] font-mono text-caption text-ink-muted tabular-nums ${isImageModel(model) ? "" : "bg-card"}`}>
+				<span className={`grid h-5 w-[46px] shrink-0 place-items-center rounded-[5px] font-mono text-caption text-ink-muted tabular-nums ${isMediaModel(model) ? "" : "bg-card"}`}>
 					{/* Held empty for a model that draws: a context window is not a thing it has, and the column keeps the rows aligned. */}
-					{isImageModel(model) ? "" : formatWindow(model.contextWindow)}
+					{isMediaModel(model) ? "" : formatWindow(model.contextWindow)}
 				</span>
 
 				<span className="flex shrink-0 items-center">
 					<IconButton
-						label={testing ? t("providerModels.connecting") : isImageModel(model) ? t("providerModels.testDraw") : t("providerModels.testOne")}
+						label={testing ? t("providerModels.connecting") : isVideoModel(model) ? t("providerModels.testFilm") : isImageModel(model) ? t("providerModels.testDraw") : t("providerModels.testOne")}
 						disabled={testing}
 						explainDisabled
 						onClick={onTest}
@@ -237,7 +258,7 @@ function ModelRow({
 								onSetDefault();
 							}}
 						>
-							{isImageModel(model) ? t("providerModels.makeDefaultImage") : t("providerModels.makeDefault")}
+							{isVideoModel(model) ? t("providerModels.makeDefaultVideo") : isImageModel(model) ? t("providerModels.makeDefaultImage") : t("providerModels.makeDefault")}
 						</MenuItem>
 						<MenuItem
 							icon={<Pencil size={13} strokeWidth={1.8} />}

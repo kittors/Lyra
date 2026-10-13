@@ -12,7 +12,7 @@
  * puts all of these back in the drawer.
  */
 
-import { Blocks, Clock, GitPullRequest, House, Images, Settings as SettingsIcon } from "lucide-react";
+import { Blocks, Clock, GitPullRequest, House, Settings as SettingsIcon, ImagePlay } from "lucide-react";
 
 import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
@@ -47,7 +47,7 @@ export function AppRail() {
 			{item("pull-requests", t("sidebar.pullRequests"), <GitPullRequest size={17} strokeWidth={1.8} />)}
 			{item("scheduled", t("sidebar.scheduled"), <Clock size={17} strokeWidth={1.8} />, { count: failures, label: t("scheduled.unseenFailures", { n: failures }), tone: "danger" })}
 			{item("plugins", t("sidebar.plugins"), <Blocks size={17} strokeWidth={1.8} />, { count: waiting, label: t("sidebar.pluginUpdates", { n: waiting }), tone: "accent" })}
-			{item("gallery", t("gallery.title"), <Images size={17} strokeWidth={1.8} />)}
+			{item("gallery", t("gallery.title"), <ImagePlay size={17} strokeWidth={1.8} />)}
 			<span className="flex-1" />
 			<UpdateBadge rail />
 			{item("settings", t("phone.settings"), <SettingsIcon size={17} strokeWidth={1.8} />)}

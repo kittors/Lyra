@@ -33,6 +33,8 @@ import type { AgentEvent, AgentEventSink, CommandRun, QueuedTask } from "../agen
 import type { AgentRunConfig, LiveModel } from "../agent/loop.ts";
 import type { Settings } from "../config/settings.ts";
 import { describeSettingsProblem, layerProjectSettings, resolveModel, settingsProblem } from "../config/settings.ts";
+import type { MediaKind } from "../images/models.ts";
+import type { ConversationPicks } from "../images/picks.ts";
 import { SESSIONS_KEY, type SessionLookup } from "../resources/more-handlers.ts";
 import { saveRule, type RuleDestination } from "../rules/save.ts";
 import type { Boundary, SessionMeta } from "../session/store.ts";
@@ -230,6 +232,16 @@ export class AgentSession {
 			return () => this.modelListeners.delete(listener);
 		},
 		adopted: () => this.adoptModel(),
+	};
+	/**
+	 * This conversation's image and video picks, for the turn to read at every drawing and to write
+	 * when a model is named (`images/picks.ts`). `setMediaModel` updates the meta before it awaits
+	 * the log, so the very next read sees the new pick; a failed write is logged nowhere on purpose —
+	 * the pick stands for this run, and the next one reads whatever made it to disk.
+	 */
+	private readonly mediaPicks: ConversationPicks = {
+		get: (kind) => (kind === "video" ? this.log.meta.videoModelId : this.log.meta.imageModelId),
+		set: (kind, modelId) => void this.setMediaModel(kind, modelId).catch(() => {}),
 	};
 	private readonly approvals: ApprovalGate;
 	private readonly tasks: TaskQueue = sessionTaskQueue({
@@ -683,6 +695,22 @@ export class AgentSession {
 		await this.log.append({ type: "meta", meta });
 	}
 
+	/**
+	 * Which image or video model this conversation uses from the next drawing on; `null` follows the
+	 * default again. Read at every call (`media-picks.ts`), so a turn already drawing picks it up for
+	 * its next picture — the one in flight finishes on the model it started with.
+	 *
+	 * Written like `setThinking`, and for its reason: present-and-`undefined` clears. A pick that is
+	 * already the stored one writes nothing, so naming the same model every turn does not grow the log.
+	 */
+	async setMediaModel(kind: MediaKind, modelId: string | null): Promise<void> {
+		const key = kind === "video" ? "videoModelId" : "imageModelId";
+		if ((this.log.meta[key] ?? null) === modelId) return;
+		const meta: SessionMeta = { ...this.log.meta, [key]: modelId ?? undefined };
+		this.log.meta = meta;
+		await this.log.append({ type: "meta", meta });
+	}
+
 	// -------------------------------------------------------------------------
 	// Running a turn
 	// -------------------------------------------------------------------------
@@ -1003,6 +1031,7 @@ export class AgentSession {
 				subAgents: this.subAgents,
 				delegations: this.delegations,
 				liveModel: this.liveModel,
+				mediaPicks: this.mediaPicks,
 			});
 			await this.activeTurn;
 		} finally {
