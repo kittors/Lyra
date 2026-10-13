@@ -189,6 +189,16 @@ const CHECKS = [
 		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/settled-width.test.ts", "test/ui/preloaded-screens.test.ts", "test/ui/gallery.test.ts"]],
 	},
 	{
+		id: "WORKTREE-choice",
+		what: "开新会话没法这一次选要不要工作树、选了也被设置推翻；工作树会话在侧栏多出一个同名项目、项目名变成工作树文件夹名、从它开新会话套出第二层工作树；工作树建在仓库旁边，文件树空、提交被拒",
+		run: ["node", ["--experimental-strip-types", "--test", "--import", "./packages/desktop/test/setup.ts", "packages/desktop/test/git-worktrees.test.ts", "packages/desktop/test/create-session.test.ts", "packages/desktop/test/sidebar-grouping.test.ts"]],
+	},
+	{
+		id: "WORKTREE-choice-ui",
+		what: "同上，界面那一半：输入框上的开关、工作树会话的行首标记、打开它时的项目名、从它开的新会话回到原项目",
+		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/worktree-toggle.test.ts", "test/ui/worktree-conversation.test.ts"]],
+	},
+	{
 		id: "S7-annotate",
 		what: "标注拆成三个文件之后还画得出来吗",
 		window: true,

@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { promisify } from "node:util";
@@ -19,6 +19,7 @@ import {
 	resolveWorktreesRoot,
 } from "../electron/git-worktrees.ts";
 import { listWorktrees } from "../electron/git-repos.ts";
+import { canonicalPath } from "../electron/path-key.ts";
 import { DEFAULT_SETTINGS } from "@lyra/core";
 
 const exec = promisify(execFile);
@@ -89,7 +90,7 @@ test("removeWorktree removes a linked worktree and cleans it up", async () => {
 	assert.ok(!trees.some((t) => t.path === created.path));
 });
 
-test("autoCreateSessionWorktree creates dedicated worktree when enabled in settings", async () => {
+test("autoCreateSessionWorktree creates dedicated worktree under a configured root", async () => {
 	const customSettings = {
 		...DEFAULT_SETTINGS,
 		worktrees: {
@@ -100,19 +101,68 @@ test("autoCreateSessionWorktree creates dedicated worktree when enabled in setti
 
 	const res = await autoCreateSessionWorktree(dir, customSettings, "session-12345678");
 	assert.equal(res.worktreeCreated, true);
+	assert.equal(res.branch, "lyra/session-session-");
 	assert.ok(res.cwd.includes("session-worktrees"));
 	assert.ok(existsSync(res.cwd));
+});
 
-	// Test disabled setting
-	const disabledSettings = {
-		...DEFAULT_SETTINGS,
-		worktrees: {
-			autoCreateOnNewSession: false,
-		},
-	};
-	const resDisabled = await autoCreateSessionWorktree(dir, disabledSettings, "session-999");
-	assert.equal(resDisabled.worktreeCreated, false);
-	assert.equal(resDisabled.cwd, dir);
+/*
+ * 会话自己要的，就给它建——全局开关只是新会话的默认值。
+ *
+ * 从前这里还要再问一遍设置：设置里关着，输入框上选了「这次用工作树」也照样不建。
+ */
+test("会话要了工作树就建，不再回头问全局开关", async () => {
+	const off = { ...DEFAULT_SETTINGS, worktrees: { autoCreateOnNewSession: false, rootDir: join(root, "chosen-worktrees") } };
+	const res = await autoCreateSessionWorktree(dir, off, "chosen-0001");
+	assert.equal(res.worktreeCreated, true);
+	assert.ok(res.cwd.startsWith(canonicalPath(join(root, "chosen-worktrees"))), res.cwd);
+});
+
+/*
+ * 默认建在 Lyra 自己的目录下，不在项目旁边。
+ *
+ * 旁边那个目录用户没要过，而且不在窗口能读的任何根里：文件树是空的，终端开在家目录，从那里提交被拒。
+ */
+test("没配根目录：建在 ~/.lyra/worktrees 里，项目旁边不多出目录", async () => {
+	const home = join(root, "lyra-home");
+	const was = process.env.LYRA_HOME;
+	process.env.LYRA_HOME = home;
+	try {
+		const beside = await readdir(root);
+		const res = await autoCreateSessionWorktree(dir, { ...DEFAULT_SETTINGS, worktrees: {} }, "defaults-0002");
+		assert.equal(res.worktreeCreated, true);
+		assert.equal(res.cwd, canonicalPath(join(home, "worktrees", `${basename(dir)}-defaults`)));
+		assert.deepEqual((await readdir(root)).filter((name) => !beside.includes(name)), ["lyra-home"], "nothing new next to the project but the home this test made");
+	} finally {
+		if (was === undefined) delete process.env.LYRA_HOME;
+		else process.env.LYRA_HOME = was;
+	}
+});
+
+test("项目是仓库里的一个子目录：会话落在工作树里的同一个子目录；没提交过的子目录退回工作树根", async () => {
+	await mkdir(join(dir, "packages", "app"), { recursive: true });
+	await writeFile(join(dir, "packages", "app", "index.ts"), "export {};\n");
+	await git(["add", "."]);
+	await git(["commit", "-m", "add a package"]);
+	const settings = { ...DEFAULT_SETTINGS, worktrees: { rootDir: join(root, "nested-worktrees") } };
+	const res = await autoCreateSessionWorktree(join(dir, "packages", "app"), settings, "nested-0003");
+	assert.equal(res.worktreeCreated, true);
+	assert.equal(res.cwd, join(canonicalPath(join(root, "nested-worktrees", `${basename(dir)}-nested-0`)), "packages", "app"));
+	assert.ok(existsSync(join(res.cwd, "index.ts")));
+
+	await mkdir(join(dir, "scratchpad"), { recursive: true });
+	const loose = await autoCreateSessionWorktree(join(dir, "scratchpad"), settings, "loose-0004");
+	assert.equal(loose.worktreeCreated, true);
+	assert.equal(loose.cwd, canonicalPath(join(root, "nested-worktrees", `${basename(dir)}-loose-00`)));
+});
+
+test("不是 Git 仓库：不建，并带回原因好让会话说出来", async () => {
+	const plain = join(root, "plain");
+	await mkdir(plain, { recursive: true });
+	const res = await autoCreateSessionWorktree(plain, DEFAULT_SETTINGS, "plain-0005");
+	assert.equal(res.worktreeCreated, false);
+	assert.equal(res.cwd, plain);
+	assert.ok(res.error);
 });
 
 test("cleanOldWorktrees prunes excess worktrees above keepLimit while protecting active ones", async () => {

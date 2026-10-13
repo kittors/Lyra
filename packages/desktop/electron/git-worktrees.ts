@@ -8,7 +8,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, rm, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, isAbsolute, join, resolve } from "node:path";
+import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import type { Settings } from "@lyra/core";
 import { git } from "./git-exec.ts";
 import { isGitRepo } from "./git.ts";
@@ -31,8 +31,7 @@ export interface WorktreeResult {
 }
 
 /**
- * Resolves the configured root directory for worktrees.
- * Supports "~" expansion and defaults to "~/.lyra/worktrees" or project sibling.
+ * Where worktrees are made: `rootDir` with `~` expanded, or `~/.lyra/worktrees`.
  */
 export function resolveWorktreesRoot(customRootDir?: string): string {
 	if (customRootDir && customRootDir.trim()) {
@@ -59,9 +58,8 @@ async function fetchUpstreamQuietly(cwd: string): Promise<void> {
 /**
  * Creates a git worktree for a specific repository.
  *
- * If targetDir is not supplied, places worktree in:
- * 1. settings.worktrees.rootDir / <repo-name>-<branch> (if configured)
- * 2. or sibling of repo: <repo-parent>/<repo-name>-<branch>
+ * Without `targetDir` the worktree goes beside the repository, as `<repo>-<branch>`. A conversation's
+ * worktree always names its place (`autoCreateSessionWorktree`).
  */
 export async function createWorktree(
 	cwd: string,
@@ -188,18 +186,28 @@ export async function pruneWorktrees(cwd: string): Promise<{ ok: boolean; error?
 }
 
 /**
- * Auto-creates a dedicated worktree for a new AI session if enabled in settings.
+ * A worktree of its own, for a conversation that asked for one (`SessionMeta.workspaceSetup`).
+ *
+ * The marker is the decision. It is made per conversation — in the composer, starting from
+ * `worktrees.autoCreateOnNewSession` (`create-session.ts`) — and asking the setting again here is
+ * what used to make a choice in the composer impossible: off in settings meant never, whatever the
+ * conversation had been told.
+ *
+ * Under the worktrees root (`~/.lyra/worktrees` unless `rootDir` names another), never beside the
+ * project. A sibling folder is a directory nobody asked for sitting next to their checkout, and it
+ * is outside every root the window may read (`allowedRoots` in `main.ts`): its file tree came up
+ * empty, its terminal opened in the home folder, and committing from it was refused.
+ *
+ * `error` says why when there is no worktree, for the conversation to be told: it then runs in the
+ * project itself, and the person who asked for a separate copy has to know it did not get one.
  */
 export async function autoCreateSessionWorktree(
 	projectCwd: string,
 	settings: Settings,
 	sessionId: string,
-): Promise<{ cwd: string; worktreeCreated: boolean; branch?: string }> {
-	if (!settings.worktrees?.autoCreateOnNewSession) {
-		return { cwd: projectCwd, worktreeCreated: false };
-	}
+): Promise<{ cwd: string; worktreeCreated: boolean; branch?: string; error?: string }> {
 	if (!(await isGitRepo(projectCwd))) {
-		return { cwd: projectCwd, worktreeCreated: false };
+		return { cwd: projectCwd, worktreeCreated: false, error: "not a git repository" };
 	}
 
 	const branchName = `lyra/session-${sessionId.slice(0, 8)}`;
@@ -207,24 +215,20 @@ export async function autoCreateSessionWorktree(
 		.then((out) => out.trim())
 		.catch(() => projectCwd);
 	const repoName = basename(root) || "repo";
-
-	let targetDir: string;
-	if (settings.worktrees.rootDir && settings.worktrees.rootDir.trim()) {
-		const baseDir = resolveWorktreesRoot(settings.worktrees.rootDir);
-		targetDir = join(baseDir, `${repoName}-${sessionId.slice(0, 8)}`);
-	} else {
-		targetDir = join(root, "..", `${repoName}-${sessionId.slice(0, 8)}`);
-	}
+	const targetDir = join(resolveWorktreesRoot(settings.worktrees?.rootDir), `${repoName}-${sessionId.slice(0, 8)}`);
 
 	const result = await createWorktree(projectCwd, branchName, {
 		targetDir,
-		fetchUpstream: settings.worktrees.fetchUpstreamBeforeCreate ?? false,
+		fetchUpstream: settings.worktrees?.fetchUpstreamBeforeCreate ?? false,
 	});
-
-	if (result.ok && result.path) {
-		return { cwd: result.path, worktreeCreated: true, branch: branchName };
-	}
-	return { cwd: projectCwd, worktreeCreated: false };
+	if (!result.ok || !result.path) return { cwd: projectCwd, worktreeCreated: false, error: result.error };
+	/*
+	 * The same folder inside the copy: a project that is one package of a repository keeps running in
+	 * that package. Only if the copy has it — a folder never committed is not checked out there.
+	 */
+	const inside = relative(canonicalPath(root), canonicalPath(projectCwd));
+	const nested = inside && !inside.startsWith("..") && !isAbsolute(inside) ? join(result.path, inside) : null;
+	return { cwd: nested && existsSync(nested) ? nested : result.path, worktreeCreated: true, branch: branchName };
 }
 
 /**

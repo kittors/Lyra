@@ -15,6 +15,7 @@ import type { AppState } from "./index.ts";
 import { bridge } from "../services/index.ts";
 import { draftFromUserMessage } from "../lib/revert-draft.ts";
 import { outlivingTurn } from "../lib/approval-scope.ts";
+import { sessionWorkspace } from "./session-workspace.ts";
 
 type Get = () => AppState;
 type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void;
@@ -40,7 +41,7 @@ export function turnSlice(set: Set, get: Get) {
 		return get().activeSessionId === sessionId;
 	};
 	return {
-	async send(content: UserContent[], options: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[]; sessionId?: string | null } = {}) {
+	async send(content: UserContent[], options: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[]; sessionId?: string | null; worktree?: boolean } = {}) {
 		const { workspace, settings, scratchCwd, selectionEpoch: epoch } = get();
 		// `null` is the blank conversation, named on purpose; only leaving it out means "the live one".
 		let sessionId = options.sessionId === undefined ? get().activeSessionId : options.sessionId;
@@ -52,7 +53,8 @@ export function turnSlice(set: Set, get: Get) {
 		 * focus, nor start one in that conversation's project.
 		 */
 		const draft = options.sessionId === null && get().activeSessionId !== null ? get().parkedDraft : null;
-		const cwd = draft ? (draft.workspace?.path ?? draft.scratchCwd) : (workspace?.path ?? scratchCwd);
+		// A new conversation from inside a worktree starts in its project, never in another copy of the copy.
+		const cwd = draft ? (draft.workspace?.worktreeOf ?? draft.workspace?.path ?? draft.scratchCwd) : (workspace?.worktreeOf ?? workspace?.path ?? scratchCwd);
 		if (!sessionId && !cwd) { await get().pickWorkspace(); return false; }
 		// A second submission in the same draft shares its identity, never its title as a key.
 		const inFlight = !sessionId ? creating.get(epoch) : undefined;
@@ -134,6 +136,7 @@ export function turnSlice(set: Set, get: Get) {
 				skillRef: options.skillRef,
 				sessionRefs: options.sessionRefs,
 				attachments: options.attachments,
+				...(options.worktree === undefined ? {} : { worktree: options.worktree }),
 			});
 			creating.set(epoch, creation);
 			try {
@@ -176,7 +179,7 @@ export function turnSlice(set: Set, get: Get) {
 				...(get().activeSessionId === id ? { meta } : {}),
 			});
 			if (get().activeSessionId === id && get().workspace && get().workspace?.path !== meta.cwd) {
-				const workspace = await bridge.workspace.info(meta.cwd);
+				const workspace = await sessionWorkspace(meta);
 				if (get().activeSessionId === id) set({ workspace });
 			}
 			const capabilities = await bridge.sessions.capabilities(id);

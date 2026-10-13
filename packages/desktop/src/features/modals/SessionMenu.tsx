@@ -22,6 +22,7 @@ import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
 import { onPhone } from "../../services/index.ts";
 import { canOfferSplit, canSplit, contains, openInNewWindow, SplitMoveItems, splitWith, useSplit } from "../split/index.ts";
+import { sessionHome } from "../../lib/session-home.ts";
 
 export function SessionMenu({
 	anchor,
@@ -131,7 +132,7 @@ export function SessionMenu({
 					</MenuItem>
 					<MenuSeparator />
 					{projects.map((p) => {
-						const isCurrent = session.cwd === p.path;
+						const isCurrent = sessionHome(session) === p.path;
 						return (
 							<MenuItem
 								key={p.path}

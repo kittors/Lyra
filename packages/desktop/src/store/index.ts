@@ -540,7 +540,8 @@ export interface AppState extends QueueSlice {
    * blank screen has no id to give, and leaving it out fell back to the live conversation — so what
    * was typed into a split's fresh screen went to whichever conversation had focus.
    */
-	send(content: UserContent[], options?: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[]; sessionId?: string | null }): Promise<boolean>;
+	/** `worktree`: for a new conversation, whether it gets a worktree of its own; absent follows the setting. */
+	send(content: UserContent[], options?: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[]; sessionId?: string | null; worktree?: boolean }): Promise<boolean>;
   /**
    * Replace a message and re-run from there; everything after it is discarded.
    *

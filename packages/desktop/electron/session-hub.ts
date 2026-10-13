@@ -23,6 +23,7 @@ import { discardSideChat } from "./sidechat-discard.ts";
 import { notifyAgentEvent } from "./notify.ts";
 import { slimSnapshot } from "./display-transcript.ts";
 import { eachAppWindow } from "./window.ts";
+import { nativeText } from "./i18n.ts";
 
 export interface HubDeps {
 	store(): SessionStorage;
@@ -154,10 +155,14 @@ export async function getOrCreateSession(cwd: string, _modelId: string): Promise
 	const appSettings = deps.settings();
 	// Generate a temporary session id prefix for potential worktree naming
 	const tempId = Math.random().toString(36).slice(2, 10);
-	const worktreeResult = await autoCreateSessionWorktree(cwd, appSettings, tempId).catch(() => ({
-		cwd,
-		worktreeCreated: false,
-	}));
+	/*
+	 * A scheduled run has no composer to choose in, so the setting decides. Asked here rather than in
+	 * `autoCreateSessionWorktree`, which only makes what it is asked for: a conversation's own choice
+	 * reaches it through `workspaceSetup`, and must not be overruled by the setting on the way.
+	 */
+	const worktreeResult: { cwd: string; worktreeCreated: boolean; branch?: string } = appSettings.worktrees?.autoCreateOnNewSession
+		? await autoCreateSessionWorktree(cwd, appSettings, tempId).catch(() => ({ cwd, worktreeCreated: false }))
+		: { cwd, worktreeCreated: false };
 	const sessionCwd = worktreeResult.cwd;
 
 	const browser = createBrowserTools();
@@ -171,6 +176,10 @@ export async function getOrCreateSession(cwd: string, _modelId: string): Promise
 		emit: (event: AgentEvent) => broadcast(session.meta.id, event),
 	});
 	await session.initialize();
+	// Filed under the project it ran for, not under a folder of its own (`SessionMeta.worktree`).
+	if (worktreeResult.worktreeCreated && worktreeResult.branch) {
+		await session.log.append({ type: "meta", meta: { ...session.meta, worktree: { project: cwd, branch: worktreeResult.branch } } });
+	}
 	sessions.set(session.meta.id, session);
 	ready.add(session.meta.id);
 	browsers.set(session.meta.id, browser.dispose);
@@ -272,10 +281,22 @@ async function startStoredSession(projectId: string, sessionId: string): Promise
 	try {
 		await ensureSessionWorkspace(session.cwd);
 		if (session.meta.workspaceSetup === "worktree") {
-			const prepared = await autoCreateSessionWorktree(session.cwd, deps.settings(), sessionId);
+			const project = session.cwd;
+			const prepared = await autoCreateSessionWorktree(project, deps.settings(), sessionId);
 			session.cwd = prepared.cwd;
 			// Execution may move; project identity and all metadata edits remain on the same log.
-			await session.log.append({ type: "meta", meta: { ...session.meta, cwd: prepared.cwd, workspaceSetup: undefined } });
+			await session.log.append({ type: "meta", meta: {
+				...session.meta,
+				cwd: prepared.cwd,
+				workspaceSetup: undefined,
+				...(prepared.worktreeCreated && prepared.branch ? { worktree: { project, branch: prepared.branch } } : {}),
+			} });
+			/*
+			 * Said in the conversation, because it asked for a copy and is about to change the original.
+			 * This used to fall back without a word: the person who chose a separate worktree found out
+			 * from `git status` in their own checkout.
+			 */
+			if (!prepared.worktreeCreated) broadcast(sessionId, { type: "notice", level: "warn", message: nativeText("worktree.notCreated", { reason: prepared.error ?? "" }) });
 		}
 		if (retiring.has(sessionId)) return null;
 		await session.initialize();

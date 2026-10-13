@@ -9,7 +9,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { activeProviderLabel, groupSessions, isScratch, listableSessions } from "../src/lib/sidebar-grouping.ts";
+import { activeProviderLabel, emptiedProjects, groupSessions, isScratch, listableSessions } from "../src/lib/sidebar-grouping.ts";
 
 type Session = Parameters<typeof listableSessions>[0][number];
 
@@ -405,4 +405,27 @@ test("只移除条目、会话还留在列表里，那一组就会自己长回�
 		true,
 		"这不是要保留的行为，是在说明为什么移除必须连会话一起处理",
 	);
+});
+
+/*
+ * 跑在自己工作树里的会话，归它出来的那个项目。
+ *
+ * 侧栏按 `cwd` 分组，而工作树的路径不属于任何登记过的项目——于是每开一个这样的会话就多一个同名
+ * 的项目文件夹，会话还会在建好工作树的那一刻从原项目下跳过去。
+ */
+test("a conversation in a worktree of its own is filed under the project it was made from", () => {
+	const inWorktree = session({ id: "wt", cwd: "/home/.lyra/worktrees/a-1234abcd", projectName: "a", worktree: { project: "/a", branch: "lyra/session-1234abcd" } });
+	const plain = session({ id: "plain", cwd: "/a" });
+	const { pinned, projects: rest } = groupSessions([inWorktree, plain], projects, "");
+	assert.deepEqual(
+		[...pinned, ...rest].map((g) => [g.path, g.sessions.map((s) => s.id).sort()]),
+		[["/pinned", []], ["/a", ["plain", "wt"]]],
+		"one project, not a second folder named after the worktree",
+	);
+});
+
+test("archiving a project's worktree conversations empties that project, not a folder named after the worktree", () => {
+	const archived = [session({ id: "wt", archived: true, cwd: "/home/.lyra/worktrees/a-1234abcd", worktree: { project: "/a", branch: "lyra/session-1234abcd" } })];
+	assert.deepEqual([...emptiedProjects([], archived)], ["/a"]);
+	assert.deepEqual([...emptiedProjects([session({ id: "live", cwd: "/a" })], archived)], [], "a live conversation still in the project keeps it");
 });
