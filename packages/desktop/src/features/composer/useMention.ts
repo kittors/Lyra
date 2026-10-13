@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import type { SessionMeta } from "@lyra/core";
+import { mediaModelLabel, mediaModelRows } from "@lyra/core/image-models";
 import type { SkillEntry } from "../../../electron/ipc-types.ts";
 import { bridge } from "../../services/index.ts";
 import { baseName } from "../../lib/paths.ts";
@@ -107,17 +108,27 @@ export function useMention(
 	}, [cwd, folderKey, nonce, mentionMode]);
 
 	const term = completion?.term ?? null;
+	const providers = useApp((s) => s.settings?.providers);
+	const models = useMemo(
+		() =>
+			(["image", "video"] as const).flatMap((kind) => {
+				const rows = mediaModelRows(providers, kind);
+				return rows.map((row) => ({ id: row.model.id, label: mediaModelLabel(row, rows), provider: row.provider.name, kind }));
+			}),
+		[providers],
+	);
 
 	const matches = useMemo(() => {
 		if (term === null || dismissed || !focused) return [];
 		return rankMentions(term, {
 			files: workspaceFiles,
 			agents,
+			models,
 			sessions,
 			skills,
 			allowAction: true,
 		});
-	}, [term, dismissed, focused, workspaceFiles, sessions, skills, agents]);
+	}, [term, dismissed, focused, workspaceFiles, sessions, skills, agents, models]);
 
 	useEffect(() => {
 		setActive(0);
@@ -159,6 +170,9 @@ export function useMention(
 			token = `/skill:${item.title}`;
 		} else if (item.kind === "subagent") {
 			token = `@${item.title}`;
+		} else if (item.kind === "model") {
+			// Quoted when the name has a space in it — two providers' copies of one model, told apart.
+			token = /\s/.test(item.title) ? formatMention(item.title) : `@${item.title}`;
 		} else if (item.kind === "session") {
 			if (item.data?.sessionId) onPickSession?.({ id: item.data.sessionId, title: item.title });
 			insertMentionText("");

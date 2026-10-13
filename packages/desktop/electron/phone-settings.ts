@@ -64,6 +64,7 @@ export const PHONE_WRITABLE = [
 	"defaultModelId",
 	"sideChatModelId",
 	"imageModelId",
+	"videoModelId",
 	"favoriteModelIds",
 	"thinking",
 	"lastThinking",

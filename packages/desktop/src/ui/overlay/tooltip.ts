@@ -209,8 +209,27 @@ function fit(tip: HTMLElement) {
 	tip.style.width = `${width}px`;
 }
 
+/**
+ * What the bubble has to be inside to be seen over its target.
+ *
+ * The top layer — an element in full screen, an open popover — is drawn over the whole page, a bubble
+ * on `body` included. The video player filling the window or the screen is there, with a tip on every
+ * button of its bar; those tips were drawn, underneath it. Inside, the same coordinates hold: both
+ * of the player's larger sizes start at the window's corner.
+ */
+function layerOf(el: HTMLElement): Element {
+	try {
+		return el.closest(":fullscreen, :popover-open") ?? document.body;
+	} catch {
+		// An engine that knows neither pseudo-class has no top layer to be inside.
+		return document.body;
+	}
+}
+
 function place(el: HTMLElement) {
 	const tip = ensureHost();
+	const layer = layerOf(el);
+	if (tip.parentElement !== layer) layer.appendChild(tip);
 	// Cancel a departure in progress, or the bubble would vanish mid-arrival.
 	window.clearTimeout(leaving);
 	delete tip.dataset.leaving;

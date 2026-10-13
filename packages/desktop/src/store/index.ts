@@ -3,7 +3,7 @@ import type { ApprovalOrigin, ApprovalRequest, ApprovalRisk, QuestionFields } fr
 import { translate } from "../i18n/translate.ts";
 import { applySessionChange } from "./session-changes.ts";
 import type { PluginUpdateState, SessionChange } from "../../electron/ipc-types.ts";
-import type { AgentEvent, ApprovalDecision, CommandRun, Message, MessageAttachment, SessionMeta, Settings, ThinkingLevel, UserContent, UserMessage } from "@lyra/core";
+import type { AgentEvent, ApprovalDecision, CommandRun, MediaKind, Message, MessageAttachment, SessionMeta, Settings, ThinkingLevel, UserContent, UserMessage } from "@lyra/core";
 import { type SessionActivity } from "@lyra/core/activity";
 import { applyAgentEvent } from "./apply-event.ts";
 import type { Cache, TurnStop } from "./derive.ts";
@@ -585,6 +585,11 @@ export interface AppState extends QueueSlice {
   setModel(modelId: string, options?: { asDefault?: boolean; sessionId?: string | null }): Promise<void>;
   /** How hard this conversation asks the model to think. Falls back to the app default. `sessionId` as for `setModel`. */
   setThinking(thinking: ThinkingLevel, sessionId?: string | null): Promise<void>;
+  /**
+   * The image or video model this conversation draws with from its next drawing on; `null` follows
+   * the default again. With no conversation yet it is the default itself. `sessionId` as for `setModel`.
+   */
+  setMediaModel(kind: MediaKind, modelId: string | null, sessionId?: string | null): Promise<void>;
   refreshSync(): Promise<void>;
   dismissNotice(id: string): void;
   notify(message: string, level?: "info" | "warn" | "error", sessionId?: string): void;

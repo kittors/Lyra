@@ -5,8 +5,8 @@
  */
 
 import type { Settings } from "@lyra/core";
-import { imageModelRows } from "@lyra/core/image-models";
-import { Palette } from "lucide-react";
+import { type MediaKind, mediaModelRows } from "@lyra/core/image-models";
+import { Clapperboard, Palette } from "lucide-react";
 import { useI18n } from "../../i18n/index.ts";
 import { ModelSelect } from "../models/index.ts";
 
@@ -27,24 +27,33 @@ export function SessionMark({ icon }: { icon: React.ReactNode }) {
 	return <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full bg-card text-ink-muted">{icon}</span>;
 }
 
+const WORDS = {
+	image: { name: "agents.imageModel", detail: "agents.imageModelDetail", none: "agents.imageModelNone", auto: "agents.imageModelAuto" },
+	video: { name: "agents.videoModel", detail: "agents.videoModelDetail", none: "agents.videoModelNone", auto: "agents.videoModelAuto" },
+} as const;
+
 /**
- * The model `image_generate` draws with, in the same row shape as the two above.
+ * The default model `image_generate` draws with, or `video_generate` films with, in the same row
+ * shape as the two above. A conversation can pick its own from the composer; this is where the ones
+ * that have not start.
  *
- * "Automatic" is the first image model configured, so adding one is all it takes. With none, the row
- * says where to add one rather than offering an empty menu.
+ * "Automatic" is the first model of the kind, so adding one is all it takes. With none, the row says
+ * where to add one rather than offering an empty menu.
  */
-export function ImageModelRow({ settings, disabled, onChange }: { settings: Settings; disabled: boolean; onChange: (modelId: string | null) => void }) {
+export function MediaModelRow({ kind, settings, disabled, onChange }: { kind: MediaKind; settings: Settings; disabled: boolean; onChange: (modelId: string | null) => void }) {
 	const { t } = useI18n();
-	const rows = imageModelRows(settings.providers);
+	const rows = mediaModelRows(settings.providers, kind);
+	const words = WORDS[kind];
+	const value = (kind === "video" ? settings.videoModelId : settings.imageModelId) ?? "";
 	return (
-		<div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-[10px] px-2.5 py-2.5" data-agent-profile="image">
-			<SessionMark icon={<Palette size={15} strokeWidth={1.8} />} />
+		<div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-[10px] px-2.5 py-2.5" data-agent-profile={kind}>
+			<SessionMark icon={kind === "video" ? <Clapperboard size={15} strokeWidth={1.8} /> : <Palette size={15} strokeWidth={1.8} />} />
 			<div className="min-w-0 flex-1 @xl:min-w-[160px]">
-				<div className="text-body text-ink">{t("agents.imageModel")}</div>
-				<div className="mt-0.5 text-detail text-ink-faint">{rows.length > 0 ? t("agents.imageModelDetail") : t("agents.imageModelNone")}</div>
+				<div className="text-body text-ink">{t(words.name)}</div>
+				<div className="mt-0.5 text-detail text-ink-faint">{rows.length > 0 ? t(words.detail) : t(words.none)}</div>
 			</div>
 			<SessionControl>
-				<ModelSelect quiet kind="image" ariaLabel={t("agents.imageModel")} value={settings.imageModelId ?? ""} inheritLabel={t("agents.imageModelAuto")} inheritedModelId={rows[0]?.model.id} inheritedSource={t("agents.imageModelAutoShort")} inheritDetail={t("agents.imageModelDetail")} disabled={disabled || rows.length === 0}
+				<ModelSelect quiet kind={kind} ariaLabel={t(words.name)} value={value} inheritLabel={t(words.auto)} inheritedModelId={rows[0]?.model.id} inheritedSource={t("agents.imageModelAutoShort")} inheritDetail={t(words.detail)} disabled={disabled || rows.length === 0}
 					onChange={(modelId) => onChange(modelId || null)} />
 			</SessionControl>
 		</div>

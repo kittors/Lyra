@@ -244,3 +244,23 @@ describe("image models", () => {
 		assert.deepEqual(flattenGroups(groups).map((row) => row.model.id), ["relay/gemini-3.1-flash-image", "art/house-artist"]);
 	});
 });
+
+describe("video models", () => {
+	const providers = [
+		provider("grok", "grok", [
+			model("grok", "grok-4.7", "grok-4.7"),
+			model("grok", "grok-imagine-image", "grok-imagine-image"),
+			model("grok", "grok-imagine-video-1.5", "grok-imagine-video-1.5"),
+		]),
+		provider("ark", "方舟", [model("ark", "doubao-seedance-2-5-260628", "Seedance 2.5")]),
+	];
+
+	it("are left out of the chat picker like image models — a video model chosen for a conversation fails every turn", () => {
+		assert.deepEqual(flattenGroups(groupModels(providers)).map((row) => row.model.id), ["grok/grok-4.7"]);
+	});
+
+	it("make a picker of their own, apart from the image models", () => {
+		assert.deepEqual(flattenGroups(groupModels(providers, "video")).map((row) => row.model.id), ["grok/grok-imagine-video-1.5", "ark/doubao-seedance-2-5-260628"]);
+		assert.deepEqual(flattenGroups(groupModels(providers, "image")).map((row) => row.model.id), ["grok/grok-imagine-image"]);
+	});
+});

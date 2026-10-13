@@ -232,6 +232,7 @@ test("数量对得上，且手机能力是逐项审过的清单", () => {
 			"agent.approve",
 			"agent.setModel",
 			"agent.setThinking",
+			"agent.setMediaModel",
 			"subAgents.list",
 			"subAgents.detail",
 			"subAgents.steer",

@@ -1,5 +1,6 @@
-import type { ModelConfig, ProviderConfig } from "@lyra/core";
-import { isImageModel, isImageModelId } from "@lyra/core/image-models";
+import type { ModelConfig, ProviderConfig, VideoApi } from "@lyra/core";
+import { type MediaKind, mediaKind, mediaKindOfId, VIDEO_APIS } from "@lyra/core/image-models";
+import { outputOverrides } from "../../lib/model-output.ts";
 import { catalogModelFor, catalogPricing, withCatalogDefaults, type CatalogMatch } from "@lyra/core/model-catalog";
 import { ModelCatalog } from "./ModelCatalog.tsx";
 import { Box } from "lucide-react";
@@ -7,7 +8,7 @@ import { useState } from "react";
 import { DialogAction, DialogFrame } from "../../ui/overlay/Dialog.tsx";
 import { Overlay } from "../../ui/overlay/Overlay.tsx";
 import { isLegalDraft } from "../../lib/number-draft.ts";
-import { Field, TextInput, Toggle } from "./controls.tsx";
+import { Field, Segmented, Select, TextInput, Toggle } from "./controls.tsx";
 import { useI18n } from "../../i18n/index.ts";
 
 const CONTEXT = { min: 1, max: 100_000_000, step: 1 };
@@ -52,13 +53,16 @@ export function ModelEditor({
 	const [supportsImages, setSupportsImages] = useState(model?.supportsImages ?? true);
 	const [supportsTools, setSupportsTools] = useState(model?.supportsTools ?? true);
 	/*
-	 * Whether this model draws. Follows the id until somebody flips it: `gemini-3.1-flash-image` is an
-	 * image model by name, and a house's own name for one (`house-artist`) is not — that is what the
-	 * switch is for. Stored only when it disagrees with the name, so a model nobody overrode keeps
-	 * following the rule as the rule improves.
+	 * What this model is for: conversation, drawing, or video. Follows the id until somebody picks:
+	 * `gemini-3.1-flash-image` draws and `grok-imagine-video-1.5` films by name, and a house's own name
+	 * for one (`house-artist`) says neither — that is what the choice is for. Stored only where it
+	 * disagrees with the name (`submit`), so a model nobody overrode keeps following the rule as the
+	 * rule improves.
 	 */
-	const [imageOutput, setImageOutput] = useState(model ? isImageModel(model) : false);
-	const [imageTouched, setImageTouched] = useState(model?.imageOutput !== undefined);
+	const [purpose, setPurpose] = useState<"chat" | MediaKind>(model ? (mediaKind(model) ?? "chat") : "chat");
+	const [purposeTouched, setPurposeTouched] = useState(model?.imageOutput !== undefined || model?.videoOutput !== undefined);
+	const [videoApi, setVideoApi] = useState<VideoApi>(model?.videoApi ?? "auto");
+	const imageOutput = purpose !== "chat";
 	const [priceIn, setPriceIn] = useState(String(initialPricing?.input ?? ""));
 	const [priceOut, setPriceOut] = useState(String(initialPricing?.output ?? ""));
 	const [priceCacheRead, setPriceCacheRead] = useState(String(initialPricing?.cacheRead ?? ""));
@@ -109,7 +113,7 @@ export function ModelEditor({
 	function changeModelId(value: string) {
 		setModelId(value);
 		setCatalogRef(undefined);
-		if (!imageTouched) setImageOutput(isImageModelId(value));
+		if (!purposeTouched) setPurpose(mediaKindOfId(value) ?? "chat");
 		const found = catalogModelFor(provider, value);
 		if (found) applyCatalog(found);
 		else {
@@ -154,9 +158,15 @@ export function ModelEditor({
 					}
 					: undefined,
 		};
-		// Kept only where it disagrees with the name; agreeing again removes an override saved earlier.
-		if (imageOutput === isImageModelId(trimmedId)) delete next.imageOutput;
-		else next.imageOutput = imageOutput;
+		// Kept only where they disagree with the name; agreeing again removes an override saved earlier.
+		const overrides = outputOverrides(trimmedId, purpose);
+		delete next.imageOutput;
+		delete next.videoOutput;
+		if (overrides.imageOutput !== undefined) next.imageOutput = overrides.imageOutput;
+		if (overrides.videoOutput !== undefined) next.videoOutput = overrides.videoOutput;
+		// `...model` above carries the old choice; a model no longer filming, or back on auto, drops it.
+		if (purpose === "video" && videoApi !== "auto") next.videoApi = videoApi;
+		else delete next.videoApi;
 		onSave(next);
 	}
 
@@ -223,15 +233,29 @@ export function ModelEditor({
 
 						{!catalog && <p className="text-detail text-ink-muted">{t("modelEditor.unverified")}</p>}
 						<div className="space-y-3 rounded-[10px] border border-line px-3.5 py-3">
-							<Capability
-								label={t("modelEditor.imageOutput")}
-								hint={t("modelEditor.imageOutputDetail")}
-								checked={imageOutput}
-								onChange={(value) => {
-									setImageTouched(true);
-									setImageOutput(value);
-								}}
-							/>
+							<div className="flex items-center justify-between gap-4" data-ly-model-output="">
+								<span className="min-w-0">
+									<span className="block text-label text-ink">{t("modelEditor.output")}</span>
+									{purpose !== "chat" && <span className="mt-0.5 block text-detail text-ink-faint">{purpose === "video" ? t("modelEditor.videoOutputDetail") : t("modelEditor.imageOutputDetail")}</span>}
+								</span>
+								<Segmented
+									value={purpose}
+									onChange={(value) => {
+										setPurposeTouched(true);
+										setPurpose(value);
+									}}
+									options={[
+										{ value: "chat", label: t("modelEditor.outputChat") },
+										{ value: "image", label: t("modelEditor.outputImage") },
+										{ value: "video", label: t("modelEditor.outputVideo") },
+									]}
+								/>
+							</div>
+							{purpose === "video" && (
+								<Field label={t("modelEditor.videoApi")} hint={t("modelEditor.videoApiDetail")}>
+									<Select value={videoApi} onChange={setVideoApi} ariaLabel={t("modelEditor.videoApi")} options={VIDEO_APIS.map((api) => ({ value: api, label: t(VIDEO_API_LABELS[api]) }))} />
+								</Field>
+							)}
 							{!imageOutput && <Capability label={t("modelEditor.thinking")} checked={supportsThinking} onChange={(value) => changeMetadata(setSupportsThinking, value)} />}
 							<Capability label={t("modelEditor.images")} checked={supportsImages} onChange={(value) => changeMetadata(setSupportsImages, value)} />
 							{!imageOutput && <Capability label={t("modelEditor.toolCalls")} checked={supportsTools} onChange={(value) => changeMetadata(setSupportsTools, value)} />}
@@ -242,6 +266,15 @@ export function ModelEditor({
 		</Overlay>
 	);
 }
+
+const VIDEO_API_LABELS = {
+	auto: "modelEditor.videoApiAuto",
+	xai: "modelEditor.videoApiXai",
+	ark: "modelEditor.videoApiArk",
+	openai: "modelEditor.videoApiOpenai",
+	veo: "modelEditor.videoApiVeo",
+	dashscope: "modelEditor.videoApiDashscope",
+} as const satisfies Record<VideoApi, string>;
 
 function Capability({ label, hint, checked, onChange }: { label: string; hint?: string; checked: boolean; onChange: (checked: boolean) => void }) {
 	return (

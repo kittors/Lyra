@@ -423,6 +423,11 @@ export interface LyraApi {
 		 * default — which is not the same as pinning it to whatever that default is today.
 		 */
 		setThinking(sessionId: string, thinking: ThinkingLevel | null): Promise<void>;
+		/**
+		 * Which image or video model this conversation uses from its next drawing on. `null` follows
+		 * the default again. See `Session.setMediaModel`.
+		 */
+		setMediaModel(sessionId: string, kind: "image" | "video", modelId: string | null): Promise<void>;
 		onEvent(handler: (payload: { sessionId: string; event: AgentEvent }) => void): () => void;
 	};
 	/**

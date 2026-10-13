@@ -90,3 +90,9 @@
     0 0 0 2px var(--color-shell),
     0 0 0 3.5px var(--color-accent);
 }
+
+/* A video's mark — a play triangle and its length — in the corner the history count does not use. */
+.ly-gallery-chip[data-side="end"] {
+  right: 8px;
+  left: auto;
+}

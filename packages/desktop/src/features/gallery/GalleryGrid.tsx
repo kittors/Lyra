@@ -2,12 +2,12 @@
  * The album: a heading per day, and under it rows of pictures at their own shape (`justify`).
  */
 
-import { Layers } from "lucide-react";
+import { Layers, Play } from "lucide-react";
 import { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { sessionMediaUrl } from "../../../shared/session-image.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { aspectOf, byDay, justify } from "../../lib/gallery-layout.ts";
 import { familyOf } from "../../lib/lineage-tree.ts";
+import { isVideo, MediaStill } from "./MediaStill.tsx";
 import { askText, type Entry, type GalleryIndex } from "./model.ts";
 
 /** Longest edge of a tile's picture: sharp at 2× in the tallest row a tile gets, a fraction of the original's bytes. */
@@ -119,16 +119,20 @@ const Tile = memo(function Tile({
 			className="ly-gallery-tile group/tile relative shrink-0 overflow-hidden rounded-[10px] bg-card"
 			style={{ width, height }}
 		>
-			<img
-				src={sessionMediaUrl(entry.media, TILE_THUMB)}
-				alt=""
-				draggable={false}
-				loading="lazy"
-				decoding="async"
+			<MediaStill
+				media={entry.media}
+				mimeType={entry.mimeType}
+				edge={TILE_THUMB}
+				loaded={loaded}
 				onLoad={() => setLoaded(true)}
-				data-loaded={loaded ? "" : undefined}
 				className="ly-gallery-picture size-full object-cover"
 			/>
+			{isVideo(entry) && (
+				<span className="ly-gallery-chip" data-side="end" aria-hidden>
+					<Play size={10} strokeWidth={2.4} className="fill-current" />
+					{entry.seconds ? <span className="tabular-nums">{entry.seconds}s</span> : null}
+				</span>
+			)}
 			{family > 1 && (
 				<span className="ly-gallery-chip" data-ly-tip={t("gallery.chainTip", { n: family })} aria-label={t("gallery.chainTip", { n: family })}>
 					<Layers size={11} strokeWidth={2} />

@@ -13,7 +13,7 @@ import { pathToFileURL } from "node:url";
 import { lyraHome, previewsHome } from "@lyra/core";
 import { nativeImage, net, protocol, session } from "electron";
 import { parseSessionImageUrl, SESSION_IMAGE_HOST, SESSION_MEDIA_HOST } from "../shared/session-image.ts";
-import { safeMediaName, sessionMediaHome, sessionMediaPath } from "@lyra/core";
+import { isVideoMediaName, safeMediaName, sessionMediaHome, sessionMediaPath } from "@lyra/core";
 import { cachedThumb, parkedThumb } from "./media-thumbs.ts";
 import { attachmentFile } from "./attachment-reads.ts";
 
@@ -190,9 +190,15 @@ function shrink(bytes: Uint8Array, edge: number): Uint8Array | null {
 		.toPNG();
 }
 
-async function serveParkedMedia(url: URL): Promise<Response> {
+async function serveParkedMedia(url: URL, request: Request): Promise<Response> {
 	const name = safeMediaName(decodeURIComponent(url.pathname.replace(/^\//, "")));
 	if (!name) return new Response("not found", { status: 404 });
+	/*
+	 * 视频交给 file 协议，请求头原样带过去——`<video>` 拖进度条发的是 Range 请求，而下面那条路把
+	 * 整个文件读进内存、只会答 200。几十 MB 的片子每拖一下读一遍，进度条也拖不动。也没有缩略图：
+	 * nativeImage 解不了视频，网格里画的是 `<video>` 自己的第一帧。
+	 */
+	if (isVideoMediaName(name)) return net.fetch(pathToFileURL(sessionMediaPath(name)).toString(), { headers: request.headers, method: request.method });
 	const home = sessionMediaHome();
 	const thumb = Number(url.searchParams.get("thumb"));
 	/*
@@ -288,7 +294,7 @@ export function registerPreviewProtocols(options: {
 			return serveSessionImage(url, loadSessionImage);
 		}
 		if (url.hostname === SESSION_MEDIA_HOST) {
-			return serveParkedMedia(url);
+			return serveParkedMedia(url, request);
 		}
 		const target = decodeURIComponent(url.pathname.replace(/^\//, ""));
 		/*

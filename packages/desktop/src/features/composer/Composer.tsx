@@ -24,7 +24,7 @@ import { ContextMeter } from "./ContextMeter.tsx";
 import { EffortTrigger } from "../models/index.ts";
 import { RollingText, useRolled } from "../../ui/motion/RollingText.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
-import { ModelTrigger } from "../models/index.ts";
+import { MediaModelButton, ModelTrigger } from "../models/index.ts";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { BranchMenu } from "../modals/index.ts";
@@ -825,6 +825,8 @@ export function Composer({ centered = false }: {
 								<ContextMeter messages={messages} settings={settings} modelId={modelId} sessionId={activeSessionId} />
 							</div>
 
+							{/* Before the chat model, not between it and its effort: those two are one thing. */}
+							<MediaModelButton />
 							<ModelTrigger modelId={modelId} ariaLabel={t("composer.selectModel")} />
 							<EffortTrigger modelId={modelId} />
 

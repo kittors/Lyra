@@ -7,7 +7,7 @@
  */
 
 import { translate } from "../i18n/translate.ts";
-import type { ApprovalDecision, Message, MessageAttachment, ThinkingLevel, UserContent, UserMessage } from "@lyra/core";
+import type { ApprovalDecision, MediaKind, Message, MessageAttachment, ThinkingLevel, UserContent, UserMessage } from "@lyra/core";
 import { prune, todosFrom, without } from "./derive.ts";
 import { howItStopped } from "./turn-stop.ts";
 import { loadCarried, meterFor, saveCarried } from "./turn-meter.ts";
@@ -500,6 +500,27 @@ export function turnSlice(set: Set, get: Get) {
       return;
     }
     if (settings) await get().saveSettings({ ...settings, thinking });
+  },
+
+  async setMediaModel(kind: MediaKind, modelId: string | null, sessionId?: string | null) {
+    if (sessionId && sessionId !== get().activeSessionId && !(await onStage(sessionId))) return;
+    const { meta, settings } = get();
+    const activeSessionId = sessionId === null ? null : get().activeSessionId;
+    const key = kind === "video" ? "videoModelId" : "imageModelId";
+    if (activeSessionId) {
+			// Painted at once, like the thinking level: the button's mark is what says the press took.
+			const optimistic = meta ? { ...meta, [key]: modelId ?? undefined } : null;
+			if (optimistic) set({ meta: optimistic });
+			try {
+				await bridge.agent.setMediaModel(activeSessionId, kind, modelId);
+			} catch (cause) {
+				if (get().activeSessionId === activeSessionId && get().meta === optimistic) set({ meta });
+				get().notify(translate("turn.mediaModelFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
+			}
+      return;
+    }
+    // No conversation to hold it: the blank screen's pick is where the next one starts, which is the default.
+    if (settings) await get().saveSettings({ ...settings, [key]: modelId });
   },
 
   async refreshSync() {

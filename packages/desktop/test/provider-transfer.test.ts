@@ -267,3 +267,11 @@ test("a default model chosen for an import is one that can hold a conversation",
 	const result = applyImport([], [provider("art", { models: [model("art", "gpt-image-1"), model("art", "gpt-5")] })], null);
 	assert.equal(result.defaultModelId, "art/gpt-5", "not the image model listed first");
 });
+
+test("a model switched to video, and the video API chosen for it, survive an export; a video model is never the default", () => {
+	const director = model("relay", "house-director", { videoOutput: true, videoApi: "ark" });
+	const parsed = roundTrip([provider("relay", { models: [director] })]);
+	assert.deepEqual(parsed.bundle.providers[0].models, [director]);
+	const result = applyImport([], [provider("film", { models: [model("film", "grok-imagine-video-1.5"), model("film", "grok-4.7")] })], null);
+	assert.equal(result.defaultModelId, "film/grok-4.7");
+});

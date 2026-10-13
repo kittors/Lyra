@@ -127,3 +127,13 @@ test("移除默认的生图模型，生图默认值一起清掉；别的不动",
 	assert.equal(applyModelChange(settings, "relay", { add: [], remove: ["gemini-3.1-flash-image"] }).imageModelId, null);
 	assert.equal(applyModelChange(settings, "relay", { add: [], remove: ["a"] }).imageModelId, image.id);
 });
+
+test("a video model never becomes the conversation default, and removing the default video model clears it", () => {
+	const empty = settingsWith([], { defaultModelId: null });
+	assert.equal(applyModelChange(empty, "relay", { add: ["grok-imagine-video-1.5", "grok-4.7"], remove: [] }).defaultModelId, "relay/grok-4.7");
+	assert.equal(applyModelChange(empty, "relay", { add: ["grok-imagine-video-1.5"], remove: [] }).defaultModelId, null);
+	const video = model("grok-imagine-video-1.5");
+	const settings = settingsWith([model("a"), video], { videoModelId: video.id });
+	assert.equal(applyModelChange(settings, "relay", { add: [], remove: ["grok-imagine-video-1.5"] }).videoModelId, null);
+	assert.equal(applyModelChange(settings, "relay", { add: [], remove: ["a"] }).videoModelId, video.id);
+});

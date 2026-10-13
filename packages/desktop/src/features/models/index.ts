@@ -10,6 +10,8 @@
 export { effortLabel } from "./EffortMenu.tsx";
 export { EffortTrigger } from "./EffortTrigger.tsx";
 export { ModelIcon } from "./ModelIcon.tsx";
+export { MediaModelButton } from "./MediaModelButton.tsx";
+export { MediaPickMenu } from "./MediaPickMenu.tsx";
 export { formatWindow } from "./ModelMenu.tsx";
 export { ModelSelect } from "./ModelSelect.tsx";
 export { ModelTrigger } from "./ModelTrigger.tsx";

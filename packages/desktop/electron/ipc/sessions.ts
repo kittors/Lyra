@@ -441,4 +441,25 @@ export function registerSessionsIpc({
 			await store.append(meta, { type: "meta", meta: next });
 		},
 	);
+
+	/*
+	 * The conversation's image or video model, the same way: no handle to settle, so a conversation
+	 * that is not running only has its log written, rather than an agent booted to hold the choice.
+	 */
+	ipcMain.handle(
+		"agent:setMediaModel",
+		async (_event, sessionId: string, kind: "image" | "video", modelId: string | null) => {
+			const media = kind === "video" ? "video" : "image";
+			const live = sessions.get(sessionId);
+			if (live) {
+				await live.setMediaModel(media, modelId);
+				return;
+			}
+			const meta = (await store.listSessions()).find((s) => s.id === sessionId);
+			if (!meta) return;
+			const key = media === "video" ? "videoModelId" : "imageModelId";
+			if ((meta[key] ?? null) === modelId) return;
+			await store.append(meta, { type: "meta", meta: { ...meta, [key]: modelId ?? undefined } });
+		},
+	);
 }

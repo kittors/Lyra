@@ -1,5 +1,5 @@
 import { Box, ChevronRight, Star } from "lucide-react";
-import { isImageModel } from "@lyra/core/image-models";
+import { isMediaModel, type MediaKind } from "@lyra/core/image-models";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ModelIcon } from "./ModelIcon.tsx";
 import { RollingText } from "../../ui/motion/RollingText.tsx";
@@ -76,8 +76,8 @@ export interface ModelSelection {
 	onChange: (modelId: string) => void;
 	inheritLabel: string;
 	inheritDetail?: string;
-	/** Which models are offered: conversation models (the default), or the ones that draw. */
-	kind?: "chat" | "image";
+	/** Which models are offered: conversation models (the default), or the ones that draw or film. */
+	kind?: "chat" | MediaKind;
 }
 
 export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onClose: () => void; selection?: ModelSelection }) {
@@ -481,10 +481,10 @@ function SectionHead({
  * a click that fires both handlers. So the fill belongs to the row and the two controls sit in it,
  * the same arrangement the session rows in the sidebar use.
  */
-function ModelItem({
+export function ModelItem({
 	row,
 	selected,
-	starred,
+	starred = false,
 	showProvider,
 	numbered,
 	shortcut,
@@ -493,7 +493,7 @@ function ModelItem({
 }: {
 	row: ModelRow;
 	selected: boolean;
-	starred: boolean;
+	starred?: boolean;
 	showProvider: boolean;
 	/**
 	 * Whether this menu is handing out number keys at all, which is a fact about the menu and not
@@ -507,7 +507,8 @@ function ModelItem({
 	numbered: boolean;
 	shortcut: number | null;
 	onChoose: () => void;
-	onStar: () => void;
+	/** Absent where the shortlist does not apply — the image and video menu: no star is drawn. */
+	onStar?: () => void;
 }) {
 	const { t } = useI18n();
 	const { model, provider } = row;
@@ -579,10 +580,10 @@ function ModelItem({
 			    「200K」 run together into one word at the point where the name fades out. */}
 			<span className="relative flex h-full shrink-0 items-center justify-end pl-2.5 pr-3 text-caption">
 				<span className="ly-model-window font-mono text-ink-faint">
-					{/* A context window means nothing for a model that draws; the column stays for the star. */}
-					{isImageModel(model) ? "" : formatWindow(model.contextWindow)}
+					{/* A context window means nothing for a model that draws or films; the column stays for the star. */}
+					{isMediaModel(model) ? "" : formatWindow(model.contextWindow)}
 				</span>
-				<button
+				{onStar && <button
 					type="button"
 					aria-label={starred ? t("modelMenu.unfavouriteOne", { name: model.name }) : t("modelMenu.favouriteOne", { name: model.name })}
 					aria-pressed={starred}
@@ -593,7 +594,7 @@ function ModelItem({
 					}`}
 				>
 					<Star size={12.5} strokeWidth={1.9} className={starred ? "fill-current" : ""} />
-				</button>
+				</button>}
 			</span>
 		</div>
 	);

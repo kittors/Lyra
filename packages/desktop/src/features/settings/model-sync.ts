@@ -18,7 +18,7 @@
  */
 
 import type { ModelConfig, ProviderConfig, Settings } from "@lyra/core";
-import { isImageModel } from "@lyra/core/image-models";
+import { isMediaModel } from "@lyra/core/image-models";
 import { brandOf, houseWords } from "../../lib/model-brand.ts";
 import { importedModel } from "./model-defaults.ts";
 
@@ -123,7 +123,7 @@ export function isNewModelName(name: string, rows: SyncRows): boolean {
  * install and every new conversation was addressed to something that cannot reply.
  */
 export function firstChatModelId(models: readonly ModelConfig[]): string | null {
-	return models.find((model) => !isImageModel(model))?.id ?? null;
+	return models.find((model) => !isMediaModel(model))?.id ?? null;
 }
 
 /**
@@ -152,5 +152,6 @@ export function applyModelChange(settings: Settings, providerId: string, change:
 		providers: settings.providers.map((one) => (one.id === providerId ? next : one)),
 		defaultModelId: defaultModelId ?? firstChatModelId(added),
 		imageModelId: settings.imageModelId && removedIds.has(settings.imageModelId) ? null : settings.imageModelId,
+		videoModelId: settings.videoModelId && removedIds.has(settings.videoModelId) ? null : settings.videoModelId,
 	};
 }

@@ -12,7 +12,7 @@
 
 import { translate } from "../i18n/translate.ts";
 import type { ModelConfig, ProviderConfig, Settings } from "@lyra/core";
-import { isImageModel } from "@lyra/core/image-models";
+import { mediaKind, type MediaKind } from "@lyra/core/image-models";
 
 export interface ModelGroup {
 	provider: ProviderConfig;
@@ -33,13 +33,13 @@ export interface ModelRow {
  * more than the row it saves. A provider with no models is left out — a heading over nothing is a
  * heading that reads as a failed load.
  */
-export function groupModels(providers: ProviderConfig[] | undefined, kind: "chat" | "image" = "chat"): ModelGroup[] {
+export function groupModels(providers: ProviderConfig[] | undefined, kind: "chat" | MediaKind = "chat"): ModelGroup[] {
 	/*
-	 * Chat pickers leave image models out, and the image picker keeps only them. A model that draws
-	 * cannot hold a conversation — picked for one, every turn fails on the first request — and one
-	 * that cannot draw offered to `image_generate` fails on every picture.
+	 * Chat pickers leave image and video models out, and each media picker keeps only its own. A
+	 * model that draws or films cannot hold a conversation — picked for one, every turn fails on the
+	 * first request — and one that cannot draw offered to `image_generate` fails on every picture.
 	 */
-	const wanted = (model: ModelConfig) => isImageModel(model) === (kind === "image");
+	const wanted = (model: ModelConfig) => (mediaKind(model) ?? "chat") === kind;
 	return (providers ?? [])
 		.filter((provider) => provider.enabled)
 		.map((provider) => ({ provider, models: provider.models.filter(wanted) }))

@@ -185,6 +185,24 @@ test("thinking accepts a bounded string or null", async () => {
 	assert.deepEqual(levels, ["ultra", null]);
 });
 
+test("the phone can switch a conversation's image or video model, and only to a kind that exists", async () => {
+	const picks: unknown[] = [];
+	const session = {
+		meta: { projectId: "p1" },
+		setMediaModel: async (kind: unknown, modelId: unknown) => void picks.push([kind, modelId]),
+	} as never;
+	const withSession = deps({ live: () => session, activate: async () => session });
+
+	assert.equal((await callRpc(withSession, "agent.setMediaModel", ["s1", "image", "relay/grok-imagine-image"])).ok, true);
+	assert.equal((await callRpc(withSession, "agent.setMediaModel", ["s1", "video", null])).ok, true);
+	assert.deepEqual(picks, [["image", "relay/grok-imagine-image"], ["video", null]]);
+
+	const wrongKind = await callRpc(withSession, "agent.setMediaModel", ["s1", "audio", "x"]);
+	assert.equal(wrongKind.ok, false);
+	assert.match(String(wrongKind.error), /invalid-args.*kind/);
+	assert.equal(picks.length, 2);
+});
+
 test("a handler that throws is an answer, not a dropped connection", async () => {
 	const result = await callRpc(
 		deps({
@@ -281,6 +299,7 @@ test("每个 handler 都能经 callRpc 到达", async () => {
 		"agent.approve": ["s1", "r1", "once"],
 		"agent.setModel": ["s1", "m1"],
 		"agent.setThinking": ["s1", "low"],
+		"agent.setMediaModel": ["s1", "image", "relay/grok-imagine-image"],
 		"settings.save": [{}],
 		"subAgents.list": ["s1"],
 		"subAgents.detail": ["s1", "a1"],

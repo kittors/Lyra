@@ -101,3 +101,18 @@ test("agent candidates come from the registry, including configured names", () =
 	assert.equal(rankMentions("", {}).some((item) => item.kind === "subagent"), false);
 	assert.equal(rankMentions("custom", { agents: [{ id: "custom", name: "custom", description: "project agent" }] })[0].id, "subagent:custom");
 });
+
+test("@ offers image and video models after the agents, under the name the agent's side takes back", () => {
+	const items = rankMentions("", {
+		agents: [{ id: "explore", name: "explore", description: "Explores" }],
+		models: [
+			{ id: "a/gpt-image-1", label: "gpt-image-1 (Relay A)", provider: "Relay A", kind: "image" },
+			{ id: "grok/grok-imagine-video-1.5", label: "grok-imagine-video-1.5", provider: "grok", kind: "video" },
+		],
+	});
+	assert.deepEqual(items.map((item) => item.kind), ["subagent", "model", "model"]);
+	assert.equal(items[1].title, "gpt-image-1 (Relay A)");
+	assert.equal(items[2].data?.mediaKind, "video");
+	assert.deepEqual(rankMentions("seedance", { models: [{ id: "x", label: "grok-imagine-video-1.5", provider: "grok", kind: "video" }] }), [], "a model is found by its name or its provider");
+	assert.equal(rankMentions("grok", { models: [{ id: "x", label: "grok-imagine-video-1.5", provider: "grok", kind: "video" }] }).length, 1);
+});

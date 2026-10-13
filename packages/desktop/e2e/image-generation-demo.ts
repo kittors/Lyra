@@ -226,13 +226,13 @@ async function main() {
 		check("生图模型的「测试」画了一张图，不是去聊天", tested.startsWith("测试通过 · 生成成功") && Boolean(testCall) && !seen.slice(before).some((s) => s.path.endsWith("/chat/completions")), tested);
 		await shot("09_生图模型测试通过");
 
-		console.log("⑧ 模型编辑器里的开关");
+		console.log("⑧ 模型编辑器里的「用途」");
 		await click('[data-ly-model-row="gemini-3.1-flash-image"]');
-		await until(`[...document.querySelectorAll('label')].some((l) => l.textContent.includes("生图模型") && l.querySelector('[role="switch"]'))`, 10000);
+		await until(`document.querySelector('[data-ly-model-output] [data-segment="image"]')`, 10000);
 		await pause(700);
-		const switched = await app.evaluate<string | null>(`[...document.querySelectorAll('label')].find((l) => l.textContent.includes("生图模型"))?.querySelector('[role="switch"]')?.getAttribute('aria-checked') ?? null`);
-		check("编辑生图模型时，「生图模型」开关是开着的", switched === "true", `aria-checked=${switched}`);
-		await shot("10_模型编辑器里的生图开关");
+		const switched = await app.evaluate<string | null>(`document.querySelector('[data-ly-model-output] [data-segment="image"]')?.getAttribute('aria-pressed') ?? null`);
+		check("编辑生图模型时，「用途」选的是生图", switched === "true", `aria-pressed=${switched}`);
+		await shot("10_模型编辑器里的用途");
 		await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
 		await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
 		await pause(800);

@@ -8,7 +8,7 @@
  * permanent row. A destination can be scrolled to.
  */
 
-import { Blocks, Clock, GitPullRequest, Images } from "lucide-react";
+import { Blocks, Clock, GitPullRequest, ImagePlay } from "lucide-react";
 import { useApp } from "../../store/index.ts";
 import { onPhone } from "../../services/host.ts";
 import { NavItem } from "./NavItem.tsx";
@@ -64,7 +64,7 @@ export function DestinationNav({ onNavigate }: { onNavigate: () => void }) {
 				badge={waiting}
 				badgeLabel={t("sidebar.pluginUpdates", { n: waiting })}
 			/>
-			<NavItem active={view === "gallery"} icon={<Images size={16} />} label={t("gallery.title")} onClick={go("gallery")} />
+			<NavItem active={view === "gallery"} icon={<ImagePlay size={16} />} label={t("gallery.title")} onClick={go("gallery")} />
 		</div>
 	);
 }

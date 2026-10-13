@@ -21,6 +21,8 @@ export interface Scene {
 	call: string;
 	args: Record<string, unknown>;
 	reply: string;
+	/** The tool the model calls; `image_generate` unless said. */
+	tool?: string;
 }
 
 export interface Seen {
@@ -70,6 +72,11 @@ export async function startFakeImageRelay(options: {
 	 * which the gallery rightly treats as the same picture.
 	 */
 	pick?: (path: string, body: Record<string, unknown>) => string | undefined;
+	/**
+	 * A clip for `video_generate`, served the way xAI and CliRelay do: `/v1/videos/generations` answers
+	 * a request id, `/v1/videos/{id}` says `pending` this many times, then `done` with a link back here.
+	 */
+	video?: { clip: Buffer; polls: number };
 }): Promise<{ port: number; seen: Seen[]; close: () => void }> {
 	const seen: Seen[] = [];
 	const server = createServer(async (req, res) => {
@@ -80,6 +87,19 @@ export async function startFakeImageRelay(options: {
 			res.writeHead(status, { "content-type": "application/json" });
 			res.end(JSON.stringify(value));
 		};
+		const videos = options.video;
+		if (videos && path.endsWith("/videos/generations")) return json(200, { request_id: `vid-${seen.filter((s) => s.path.endsWith("/videos/generations")).length}` });
+		const polled = /\/videos\/(vid-\d+)$/.exec(path);
+		if (videos && polled) {
+			const asked = seen.filter((s) => s.path === path).length;
+			if (asked <= videos.polls) return json(200, { status: "pending" });
+			const address = `http://${req.headers.host}/files/${polled[1]}.mp4`;
+			return json(200, { status: "done", video: { url: address, duration: 5, respect_moderation: true }, model: "grok-imagine-video-1.5" });
+		}
+		if (videos && path.startsWith("/files/")) {
+			res.writeHead(200, { "content-type": "video/mp4", "content-length": String(videos.clip.length) });
+			return res.end(videos.clip);
+		}
 		if (path.endsWith("/images/generations") || path.endsWith("/images/edits")) {
 			if (body.aspect_ratio === "1:1") {
 				// Antigravity's own words for a spent quota, as the relay passes them on.
@@ -112,7 +132,7 @@ export async function startFakeImageRelay(options: {
 		const scene = options.scenes.find((each) => words.text.includes(each.cue)) ?? options.scenes[0];
 		if (messages.slice(words.index + 1).some((message) => message.role === "tool")) return text(scene.reply);
 		await pause(400);
-		send({ id: "c", object: "chat.completion.chunk", choices: [{ index: 0, delta: { role: "assistant", tool_calls: [{ index: 0, id: scene.call, type: "function", function: { name: "image_generate", arguments: "" } }] }, finish_reason: null }] });
+		send({ id: "c", object: "chat.completion.chunk", choices: [{ index: 0, delta: { role: "assistant", tool_calls: [{ index: 0, id: scene.call, type: "function", function: { name: scene.tool ?? "image_generate", arguments: "" } }] }, finish_reason: null }] });
 		const args = JSON.stringify(scene.args);
 		for (let at = 0; at < args.length; at += 24) {
 			send({ id: "c", object: "chat.completion.chunk", choices: [{ index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: args.slice(at, at + 24) } }] }, finish_reason: null }] });

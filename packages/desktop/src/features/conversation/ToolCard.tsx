@@ -19,6 +19,7 @@ import {
 	Sparkles,
 	Terminal,
 	Users,
+	Clapperboard,
 } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { StatusSpinner } from "../../ui/motion/loaders.tsx";
@@ -49,6 +50,7 @@ const ICONS: Record<string, typeof FileText> = {
 	skill: Sparkles,
 	web_fetch: Globe,
 	image_generate: ImageIcon,
+	video_generate: Clapperboard,
 	// A row only inside a fold, or when no page was made — otherwise the page stands in for the call.
 	preview: AppWindow,
 };

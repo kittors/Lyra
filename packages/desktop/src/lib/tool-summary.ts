@@ -60,6 +60,8 @@ export function summarizeToolCall(name: string, args: Record<string, unknown>): 
 			const edit = Array.isArray(args.images) && args.images.length > 0;
 			return `${edit ? "Edit image" : "Image"} ${prompt}`.trim();
 		}
+		case "video_generate":
+			return `Video ${(str("prompt") ?? "").replace(/\s+/g, " ").trim().slice(0, 80)}`.trim();
 		default:
 			// MCP tools are named mcp__<server>__<tool>; show the readable half.
 			if (name.startsWith("mcp__")) {

@@ -163,7 +163,7 @@ export function RunningIndicator() {
 	 * second voice down here ("Laying down code…" under a field of dots) would be the same moment told
 	 * twice, one of them wrongly.
 	 */
-	const drawing = fresh && !finishedAt && toolName === "image_generate";
+	const drawing = fresh && !finishedAt && (toolName === "image_generate" || toolName === "video_generate");
 	const phrase = retrying || drawing ? null : phraseFor(mood, tick, elapsed);
 
 	if (waitingKind) {

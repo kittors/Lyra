@@ -14,7 +14,7 @@
  */
 
 import type { ModelConfig, ProviderConfig } from "@lyra/core";
-import { isImageModelId } from "@lyra/core/image-models";
+import { mediaKindOfId } from "@lyra/core/image-models";
 import { modelConfigFromCatalog } from "@lyra/core/model-catalog";
 
 /** Context window written into every imported or hand-added model. */
@@ -37,11 +37,11 @@ export const DEFAULT_MAX_OUTPUT_TOKENS = 65_536;
  */
 export function importedModel(provider: Pick<ProviderConfig, "id" | "baseUrl">, modelId: string): ModelConfig {
 	/*
-	 * An image model is none of the three: it draws from a prompt and the pictures it is given, and
-	 * that is all. The catalogue never lists one (it keeps text models only), so without this it would
-	 * arrive below claiming to think and call tools — two marks on its row that mean nothing.
+	 * An image or video model is none of the three: it draws or films from a prompt and the pictures
+	 * it is given, and that is all. The catalogue never lists one (it keeps text models only), so
+	 * without this it would arrive below claiming to think and call tools — two marks that mean nothing.
 	 */
-	if (isImageModelId(modelId)) {
+	if (mediaKindOfId(modelId)) {
 		return {
 			id: `${provider.id}/${modelId}`,
 			providerId: provider.id,
