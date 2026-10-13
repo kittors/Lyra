@@ -184,6 +184,11 @@ const CHECKS = [
 		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/split-composer-draft.test.ts"]],
 	},
 	{
+		id: "GALLERY-switch",
+		what: "进创作时侧栏收起的每一帧都把相册重排一遍、每张图 13 种尺寸；第一次进独立页先挂 300ms 骨架等一个早就到了的分包；再进一次整本相册重画",
+		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/settled-width.test.ts", "test/ui/preloaded-screens.test.ts", "test/ui/gallery.test.ts"]],
+	},
+	{
 		id: "S7-annotate",
 		what: "标注拆成三个文件之后还画得出来吗",
 		window: true,

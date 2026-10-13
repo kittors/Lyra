@@ -2,7 +2,7 @@
 
 - 状态：已采纳
 - 日期：2026-09-03
-- 相关：`packages/desktop/src/app/App.tsx`、各 `features/*/index.ts`
+- 相关：`packages/desktop/src/app/screens.tsx`（原在 `app/App.tsx`，提前取见 ADR-0037）、各 `features/*/index.ts`
 
 ## 背景
 

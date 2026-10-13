@@ -12,7 +12,7 @@ import type { Gallery, GalleryPicture } from "@lyra/core";
 import { LayoutProvider } from "../../src/app/layout.tsx";
 import { EditBar } from "../../src/features/gallery/EditBar.tsx";
 import { GalleryView } from "../../src/features/gallery/GalleryView.tsx";
-import { openPicture, setGalleryQuery, useGallery } from "../../src/features/gallery/store.ts";
+import { openPicture, refreshGallery, setGalleryQuery, useGallery } from "../../src/features/gallery/store.ts";
 import { I18nProvider } from "../../src/i18n/index.ts";
 import { zhCN } from "../../src/i18n/messages/zh-CN.ts";
 import { useApp, type AppState } from "../../src/store/index.ts";
@@ -79,7 +79,8 @@ beforeEach(() => {
 	Object.defineProperty(window, "lyra", {
 		configurable: true,
 		value: {
-			gallery: { list: async () => listed },
+			// A fresh copy each time, as one over IPC is: the same list must not pass as the same object.
+			gallery: { list: async () => structuredClone(listed) },
 			agent: { onEvent: () => () => {} },
 			sessions: { onChanged: () => () => {} },
 		},
@@ -130,6 +131,23 @@ test("按天排开，新的在前；一条链上的每张都标着这条链有�
 	const chips = Object.fromEntries(view.all("[data-ly-gallery-tile]").map((tile) => [tile.getAttribute("data-ly-gallery-tile"), tile.querySelector(".ly-gallery-chip")?.textContent ?? ""]));
 	assert.deepEqual(chips, { [SUNSET]: "3", [NIGHT]: "3", [DAY]: "3", [HAT]: "2", [DOG]: "2" });
 	assert.ok(view.find("[data-ly-gallery-count]").textContent?.includes("5"));
+});
+
+test("再进来读到的还是那些图：沿用手里那份，相册不整个重画", async () => {
+	view = await open();
+	const held = useGallery.getState().gallery;
+	assert.ok(held);
+	// Every visit reads again — the page's listeners are off while it is hidden.
+	await act(async () => {
+		await refreshGallery();
+	});
+	assert.equal(useGallery.getState().gallery, held, "the same list read again keeps the object every tile was rendered from");
+	listed = { ...BOATS, pictures: BOATS.pictures.filter((entry) => entry.media !== DOG) };
+	await act(async () => {
+		await refreshGallery();
+	});
+	assert.notEqual(useGallery.getState().gallery, held, "a list that changed replaces it");
+	assert.deepEqual(tiles(), [SUNSET, NIGHT, DAY, HAT]);
 });
 
 test("点开一张：看到它的链路，分支整段排在后面，当前这张标出来", async () => {

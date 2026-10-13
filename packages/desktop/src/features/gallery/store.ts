@@ -24,6 +24,12 @@ export const useGallery = create<GalleryState>(() => ({ gallery: null, status: "
 
 let reading: Promise<void> | null = null;
 let again = false;
+/**
+ * The list on screen and what it read as. Every visit reads the list again — the page's listeners are
+ * off while it is hidden — and almost every visit gets back what it had: the same list as a new object
+ * would make every tile in the album render again for nothing.
+ */
+let lastRead: { gallery: Gallery; text: string } | null = null;
 
 /**
  * Read the list again. A call while a read is out makes that read go round once more instead of
@@ -39,7 +45,11 @@ export function refreshGallery(): Promise<void> {
 			again = false;
 			useGallery.setState((state) => (state.gallery ? state : { status: "loading" }));
 			try {
-				const gallery = await bridge.gallery.list();
+				const read = await bridge.gallery.list();
+				const text = JSON.stringify(read);
+				const held = useGallery.getState().gallery;
+				const gallery = held && held === lastRead?.gallery && text === lastRead.text ? held : read;
+				lastRead = { gallery, text };
 				useGallery.setState({ gallery, status: "ready", error: "" });
 				arrived(gallery);
 			} catch (error) {
