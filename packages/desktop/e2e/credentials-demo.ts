@@ -6,7 +6,8 @@
  * The model is a fake that records every request it is sent, so "the model never saw it" is checked
  * against what actually reached it, and the profile is searched byte by byte afterwards.
  *
- * Uses the system clipboard; the text that was on it is put back at the end.
+ * Uses the system clipboard; the text that was on it is put back at the end, unless something else was
+ * copied while the run went on.
  *
  * `pnpm --filter @lyra/desktop build`, then
  * `node --experimental-strip-types packages/desktop/e2e/credentials-demo.ts`
@@ -65,7 +66,7 @@ function fakeModel() {
 			const resultAt = body.messages.findLastIndex((message) => Array.isArray(message.content) && message.content.some((block) => block.type === "tool_result"));
 			// The person's words only: a tool's result quotes references too.
 			const saidAt = body.messages.findLastIndex(
-				(message) => message.role === "user" && !(Array.isArray(message.content) && message.content.some((block) => block.type === "tool_result")) && /LOGIN_NAS|\[credential:nas-admin\]/.test(textOf(message.content)),
+				(message) => message.role === "user" && !(Array.isArray(message.content) && message.content.some((block) => block.type === "tool_result")) && /LOGIN_NAS|ASK_PW|\[credential:nas-admin\]/.test(textOf(message.content)),
 			);
 			const results = resultAt >= 0 && Array.isArray(body.messages[resultAt]!.content) ? (body.messages[resultAt]!.content as Block[]) : [];
 			const result = resultAt > saidAt ? results.find((block) => block.type === "tool_result") : undefined;
@@ -73,6 +74,11 @@ function fakeModel() {
 				return reply(res, {
 					tool: { id: "bash-1", name: "bash", input: { command: `printf 'env: %s\\n' "$NAS_ROOT"; printf 'askpass: '; "$SSH_ASKPASS" "root@127.0.0.1's password: "`, description: "用 nas-root 跑一次", credentials: ["nas-root"] } },
 				});
+			}
+			if (result?.tool_use_id === "list-1") {
+				// The reference comes from what the tool listed, not from this script: the chip is only as right as that.
+				const listed = /\[credential:nas-root\][^\n]*/.exec(textOf(result.content))?.[0] ?? "nothing listed";
+				return reply(res, { text: `我看不到密码本身。它在保险箱里：${listed.split(" ")[0]}，点它就会复制到剪贴板，30 秒后自动清掉。` });
 			}
 			if (result?.tool_use_id === "bash-1" || result?.tool_use_id === "bash-2") {
 				return reply(res, { text: `命令跑完了。我拿到的输出是：\n\n\`\`\`\n${textOf(result.content).trim()}\n\`\`\`` });
@@ -83,6 +89,7 @@ function fakeModel() {
 					tool: { id: "cred-1", name: "request_credential", input: { name: "nas-root", title: "NAS 的 root 密码", purpose: "登录 NAS，看一眼磁盘还剩多少", kind: "password", target: "ssh://root@127.0.0.1" } },
 				});
 			}
+			if (said.includes("ASK_PW")) return reply(res, { tool: { id: "list-1", name: "list_credentials", input: {} } });
 			if (said.includes("[credential:nas-admin]")) {
 				return reply(res, {
 					tool: { id: "bash-2", name: "bash", input: { command: `printf 'user: %s\\n' "$NAS_ADMIN_USERNAME"; printf 'askpass: '; "$SSH_ASKPASS" "admin@nas.local's password: "`, description: "用 nas-admin 跑一次", credentials: ["nas-admin"] } },
@@ -205,16 +212,22 @@ try {
 		const picture = await running.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
 		shots.push({ name, data: Buffer.from(picture.data, "base64") });
 	}
-	/** A real pointer: moved there, the landing checked, then pressed. */
+	/**
+	 * A real pointer: moved there first, the landing checked after, then pressed. In that order because a
+	 * row's actions only take the pointer once the row is hovered (`.ly-row-action`).
+	 */
 	async function click(selector: string) {
 		await until(`document.querySelector(${JSON.stringify(selector)})?.checkVisibility()`);
 		await running.evaluate(`document.querySelector(${JSON.stringify(selector)}).scrollIntoView({block:'nearest',behavior:'instant'})`);
-		const at = await running.evaluate<{ x: number; y: number; lands: boolean }>(
-			`(()=>{const el=document.querySelector(${JSON.stringify(selector)});const r=el.getBoundingClientRect();const x=r.x+r.width/2,y=r.y+r.height/2;const hit=document.elementFromPoint(x,y);return {x,y,lands:Boolean(hit&&(el===hit||el.contains(hit)))};})()`,
+		const at = await running.evaluate<{ x: number; y: number }>(
+			`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`,
 		);
-		if (!at.lands) throw new Error(`the pointer would not land on ${selector}`);
 		await running.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: at.x, y: at.y });
-		await pause(120);
+		await pause(200);
+		const lands = await running.evaluate<boolean>(
+			`(()=>{const el=document.querySelector(${JSON.stringify(selector)});const hit=document.elementFromPoint(${at.x},${at.y});return Boolean(hit&&(el===hit||el.contains(hit)));})()`,
+		);
+		if (!lands) throw new Error(`the pointer would not land on ${selector}`);
 		for (const type of ["mousePressed", "mouseReleased"]) await running.send("Input.dispatchMouseEvent", { type, x: at.x, y: at.y, button: "left", clickCount: 1 });
 	}
 	async function typeText(text: string) {
@@ -287,8 +300,8 @@ try {
 	await typeText("NAS admin");
 	const suggested = await running.evaluate<string>(`document.querySelector('[data-ly-vault-name]').value`);
 	check("the reference name follows the title", suggested === "nas-admin", suggested);
-	const nameBox = await running.evaluate<{ box: number; title: number; gap: number }>(`(()=>{const input=document.querySelector('[data-ly-vault-name]');const end=document.querySelector('[data-ly-vault-name-end]');return {box:Math.round(input.closest('[data-ly-field]').getBoundingClientRect().height),title:Math.round(document.querySelector('[data-ly-vault-title]').getBoundingClientRect().height),gap:Math.round(end.getBoundingClientRect().left-input.getBoundingClientRect().right)};})()`);
-	check("the reference box is a field like the others and its bracket follows the name", nameBox.box === nameBox.title && nameBox.gap >= 0 && nameBox.gap <= 3, nameBox);
+	const reference = await running.evaluate<{ text: string; gap: number; under: boolean }>(`(()=>{const line=document.querySelector('[data-ly-vault-reference]');const input=document.querySelector('[data-ly-vault-name]');const end=document.querySelector('[data-ly-vault-name-end]');const title=document.querySelector('[data-ly-vault-title]').getBoundingClientRect();return {text:line.textContent.replace(input.value,'')+input.value,gap:Math.round(end.getBoundingClientRect().left-input.getBoundingClientRect().right),under:line.getBoundingClientRect().top>=title.bottom};})()`);
+	check("the reference sits under the name, its bracket right after the name", reference.under && reference.gap >= 0 && reference.gap <= 3 && reference.text.includes("[credential:"), reference);
 	await click('[data-ly-credential-field="username"] input');
 	await typeText("admin");
 	await click('[data-ly-credential-field="password"] input');
@@ -345,12 +358,34 @@ try {
 	check("a pasted reference hands the saved credential over without a card", !cardSeen, { cardSeen });
 	check("the username comes through, the password as a reference", second.includes("user: admin") && second.includes("askpass: [credential:nas-admin]") && !second.includes(ADMIN_PASSWORD), second.slice(second.lastIndexOf("我拿到的输出是"), second.lastIndexOf("我拿到的输出是") + 120));
 
+	// ── 4. Asking for a password: the answer is a button, not the value ─────────
+	await click("main textarea");
+	await typeText("ASK_PW NAS 的 root 密码是多少？");
+	await hold(400);
+	await key("Enter", 13, { text: "\r" });
+	await until(`[...document.querySelectorAll('main')].some(m=>m.textContent.includes('我看不到密码本身'))`, 60_000);
+	await until("[...document.querySelectorAll('main button[data-ly-credential-ref]')].some(b=>b.textContent.includes('NAS 的 root 密码'))");
+	await hold(1200);
+	const asked = await running.evaluate<{ chips: string[]; reply: string }>(`(()=>{const chips=[...document.querySelectorAll('main button[data-ly-credential-ref]')];return {chips:chips.map(b=>b.textContent||''),reply:[...document.querySelectorAll('main')].map(m=>m.textContent||'').join(' ').slice(-400)};})()`);
+	check("asked for a password, the reply offers a button with the credential's title, not the value", asked.chips.some((chip) => chip.includes("NAS 的 root 密码")) && !asked.reply.includes(ROOT_PASSWORD), asked.chips);
+	await running.evaluate(`(()=>{const chips=[...document.querySelectorAll('main button[data-ly-credential-ref]')];chips.at(-1).setAttribute('data-probe-chip','');})()`);
+	await click("[data-probe-chip]");
+	let copiedRoot = false;
+	for (let i = 0; i < 30 && !copiedRoot; i++) {
+		await pause(100);
+		copiedRoot = clipboardText() === ROOT_PASSWORD;
+	}
+	const chipTip = await running.evaluate<string>(`document.querySelector('[data-probe-chip]').getAttribute('data-ly-tip')`);
+	check("clicking it puts the password on the clipboard and says it will be cleared", copiedRoot && chipTip === "已复制，30 秒后从剪贴板清除", { copiedRoot, chipTip });
+	await hold(1500);
+	await shot("06_问密码给出复制入口");
+
 	await stopRecording();
 	stopRecording = undefined;
 
 	// ── 4. What reached the model, and what is on disk ─────────────────────────
 	const leaked = bodies.filter((body) => body.includes(ROOT_PASSWORD) || body.includes(ADMIN_PASSWORD)).length;
-	check("no request to the model carried either password", leaked === 0 && bodies.length >= 5, { requests: bodies.length, leaked });
+	check("no request to the model carried either password", leaked === 0 && bodies.length >= 7, { requests: bodies.length, leaked });
 	check("the masked output did reach the model", bodies.some((body) => body.includes("[credential:nas-root]")) && bodies.some((body) => body.includes("[credential:nas-admin]")), null);
 	const onDisk = await filesHolding(running.home, [ROOT_PASSWORD, ADMIN_PASSWORD]);
 	check("no file in the profile holds either password in the clear", onDisk.length === 0, onDisk);
@@ -377,7 +412,10 @@ try {
 	await stopRecording?.();
 	await app?.stop();
 	await closeListeningServer(server);
-	execFileSync("pbcopy", { input: userClipboard });
+	// Put back what was there only if the clipboard still holds this run's own things: what the person
+	// copied while it ran is theirs now, and older text written over it would be a loss, not a restore.
+	const ours = ["", ROOT_PASSWORD, ADMIN_PASSWORD, "[credential:nas-admin]"];
+	if (ours.includes(clipboardText())) execFileSync("pbcopy", { input: userClipboard });
 	await mkdir(out, { recursive: true });
 	const pass = checks.filter((item) => item.ok).length;
 	const name = `${stamp}_凭据卡片与保险箱_${pass}of${checks.length}`;

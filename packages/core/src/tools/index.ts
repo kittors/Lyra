@@ -45,7 +45,8 @@ export { AGENTS_KEY, BUILTIN_AGENTS, taskTool, type AgentDefinition } from "./ta
 export { previewTool } from "./preview.ts";
 export { readTodos, todoTool, TODOS_KEY, type TodoItem } from "./todo.ts";
 export { askUserTool } from "./ask-user.ts";
-export { CREDENTIAL_TOOL_NAME, requestCredentialTool } from "./request-credential.ts";
+export { CREDENTIAL_TOOLS, requestCredentialTool } from "./request-credential.ts";
+export { listCredentialsTool } from "./list-credentials.ts";
 export { ruleTool, RULES_KEY } from "./rule.ts";
 export { htmlToText, webFetchTool } from "./web.ts";
 export { webSearchTool } from "./search.ts";

@@ -33,6 +33,7 @@ import { companionOf, openScopedPanel } from "../dock/index.ts";
 import { useRevealLabel } from "../../store/open-targets.ts";
 import { SessionScope, useDockScope, useScopedProjectPath } from "../../app/session-scope.tsx";
 import { usePathMenu } from "./PathMenu.tsx";
+import { CredentialRef } from "../vault/index.ts";
 import { useSmoothText } from "./useSmoothText.ts";
 import { FadeText } from "./FadeText.tsx";
 
@@ -365,6 +366,8 @@ function renderToken(token: Inline, fade: boolean): ReactNode {
 			return <Link href={token.href}>{renderTokens(token.children, fade)}</Link>;
 		case "image":
 			return <Image src={token.src} alt={token.alt} width={token.width} height={token.height} />;
+		case "credential":
+			return <CredentialRef name={token.name} />;
 		default:
 			return null;
 	}

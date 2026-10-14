@@ -305,3 +305,15 @@ test("复制：密码与令牌给值本身；钥匙只给公钥那一行", async
 	assert.equal(key?.text, pair.public.trim(), "the same line ssh-keygen -y would print");
 	assert.equal(await credentials.copyable("gone"), null);
 });
+
+test("对话能点名的：存下的全部，加这个对话里卡片填过、没存的；复制也认后者，只在那个对话里", async () => {
+	const credentials = broker([{ name: "nas", kind: "password", title: "NAS", createdAt: 1, approval: "per-conversation", values: { password: "nas-pass-123" } }]);
+	await credentials.forSession("s1").request(KZHY, cardThat(credentials, { values: { password: PASSWORD } }).ask);
+	assert.deepEqual((await credentials.known("s1")).map((meta) => [meta.name, meta.saved]), [["nas", true], ["kzhy-root", false]]);
+	assert.deepEqual((await credentials.known()).map((meta) => meta.name), ["nas"], "the vault page lists only what is saved");
+	assert.deepEqual((await credentials.forSession("s1").list()).map((meta) => meta.name), ["nas", "kzhy-root"]);
+	assert.deepEqual(await credentials.copyable("kzhy-root", "s1"), { text: PASSWORD, secret: true });
+	assert.equal(await credentials.copyable("kzhy-root", "s2"), null, "another conversation was never given it");
+	assert.equal(await credentials.copyable("kzhy-root"), null);
+	assert.deepEqual(await credentials.known("s3"), await credentials.known(), "asking about a conversation holds nothing for it");
+});

@@ -25,7 +25,7 @@ import { imageModelRows, mediaModelRows } from "../images/models.ts";
 import type { ConversationPicks } from "../images/picks.ts";
 import { IMAGE_TOOL_NAME } from "../images/types.ts";
 import { VIDEO_TOOL_NAME } from "../videos/types.ts";
-import { CREDENTIAL_TOOL_NAME } from "../tools/request-credential.ts";
+import { CREDENTIAL_TOOLS } from "../tools/request-credential.ts";
 import { adoptMentionedMedia, describeMediaTools } from "./media-turn.ts";
 import { buildSystemPrompt, loadProjectInstructions } from "../prompt/system.ts";
 import { TODOS_KEY, type TodoItem } from "../tools/todo.ts";
@@ -330,7 +330,7 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 				(tool.name !== IMAGE_TOOL_NAME || drawing) &&
 				(tool.name !== VIDEO_TOOL_NAME || filming) &&
 				// Offered only where a card can be shown; a tool that can only say "no" costs a turn to learn it.
-				(tool.name !== CREDENTIAL_TOOL_NAME || input.credentials !== undefined),
+				(!CREDENTIAL_TOOLS.has(tool.name) || input.credentials !== undefined),
 		),
 		settings.providers,
 		{ image: IMAGE_TOOL_NAME, video: VIDEO_TOOL_NAME },

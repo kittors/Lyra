@@ -7,6 +7,7 @@ function inlineText(tokens: Inline[]): string {
 		if ("text" in token) return token.text;
 		if (token.kind === "math") return token.tex;
 		if (token.kind === "image") return token.alt;
+		if (token.kind === "credential") return `[credential:${token.name}]`;
 		return " ";
 	}).join("");
 }

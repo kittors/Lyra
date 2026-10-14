@@ -2,7 +2,8 @@ import { errorResult } from "../agent/tool-run.ts";
 import { CREDENTIAL_KINDS, type CredentialKind, type CredentialMeta, envName } from "../credentials/types.ts";
 import type { Tool, ToolContext, ToolResult } from "../types.ts";
 
-export const CREDENTIAL_TOOL_NAME = "request_credential";
+/** The tools that need a host keeping credentials; a host without one is not offered them. */
+export const CREDENTIAL_TOOLS: ReadonlySet<string> = new Set(["request_credential", "list_credentials"]);
 
 interface RequestCredentialArgs {
 	name: string;
@@ -45,6 +46,7 @@ export const requestCredentialTool: Tool<RequestCredentialArgs> = {
 		"When a task needs a password, an SSH key, an API token or a login, call request_credential. Never ask the user to paste one into the conversation.",
 		"Use a credential by name — bash `credentials: [name]`, browser_act type `credential: name` — and pass values through the environment or stdin, never on a command line. Do not add BatchMode=yes to an ssh that uses one.",
 		"[credential:name] in the user's own message is a saved credential they are handing you: use it by that name. To learn its kind and where it may be used, call request_credential with that name; no card is shown for one the conversation already has.",
+		"Asked what a password, token or key is, you cannot tell: find it with list_credentials and write its reference [credential:name] in your reply. The app shows the user a button that copies the value; never ask them to paste it to you.",
 	],
 	description:
 		"Ask the user for a credential on a secure card. The value goes to the app, never to you: you get its name, " +

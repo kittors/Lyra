@@ -161,6 +161,8 @@ export interface CredentialAccess {
 	/** One field's value — `name` for the main secret, `name.username` and so on — for a host tool that places it itself. */
 	reveal(label: string): string | undefined;
 	describe(name: string): CredentialMeta | undefined;
+	/** What this conversation can name: everything saved, and what it was given on a card without saving. */
+	list(): Promise<CredentialMeta[]>;
 	/** Every secret value unlocked in this conversation, labelled, for masking. */
 	secrets(): RedactSecret[];
 	/** A masker for exactly those, rebuilt only when they change. */

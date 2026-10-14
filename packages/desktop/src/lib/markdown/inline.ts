@@ -26,7 +26,12 @@ export type Inline =
 	| { kind: "link"; href: string; children: Inline[] }
 	/** `width`/`height` only ever come from an HTML `<img>`; `![](…)` has nowhere to write them. */
 	| { kind: "image"; src: string; alt: string; width?: number; height?: number }
-	| { kind: "tag"; name: InlineTag; children: Inline[] };
+	| { kind: "tag"; name: InlineTag; children: Inline[] }
+	/** `[credential:nas-root]`: a saved credential named in a message, drawn as a button that copies it. */
+	| { kind: "credential"; name: string };
+
+/** The reference a message writes for a credential; the name rule is `CREDENTIAL_NAME` in core. */
+const CREDENTIAL_REF = /\[credential:([a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?)\]/y;
 
 export function parseInline(source: string): Inline[] {
 	const out: Inline[] = [];
@@ -112,6 +117,15 @@ export function parseInline(source: string): Inline[] {
 		}
 
 		if (char === "[") {
+			// A reference is not a link; `[credential:x](url)` still is one, and goes on to be parsed as such.
+			CREDENTIAL_REF.lastIndex = i;
+			const ref = CREDENTIAL_REF.exec(source);
+			if (ref && source[CREDENTIAL_REF.lastIndex] !== "(") {
+				flush(CREDENTIAL_REF.lastIndex);
+				out.push({ kind: "credential", name: ref[1]! });
+				i = CREDENTIAL_REF.lastIndex;
+				continue;
+			}
 			const link = matchLink(source, i);
 			if (link) {
 				flush(link.next);

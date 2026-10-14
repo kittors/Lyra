@@ -609,6 +609,58 @@
   }
 }
 
+/*
+ * A credential named in a message (`CredentialRef.tsx`): the file link's shape — one inline box on the
+ * sentence's baseline, a mark and a name, never broken across lines — with a quiet fill at rest, since
+ * a click here copies rather than goes somewhere, and nothing else in a sentence looks like that.
+ */
+[data-ly-credential-ref] {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  max-width: min(100%, 20em);
+  padding: 1.5px 5px;
+  border-radius: 5px;
+  vertical-align: baseline;
+  line-height: 1;
+  white-space: nowrap;
+  /* A button: the font is inherited already (Tailwind's preflight), so the sentence's size carries over. */
+  color: var(--color-ink);
+  background: color-mix(in srgb, var(--color-ink) 6%, transparent);
+  transition: background-color var(--ly-t-quick) var(--ly-e-out);
+}
+
+button[data-ly-credential-ref]:hover,
+button[data-ly-credential-ref]:focus-visible {
+  background: color-mix(in srgb, var(--color-ink) 11%, transparent);
+}
+
+[data-ly-credential-ref][data-state="unknown"] {
+  color: var(--color-ink-muted);
+}
+
+[data-ly-credential-ref] > svg {
+  flex-shrink: 0;
+  color: var(--color-ink-muted);
+}
+
+[data-ly-credential-ref] > [data-ly-credential-ref-copy] {
+  color: var(--color-ink-faint);
+  transition: color var(--ly-t-quick) var(--ly-e-out);
+}
+
+button[data-ly-credential-ref]:hover > [data-ly-credential-ref-copy] {
+  color: var(--color-ink);
+}
+
+[data-ly-credential-ref-name] {
+  /* The baseline comes from the name, as in `[data-ly-file-name]`. */
+  align-self: baseline;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ---------------------------------------------------------------------------
  * 文件链接旁边那两个出口
  *

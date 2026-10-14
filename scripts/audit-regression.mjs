@@ -235,8 +235,8 @@ const CHECKS = [
 	},
 	{
 		id: "CRED-ui",
-		what: "凭据卡片与保险箱页：填的值走了审批通道、存过的不先问、手机上有输入框、必须每次问的还给「不再询问」；复制值经过渲染进程，钥匙复制出私钥",
-		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/credential-card.test.ts", "test/ui/vault-view.test.ts"]],
+		what: "凭据卡片与保险箱页：填的值走了审批通道、存过的不先问、手机上有输入框、必须每次问的还给「不再询问」；复制值经过渲染进程，钥匙复制出私钥；问密码时回复里的引用点不了、手机上也想复制",
+		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/credential-card.test.ts", "test/ui/vault-view.test.ts", "test/ui/credential-ref.test.ts"]],
 	},
 	{
 		id: "S7-annotate",

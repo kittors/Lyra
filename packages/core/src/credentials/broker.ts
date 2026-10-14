@@ -86,6 +86,7 @@ export class CredentialBroker {
 			prepare: (names, command, ask) => this.prepare(session, names, command, ask),
 			reveal: (label) => this.reveal(session, label),
 			describe: (name) => this.held(session).get(name)?.meta,
+			list: () => this.known(session),
 			secrets: () => [...this.held(session).values()].flatMap(labelled),
 			redactor: () => this.redactorFor(session),
 			restore: (text) => restoreMarkers(text, (label) => this.reveal(session, label)),
@@ -255,6 +256,14 @@ export class CredentialBroker {
 		return listSaved(this.vault);
 	}
 
+	/** What a conversation can name: everything saved, and what it was given on a card without saving. */
+	async known(session?: string): Promise<CredentialMeta[]> {
+		const saved = await this.saved();
+		// Read, never created: asking about a conversation is not a reason to start holding things for it.
+		const held = session ? [...(this.sessions.get(session)?.values() ?? [])] : [];
+		return [...saved, ...held.map((one) => one.meta).filter((meta) => !saved.some((one) => one.name === meta.name))];
+	}
+
 	async addSaved(input: SavedInput): Promise<SavedOutcome> {
 		return addSaved(this.vault, input, this.now());
 	}
@@ -265,10 +274,15 @@ export class CredentialBroker {
 		return outcome;
 	}
 
-	/** For the clipboard, which the main process writes: see `copyableOf`. */
-	async copyable(name: string): Promise<{ text: string; secret: boolean } | null> {
+	/**
+	 * For the clipboard, which the main process writes: see `copyableOf`. A saved one first; then one a
+	 * card in `session` was given and not told to keep — the person typed it there themselves.
+	 */
+	async copyable(name: string, session?: string): Promise<{ text: string; secret: boolean } | null> {
 		const record = await this.vault.get(name);
-		return record ? copyableOf(record) : null;
+		if (record) return copyableOf(record.name, record.kind, record.values);
+		const held = session ? this.sessions.get(session)?.get(name) : undefined;
+		return held ? copyableOf(held.meta.name, held.meta.kind, held.values) : null;
 	}
 
 	/** Forgotten everywhere: removed from the vault and from every conversation that let it in from there. */

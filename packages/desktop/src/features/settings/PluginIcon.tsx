@@ -23,7 +23,7 @@
  */
 import type { MessageKey } from "../../i18n/messages/index.ts";
 import { translate } from "../../i18n/translate.ts";
-import { Blocks, FileText, Server } from "lucide-react";
+import { Blocks, FileText, type LucideIcon, Server } from "lucide-react";
 import { useEffect, useState } from "react";
 import { iconFit, type IconFit } from "./icon-fit.ts";
 
@@ -74,7 +74,16 @@ export function SkillMark({ size = 30 }: { size?: number }) {
  */
 function KindMark({ kind, brandColor, size }: { kind: BundleKind; brandColor?: string; size: number }) {
 	const { Glyph, label } = MARKS[kind] ?? MARKS.plugin;
-	const name = translate(label);
+	return <GlyphMark glyph={Glyph} name={translate(label)} brandColor={brandColor} size={size} />;
+}
+
+/**
+ * The app's own mark for a thing that has no picture: a quiet tile around one glyph.
+ *
+ * Bundles use it per kind (above); the vault uses it per kind of credential, so a list of saved
+ * passwords sits in the same rhythm as the lists of plugins and skills.
+ */
+export function GlyphMark({ glyph: Glyph, name, brandColor, size }: { glyph: LucideIcon; name: string; brandColor?: string; size: number }) {
 	const colour = safeColour(brandColor);
 
 	return (

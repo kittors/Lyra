@@ -1172,13 +1172,14 @@ export interface LyraApi {
 	credentials: {
 		/** What the person typed into a card. The card closes once the value is held, not before. */
 		submit(sessionId: string, requestId: string, submission: CredentialSubmission): Promise<SubmitResult>;
-		list(): Promise<CredentialMeta[]>;
+		/** Saved ones; with a conversation, also those a card there was given without saving. */
+		list(sessionId?: string): Promise<CredentialMeta[]>;
 		add(input: { name: string; kind: CredentialKind; title: string; target?: string; approval?: CredentialApproval; values: Partial<Record<FieldKey, string>> }): Promise<SavedResult>;
 		/** `values` re-enters every field of the kind; left out, what is saved stays. */
 		update(name: string, patch: { title?: string; target?: string | null; approval?: CredentialApproval; values?: Partial<Record<FieldKey, string>> }): Promise<SavedResult>;
 		remove(name: string): Promise<void>;
 		/** A password or token, wiped from the clipboard after `clearsAfter` ms; a key's public line, left there. */
-		copy(name: string): Promise<{ copied: boolean; clearsAfter?: number | null }>;
+		copy(name: string, sessionId?: string): Promise<{ copied: boolean; clearsAfter?: number | null }>;
 	};
 	/**
 	 * The code hosts this app is signed in to.
