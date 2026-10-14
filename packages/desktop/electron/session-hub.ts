@@ -176,7 +176,7 @@ export async function getOrCreateSession(cwd: string, _modelId: string): Promise
 	 * `autoCreateSessionWorktree`, which only makes what it is asked for: a conversation's own choice
 	 * reaches it through `workspaceSetup`, and must not be overruled by the setting on the way.
 	 */
-	const worktreeResult: { cwd: string; worktreeCreated: boolean; branch?: string } = appSettings.worktrees?.autoCreateOnNewSession
+	const worktreeResult: { cwd: string; worktreeCreated: boolean; branch?: string; base?: string } = appSettings.worktrees?.autoCreateOnNewSession
 		? await autoCreateSessionWorktree(cwd, appSettings, tempId).catch(() => ({ cwd, worktreeCreated: false }))
 		: { cwd, worktreeCreated: false };
 	const sessionCwd = worktreeResult.cwd;
@@ -194,7 +194,7 @@ export async function getOrCreateSession(cwd: string, _modelId: string): Promise
 	await session.initialize();
 	// Filed under the project it ran for, not under a folder of its own (`SessionMeta.worktree`).
 	if (worktreeResult.worktreeCreated && worktreeResult.branch) {
-		await session.log.append({ type: "meta", meta: { ...session.meta, worktree: { project: cwd, branch: worktreeResult.branch } } });
+		await session.log.append({ type: "meta", meta: { ...session.meta, worktree: { project: cwd, branch: worktreeResult.branch, ...(worktreeResult.base ? { base: worktreeResult.base } : {}) } } });
 	}
 	sessions.set(session.meta.id, session);
 	ready.add(session.meta.id);
@@ -305,7 +305,7 @@ async function startStoredSession(projectId: string, sessionId: string): Promise
 				...session.meta,
 				cwd: prepared.cwd,
 				workspaceSetup: undefined,
-				...(prepared.worktreeCreated && prepared.branch ? { worktree: { project, branch: prepared.branch } } : {}),
+				...(prepared.worktreeCreated && prepared.branch ? { worktree: { project, branch: prepared.branch, ...(prepared.base ? { base: prepared.base } : {}) } } : {}),
 			} });
 			/*
 			 * Said in the conversation, because it asked for a copy and is about to change the original.

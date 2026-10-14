@@ -205,7 +205,7 @@ export async function autoCreateSessionWorktree(
 	projectCwd: string,
 	settings: Settings,
 	sessionId: string,
-): Promise<{ cwd: string; worktreeCreated: boolean; branch?: string; error?: string }> {
+): Promise<{ cwd: string; worktreeCreated: boolean; branch?: string; base?: string; error?: string }> {
 	if (!(await isGitRepo(projectCwd))) {
 		return { cwd: projectCwd, worktreeCreated: false, error: "not a git repository" };
 	}
@@ -216,6 +216,10 @@ export async function autoCreateSessionWorktree(
 		.catch(() => projectCwd);
 	const repoName = basename(root) || "repo";
 	const targetDir = join(resolveWorktreesRoot(settings.worktrees?.rootDir), `${repoName}-${sessionId.slice(0, 8)}`);
+	// What the copy is cut from, so merging it back has somewhere to go; nothing from a detached HEAD.
+	const base = await git(projectCwd, ["symbolic-ref", "--quiet", "--short", "HEAD"])
+		.then((out) => out.trim() || undefined)
+		.catch(() => undefined);
 
 	const result = await createWorktree(projectCwd, branchName, {
 		targetDir,
@@ -228,7 +232,7 @@ export async function autoCreateSessionWorktree(
 	 */
 	const inside = relative(canonicalPath(root), canonicalPath(projectCwd));
 	const nested = inside && !inside.startsWith("..") && !isAbsolute(inside) ? join(result.path, inside) : null;
-	return { cwd: nested && existsSync(nested) ? nested : result.path, worktreeCreated: true, branch: branchName };
+	return { cwd: nested && existsSync(nested) ? nested : result.path, worktreeCreated: true, branch: branchName, ...(base ? { base } : {}) };
 }
 
 /**

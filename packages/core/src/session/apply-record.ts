@@ -55,6 +55,13 @@ export function applyRecord(base: SessionMeta, payload: SessionRecordInput, now:
 		next.cwd = payload.cwd;
 		next.projectId = payload.projectId;
 		next.projectName = payload.projectName;
+		/*
+		 * Where its worktree came from is part of where it is filed: named when it is filed under the
+		 * project a worktree belongs to — the start-up repair of conversations from before the field —
+		 * and gone when it is moved anywhere else, or the sidebar would keep it under the project it left.
+		 */
+		if (payload.worktree) next.worktree = payload.worktree;
+		else delete next.worktree;
 	}
 	if (payload.type === "meta") {
 		// A meta record carries caller-side changes such as the selected model.

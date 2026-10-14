@@ -207,7 +207,7 @@ export { hooksFor, makeAfterToolCall, makeBeforeToolCall, runHook } from "./runt
 export type { SessionStatus } from "./runtime/reporting.ts";
 export { AgentSession, type AgentSessionOptions,  } from "./runtime/session.ts";
 export { createSessionOpsTools, type SessionOpsHost, type SessionSuggestionDetails } from "./runtime/session-ops.ts";
-export type { SpawnedFrom } from "./session/types.ts";
+export type { SessionWorktree, SpawnedFrom } from "./session/types.ts";
 export { SideChat, restoredSideChatMessages, type SideAskOptions, type SideChatOptions, type SideChatState, type SideChatEvent, type SideChatUpdate } from "./runtime/sidechat.ts";
 export {
 	lyraHome,
