@@ -26,6 +26,13 @@ allowBuilds:
   cpu-features: false
   ssh2: false
 
+# Not installed at all, not just left unbuilt: electron-builder rebuilds every native module it finds
+# in the packaged dependencies, and with its install script skipped (above) `cpu-features` is missing
+# the file its build includes — every desktop package failed at that step. ssh2 asks for it inside a
+# `try` and does without it; see the note on `allowBuilds` for why nothing here needs it.
+ignoredOptionalDependencies:
+  - cpu-features
+
 # Transitive dependencies pinned past a published advisory.
 #
 # Every one of these is something we do not depend on directly — they arrive under the MCP SDK and
