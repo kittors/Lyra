@@ -77,7 +77,8 @@ test("读保险库那两个文件是 mustAsk；别的密钥文件照旧按文件
 	assert.equal(key.decision === "ask" && key.vault, undefined);
 });
 
-test("沙箱规则：两个文件禁读；禁网时只放行这条命令自己的 socket", () => {
+// Seatbelt and bwrap profiles are written for macOS and Linux only; on Windows the paths they would hold are not POSIX.
+test("沙箱规则：两个文件禁读；禁网时只放行这条命令自己的 socket", { skip: process.platform === "win32" }, () => {
 	const unreadable = [join(tmpdir(), "vault.key")];
 	const sockets = [join(tmpdir(), "agent.sock")];
 	const denied = seatbeltArgs({ mode: "workspace-write", workspaceRoot: tmpdir(), network: "deny", unreadable, sockets })[1]!;
