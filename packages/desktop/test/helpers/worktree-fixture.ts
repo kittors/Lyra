@@ -28,6 +28,8 @@ export async function fixture(name = "wt"): Promise<{ root: string; repo: string
 	const repo = join(root, "repo");
 	await mkdir(repo, { recursive: true });
 	await sh(repo, "init", "--initial-branch=main");
+	// Windows runners check files out with CRLF (`core.autocrlf`), and the tests read files back byte for byte.
+	await sh(repo, "config", "core.autocrlf", "false");
 	await sh(repo, "config", "user.email", "test@example.com");
 	await sh(repo, "config", "user.name", "Test");
 	await writeFile(join(repo, "README.md"), "# repo\n");
