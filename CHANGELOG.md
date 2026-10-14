@@ -5,6 +5,135 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.29](https://github.com/kittors/Lyra/releases/tag/v0.9.29) - 2026-10-14
+<!-- lyra:notes en -->
+
+### New features
+
+- **Passwords, SSH keys and tokens stay out of the model.** When a task needs one, a card above the message box asks you for it. What you type goes to Lyra, not to the model: the model gets a name such as `nas-root` and uses the credential by that name. ssh, sudo and git get the password when they ask for it, SSH keys are lent through Lyra's own agent, and a web page is filled in only after Lyra has checked which site it is. If the value comes back — a command prints it, a file the model reads contains it — the model sees `[credential:nas-root]`. The card shows where the credential may be used apart from what the model says it is for. Credentials are entered on the computer; on the phone the card can only be declined.
+- **The Vault.** A new icon in the bar on the left, under Studio. Add passwords, logins, tokens and SSH keys yourself, change where each may be used, enter a value again, or delete it; a saved value is never shown. Copy reference copies `[credential:name]` — paste it into a message and that conversation can use the credential without a card. Copy password puts the value on the clipboard and clears it after 30 seconds; for an SSH key it copies the public key line. Save to vault on a card keeps what you typed there. A saved credential asks once in each new conversation; each one can be set to ask every time it is used, or not at all.
+- **Ask for a password and get a button.** “What is my NAS password?” — the model still cannot see it, but it can look up what you keep and name it, and its reply shows a chip you click to copy the value. A reference you paste into your own message shows the same chip.
+- **A password pasted into a message is replaced before it is sent.** A value saved in the Vault, or typed into a card in that conversation, becomes its reference before the message is saved or sent.
+
+### Improvements & Fixes
+
+- **The send button is round again.** Light while idle, dark when the pointer is on it; the stop button stays dark.
+- **Commands can no longer read Lyra's vault files.** Outside Full access the sandbox refuses; in Full access, reading them asks you first.
+
+<!-- lyra:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 新功能
+
+- **密码、SSH 密钥和令牌不再经过模型。** 对话里要用到时，输入框上方会出来一张卡片向你要。填的值交给 Lyra，不交给模型：模型拿到的是一个名字，比如 `nas-root`，用的时候也只写这个名字。ssh、sudo、git 来问密码时由 Lyra 回答；SSH 密钥通过 Lyra 自己的 agent 借给命令；网页要先核对是哪个网站才填。值要是从别处绕回来——命令把它打印出来、模型读到的文件里写着它——模型看到的是 `[credential:nas-root]`。卡片上，「只能用于哪里」和模型说的用途分开写。凭据只在电脑上填，手机上的卡片只能拒绝。
+- **保险箱。** 左侧图标栏「创作」下面多了一格。密码、账号密码、令牌和 SSH 密钥都能自己加进去，也能改「只能用于」、重新填写或删除；存进去的值不会再显示出来。「复制引用」复制的是 `[credential:名字]`，贴进消息里，这个对话就能直接用它，不再弹卡片；「复制密码」把值放进剪贴板，30 秒后清掉；SSH 密钥复制的是公钥那一行。卡片上勾「存进保险箱」，填的值就存下来。存下的凭据在每个新对话里第一次用时问一次，也可以按条改成每次使用都问，或者不问。
+- **问它密码是多少，回复里给你一个能点的按钮。** 比如「NAS 的密码是多少」——模型还是看不到值，但它能查到保险箱里有哪些、叫什么，在回复里点名；那个名字是一枚小胶囊，点一下就把值复制到剪贴板。自己贴进消息的引用也画成同样的胶囊。
+- **把密码贴进消息里，发送前会换成引用。** 保险箱里存着的、或者这个对话里卡片上填过的值，在消息保存和发送之前就换成它的引用。
+
+### 优化与修复
+
+- **发送键改回圆的。** 平时浅色，鼠标移上去才变深；停止键还是深色。
+- **命令读不到 Lyra 的保险库文件了。** 不在完全访问模式时，沙箱直接拒绝；完全访问模式下，读这两个文件会先问你。
+
+</details>
+
+<!-- lyra:notes zh-TW -->
+
+<details>
+<summary>中文（繁體）</summary>
+
+### 新功能
+
+- **密碼、SSH 金鑰和權杖不再經過模型。** 對話需要用到時，輸入框上方會出現一張卡片向你要。填的值交給 Lyra，不交給模型：模型拿到的只是一個名稱，例如 `nas-root`，使用時也只寫這個名稱。ssh、sudo、git 要密碼時由 Lyra 回答；SSH 金鑰透過 Lyra 自己的 agent 借給命令；網頁會先確認是哪個網站才填入。值如果從別處繞回來——命令把它印出來、模型讀到的檔案裡有它——模型看到的是 `[credential:nas-root]`。卡片上，「只能用於哪裡」和模型說的用途分開列出。憑證只在電腦上填寫，手機上的卡片只能拒絕。
+- **保險箱。** 左側圖示列「創作」下方多了一格。密碼、帳號密碼、權杖和 SSH 金鑰都能自己加進去，也能修改「只能用於」、重新填寫或刪除；存進去的值不會再顯示。「複製引用」複製的是 `[credential:名稱]`，貼進訊息裡，這個對話就能直接使用，不再跳出卡片；「複製密碼」會把值放進剪貼簿，30 秒後清除；SSH 金鑰複製的是公開金鑰那一行。卡片上勾選「存進保險箱」，填的值就會存下來。存下的憑證在每個新對話第一次使用時詢問一次，也可以逐條改成每次使用都詢問，或不詢問。
+- **問它密碼是多少，回覆裡給你一個能點的按鈕。** 例如「NAS 的密碼是多少」——模型還是看不到值，但它能查到保險箱裡有哪些、叫什麼，在回覆裡點名；那個名稱是一枚小膠囊，點一下就把值複製到剪貼簿。自己貼進訊息的引用也畫成同樣的膠囊。
+- **把密碼貼進訊息裡，送出前會換成引用。** 保險箱裡存著的、或這個對話裡卡片上填過的值，會在訊息儲存和送出之前換成它的引用。
+
+### 最佳化與修復
+
+- **傳送鍵改回圓形。** 平時是淺色，滑鼠移上去才變深；停止鍵維持深色。
+- **命令讀不到 Lyra 的保險庫檔案了。** 不在完整存取模式時，沙箱直接拒絕；完整存取模式下，讀這兩個檔案會先問你。
+
+</details>
+
+<!-- lyra:notes ja -->
+
+<details>
+<summary>日本語</summary>
+
+### 新機能
+
+- **パスワード、SSH 鍵、トークンがモデルを通らなくなりました。** 会話で必要になると、入力欄の上にカードが出て入力を求めます。入力した値は Lyra が預かり、モデルには渡しません。モデルが受け取るのは `nas-root` のような名前だけで、使うときもその名前で指定します。ssh・sudo・git がパスワードを聞いてきたら Lyra が答え、SSH 鍵は Lyra 自身のエージェント経由でコマンドに貸し出し、Web ページにはどのサイトかを確かめてから入力します。コマンドが値を表示したり、モデルが読むファイルに値が含まれていたりしても、モデルに見えるのは `[credential:nas-root]` です。カードには、使える宛先がモデルの説明とは別に表示されます。入力はパソコンでのみ行え、スマートフォンのカードでは断ることしかできません。
+- **保管庫。** 左のアイコン列の「スタジオ」の下に追加しました。パスワード、ログイン、トークン、SSH 鍵を自分で登録でき、使える宛先の変更、値の入れ直し、削除もできます。保存した値が表示されることはありません。「参照をコピー」は `[credential:名前]` をコピーします。メッセージに貼り付けると、その会話はカードなしでこの認証情報を使えます。「パスワードをコピー」は値をクリップボードに入れ、30 秒後に消します。SSH 鍵の場合は公開鍵の行をコピーします。カードで「保管庫に保存」にチェックを入れると、入力した値が保存されます。保存した認証情報は新しい会話で初めて使うときに一度だけ確認し、項目ごとに「使うたびに確認」「確認しない」にも変えられます。
+- **パスワードを尋ねると、コピー用のボタンが返ってきます。** 「NAS のパスワードは？」と聞いても、モデルに値は見えません。代わりに保管庫に何があるかを調べて名前を示し、返信のその名前をクリックすると値がクリップボードにコピーされます。自分で貼り付けた参照も同じ形で表示されます。
+- **メッセージに貼り付けたパスワードは、送信前に参照へ置き換わります。** 保管庫に保存してある値や、その会話のカードで入力した値は、メッセージを保存・送信する前に参照に置き換わります。
+
+### 改善と修正
+
+- **送信ボタンが丸に戻りました。** 普段は淡い色で、ポインターを乗せると濃くなります。停止ボタンは濃い色のままです。
+- **コマンドから Lyra の保管庫ファイルを読めなくなりました。** フルアクセス以外ではサンドボックスが拒否し、フルアクセスでは読む前に確認します。
+
+</details>
+
+<!-- lyra:notes ko -->
+
+<details>
+<summary>한국어</summary>
+
+### 새 기능
+
+- **비밀번호, SSH 키, 토큰이 더 이상 모델을 거치지 않습니다.** 대화에서 필요해지면 입력창 위에 카드가 떠서 입력을 요청합니다. 입력한 값은 Lyra가 맡고 모델에는 넘기지 않습니다. 모델이 받는 것은 `nas-root` 같은 이름뿐이고, 쓸 때도 그 이름으로 지정합니다. ssh, sudo, git이 비밀번호를 물으면 Lyra가 답하고, SSH 키는 Lyra의 자체 에이전트를 통해 명령에 빌려주며, 웹 페이지는 어느 사이트인지 확인한 뒤에 채웁니다. 명령이 값을 출력하거나 모델이 읽는 파일에 값이 들어 있어도 모델에게는 `[credential:nas-root]`로 보입니다. 카드에는 사용할 수 있는 주소가 모델의 설명과 따로 표시됩니다. 입력은 컴퓨터에서만 할 수 있고, 휴대폰에서는 카드를 거절만 할 수 있습니다.
+- **보관함.** 왼쪽 아이콘 막대의 '스튜디오' 아래에 추가했습니다. 비밀번호, 로그인, 토큰, SSH 키를 직접 등록하고, 사용할 수 있는 주소를 바꾸거나 값을 다시 입력하거나 삭제할 수 있습니다. 저장한 값은 다시 표시되지 않습니다. '참조 복사'는 `[credential:이름]`을 복사합니다. 메시지에 붙여넣으면 그 대화는 카드 없이 이 자격 증명을 씁니다. '비밀번호 복사'는 값을 클립보드에 넣고 30초 뒤 지웁니다. SSH 키는 공개 키 한 줄을 복사합니다. 카드에서 '보관함에 저장'을 체크하면 입력한 값이 저장됩니다. 저장한 자격 증명은 새 대화에서 처음 쓸 때 한 번 묻고, 항목마다 '쓸 때마다 묻기'나 '묻지 않기'로 바꿀 수 있습니다.
+- **비밀번호를 물으면 복사 버튼이 돌아옵니다.** "NAS 비밀번호가 뭐야?"라고 물어도 모델은 값을 볼 수 없지만, 보관함에 무엇이 있는지 찾아 이름을 알려 줍니다. 답변 속 그 이름을 누르면 값이 클립보드에 복사됩니다. 직접 붙여넣은 참조도 같은 모양으로 보입니다.
+- **메시지에 붙여넣은 비밀번호는 보내기 전에 참조로 바뀝니다.** 보관함에 저장된 값이나 그 대화의 카드에 입력한 값은 메시지를 저장하고 보내기 전에 참조로 바뀝니다.
+
+### 개선 및 수정
+
+- **보내기 버튼이 다시 둥글어졌습니다.** 평소에는 연한 색이고 포인터를 올리면 진해집니다. 중지 버튼은 그대로 진한 색입니다.
+- **명령이 Lyra의 보관함 파일을 읽지 못합니다.** 전체 접근이 아니면 샌드박스가 거부하고, 전체 접근에서는 읽기 전에 먼저 묻습니다.
+
+</details>
+
+<!-- lyra:notes fr -->
+
+<details>
+<summary>Français</summary>
+
+### Nouveautés
+
+- **Mots de passe, clés SSH et jetons ne passent plus par le modèle.** Quand une conversation en a besoin, une carte apparaît au-dessus de la zone de saisie pour vous le demander. Ce que vous tapez va à Lyra, pas au modèle : le modèle reçoit un nom, par exemple `nas-root`, et s’en sert par ce nom. ssh, sudo et git reçoivent le mot de passe quand ils le demandent, les clés SSH sont prêtées par l’agent de Lyra, et une page web n’est remplie qu’après vérification du site. Si la valeur revient — une commande l’affiche, un fichier lu par le modèle la contient —, le modèle voit `[credential:nas-root]`. La carte indique où le secret peut servir, à part de ce que le modèle dit vouloir en faire. Les secrets se saisissent sur l’ordinateur ; sur le téléphone, la carte ne peut qu’être refusée.
+- **Le Coffre-fort.** Une nouvelle icône dans la barre de gauche, sous Studio. Ajoutez vous-même mots de passe, identifiants, jetons et clés SSH, changez où chacun peut servir, saisissez une valeur de nouveau ou supprimez-la ; une valeur enregistrée n’est jamais affichée. « Copier la référence » copie `[credential:nom]` : collée dans un message, elle permet à cette conversation d’utiliser le secret sans carte. « Copier le mot de passe » met la valeur dans le presse-papiers et l’efface 30 secondes plus tard ; pour une clé SSH, c’est la ligne de la clé publique qui est copiée. Cochez « Enregistrer dans le coffre-fort » sur une carte pour garder ce que vous y avez tapé. Un secret enregistré est demandé une fois dans chaque nouvelle conversation ; chacun peut être réglé pour demander à chaque utilisation, ou jamais.
+- **Demandez un mot de passe, recevez un bouton.** « Quel est le mot de passe du NAS ? » : le modèle ne le voit toujours pas, mais il peut chercher ce que vous gardez et le nommer ; dans sa réponse, ce nom est une pastille qui copie la valeur d’un clic. Une référence que vous collez vous-même s’affiche de la même façon.
+- **Un mot de passe collé dans un message est remplacé avant l’envoi.** Une valeur enregistrée dans le coffre-fort, ou saisie sur une carte dans cette conversation, devient sa référence avant que le message soit enregistré ou envoyé.
+
+### Améliorations et corrections
+
+- **Le bouton d’envoi redevient rond.** Clair au repos, foncé quand le pointeur le survole ; le bouton d’arrêt reste foncé.
+- **Les commandes ne peuvent plus lire les fichiers du coffre de Lyra.** Hors Accès complet, le bac à sable refuse ; en Accès complet, Lyra vous demande d’abord.
+
+</details>
+
+<!-- lyra:notes ru -->
+
+<details>
+<summary>Русский</summary>
+
+### Новое
+
+- **Пароли, SSH-ключи и токены больше не проходят через модель.** Когда в беседе нужен такой секрет, над полем ввода появляется карточка с просьбой его ввести. Введённое получает Lyra, а не модель: модели достаётся имя, например `nas-root`, и пользуется она учётными данными по этому имени. Пароль ssh, sudo и git получают, когда сами его спрашивают; SSH-ключи одалживаются через собственный агент Lyra; веб-страница заполняется только после проверки, какой это сайт. Если значение возвращается — команда его печатает, файл, который читает модель, его содержит, — модель видит `[credential:nas-root]`. На карточке отдельно от слов модели указано, где эти данные можно использовать. Вводятся они только на компьютере; на телефоне карточку можно лишь отклонить.
+- **Хранилище.** Новый значок на панели слева, под «Студией». Пароли, логины, токены и SSH-ключи можно добавить вручную, поменять, где каждый можно использовать, ввести значение заново или удалить; сохранённое значение никогда не показывается. «Копировать ссылку» копирует `[credential:имя]`: вставьте её в сообщение, и эта беседа сможет пользоваться данными без карточки. «Копировать пароль» кладёт значение в буфер обмена и через 30 секунд стирает его; для SSH-ключа копируется строка открытого ключа. Галочка «Сохранить в хранилище» на карточке сохраняет введённое. Сохранённые данные в каждой новой беседе спрашиваются один раз; для каждой записи можно выбрать «Спрашивать при каждом использовании» или «Не спрашивать».
+- **Спросите пароль — получите кнопку.** «Какой пароль от NAS?» — модель по-прежнему его не видит, но может посмотреть, что лежит в хранилище, и назвать запись; в ответе это имя — плашка, нажмите её, и значение окажется в буфере обмена. Ссылка, вставленная вами в сообщение, выглядит так же.
+- **Пароль, вставленный в сообщение, заменяется до отправки.** Значение, сохранённое в хранилище или введённое на карточке в этой беседе, превращается в ссылку до того, как сообщение сохранится и уйдёт.
+
+### Улучшения и исправления
+
+- **Кнопка отправки снова круглая.** В покое светлая, под указателем темнеет; кнопка остановки остаётся тёмной.
+- **Команды больше не читают файлы хранилища Lyra.** Вне «Полного доступа» их не пускает песочница; в «Полном доступе» Lyra сначала спросит.
+
+</details>
+
 ## [0.9.28](https://github.com/kittors/Lyra/releases/tag/v0.9.28) - 2026-10-14
 <!-- lyra:notes en -->
 
