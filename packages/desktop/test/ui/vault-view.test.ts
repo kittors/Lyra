@@ -30,6 +30,7 @@ function vault(list: CredentialMeta[]) {
 			credentials: {
 				list: record("list", () => list),
 				add: record("add", (input) => ({ ok: true, meta: { ...(input as object), saved: true, createdAt: 3 } })),
+				remove: record("remove", () => undefined),
 				copy: record("copy", () => ({ copied: true, clearsAfter: 30_000 })),
 			},
 		},
@@ -121,6 +122,30 @@ test("地址写错了在表单上说，不发出去", async () => {
 		await settle();
 		assert.equal(document.querySelector("[data-ly-vault-problem]")?.textContent, translate("credential.problemTarget"));
 		assert.equal(calls.filter((call) => call.method === "add").length, 0);
+	} finally {
+		await view.unmount();
+		document.querySelectorAll("[data-ly-modal]").forEach((node) => node.remove());
+		useApp.setState(previous, true);
+	}
+});
+
+test("删除先问一句；问过之后才真的删", async () => {
+	const previous = useApp.getState();
+	const calls = vault([NAS, KEY]);
+	useApp.setState({ view: "vault" });
+	const view = await mount(h(LayoutProvider, { children: h(VaultView) }));
+	try {
+		await settle();
+		await click(view.find('[data-ly-vault-row="nas"] [data-ly-vault-delete]'));
+		assert.equal(calls.filter((call) => call.method === "remove").length, 0, "nothing is deleted before the answer");
+		const yes = [...document.querySelectorAll<HTMLButtonElement>("[data-ly-modal] button")].find((button) => button.textContent === translate("common.delete"));
+		assert.ok(yes !== undefined, "the confirm names its verb");
+		await click(yes!);
+		await act(async () => {
+			document.querySelector(".ly-dialog-out")?.dispatchEvent(new Event("animationend", { bubbles: true }));
+		});
+		await settle();
+		assert.deepEqual(calls.filter((call) => call.method === "remove").map((call) => call.args), [["nas"]]);
 	} finally {
 		await view.unmount();
 		document.querySelectorAll("[data-ly-modal]").forEach((node) => node.remove());

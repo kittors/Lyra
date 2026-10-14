@@ -6,7 +6,8 @@
  * The model is a fake that records every request it is sent, so "the model never saw it" is checked
  * against what actually reached it, and the profile is searched byte by byte afterwards.
  *
- * Uses the system clipboard; the text that was on it is put back at the end.
+ * Uses the system clipboard; the text that was on it is put back at the end, unless something else was
+ * copied while the run went on.
  *
  * `pnpm --filter @lyra/desktop build`, then
  * `node --experimental-strip-types packages/desktop/e2e/credentials-demo.ts`
@@ -205,16 +206,22 @@ try {
 		const picture = await running.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
 		shots.push({ name, data: Buffer.from(picture.data, "base64") });
 	}
-	/** A real pointer: moved there, the landing checked, then pressed. */
+	/**
+	 * A real pointer: moved there first, the landing checked after, then pressed. In that order because a
+	 * row's actions only take the pointer once the row is hovered (`.ly-row-action`).
+	 */
 	async function click(selector: string) {
 		await until(`document.querySelector(${JSON.stringify(selector)})?.checkVisibility()`);
 		await running.evaluate(`document.querySelector(${JSON.stringify(selector)}).scrollIntoView({block:'nearest',behavior:'instant'})`);
-		const at = await running.evaluate<{ x: number; y: number; lands: boolean }>(
-			`(()=>{const el=document.querySelector(${JSON.stringify(selector)});const r=el.getBoundingClientRect();const x=r.x+r.width/2,y=r.y+r.height/2;const hit=document.elementFromPoint(x,y);return {x,y,lands:Boolean(hit&&(el===hit||el.contains(hit)))};})()`,
+		const at = await running.evaluate<{ x: number; y: number }>(
+			`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`,
 		);
-		if (!at.lands) throw new Error(`the pointer would not land on ${selector}`);
 		await running.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: at.x, y: at.y });
-		await pause(120);
+		await pause(200);
+		const lands = await running.evaluate<boolean>(
+			`(()=>{const el=document.querySelector(${JSON.stringify(selector)});const hit=document.elementFromPoint(${at.x},${at.y});return Boolean(hit&&(el===hit||el.contains(hit)));})()`,
+		);
+		if (!lands) throw new Error(`the pointer would not land on ${selector}`);
 		for (const type of ["mousePressed", "mouseReleased"]) await running.send("Input.dispatchMouseEvent", { type, x: at.x, y: at.y, button: "left", clickCount: 1 });
 	}
 	async function typeText(text: string) {
@@ -287,8 +294,8 @@ try {
 	await typeText("NAS admin");
 	const suggested = await running.evaluate<string>(`document.querySelector('[data-ly-vault-name]').value`);
 	check("the reference name follows the title", suggested === "nas-admin", suggested);
-	const nameBox = await running.evaluate<{ box: number; title: number; gap: number }>(`(()=>{const input=document.querySelector('[data-ly-vault-name]');const end=document.querySelector('[data-ly-vault-name-end]');return {box:Math.round(input.closest('[data-ly-field]').getBoundingClientRect().height),title:Math.round(document.querySelector('[data-ly-vault-title]').getBoundingClientRect().height),gap:Math.round(end.getBoundingClientRect().left-input.getBoundingClientRect().right)};})()`);
-	check("the reference box is a field like the others and its bracket follows the name", nameBox.box === nameBox.title && nameBox.gap >= 0 && nameBox.gap <= 3, nameBox);
+	const reference = await running.evaluate<{ text: string; gap: number; under: boolean }>(`(()=>{const line=document.querySelector('[data-ly-vault-reference]');const input=document.querySelector('[data-ly-vault-name]');const end=document.querySelector('[data-ly-vault-name-end]');const title=document.querySelector('[data-ly-vault-title]').getBoundingClientRect();return {text:line.textContent.replace(input.value,'')+input.value,gap:Math.round(end.getBoundingClientRect().left-input.getBoundingClientRect().right),under:line.getBoundingClientRect().top>=title.bottom};})()`);
+	check("the reference sits under the name, its bracket right after the name", reference.under && reference.gap >= 0 && reference.gap <= 3 && reference.text.includes("[credential:"), reference);
 	await click('[data-ly-credential-field="username"] input');
 	await typeText("admin");
 	await click('[data-ly-credential-field="password"] input');
@@ -377,7 +384,10 @@ try {
 	await stopRecording?.();
 	await app?.stop();
 	await closeListeningServer(server);
-	execFileSync("pbcopy", { input: userClipboard });
+	// Put back what was there only if the clipboard still holds this run's own things: what the person
+	// copied while it ran is theirs now, and older text written over it would be a loss, not a restore.
+	const ours = ["", ROOT_PASSWORD, ADMIN_PASSWORD, "[credential:nas-admin]"];
+	if (ours.includes(clipboardText())) execFileSync("pbcopy", { input: userClipboard });
 	await mkdir(out, { recursive: true });
 	const pass = checks.filter((item) => item.ok).length;
 	const name = `${stamp}_凭据卡片与保险箱_${pass}of${checks.length}`;

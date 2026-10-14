@@ -371,23 +371,27 @@ div.ly-field {
  * Controls share the card's background and stand on a hairline rather than on a patch darker than the
  * card. The line is an inset shadow, which takes no space, so row heights and control midlines do not
  * move. Only the fill and the line change; the red of an error still comes from the rule below.
+ *
+ * The credential card in a conversation takes the controls' half of this: it is a form on a card, like
+ * a dialog, and its boxes are the dialog's — a hairline and the small corner — not the composer's grey
+ * pill. The lines keep the page's colours: the card is glass, not the `float` sheet.
  */
 :is(.ly-settings-card, [data-ly-modal]) {
 	--color-line: var(--color-line-float);
 	--color-line-soft: color-mix(in srgb, var(--color-line-float) 65%, transparent);
 }
 
-:is(.ly-settings-card, [data-ly-modal]) :is(.ly-field, [data-segmented]) {
+:is(.ly-settings-card, [data-ly-modal], [data-ly-credential-card]) :is(.ly-field, [data-segmented]) {
 	background: transparent;
 	box-shadow: inset 0 0 0 1px var(--color-line);
 	transition-property: background-color, color, box-shadow;
 }
 
-:is(.ly-settings-card, [data-ly-modal]) .ly-field:is(:hover, :focus, :focus-within) {
+:is(.ly-settings-card, [data-ly-modal], [data-ly-credential-card]) .ly-field:is(:hover, :focus, :focus-within) {
 	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-ink-faint) 55%, transparent);
 }
 
-:is(.ly-settings-card, [data-ly-modal]) .ly-textarea-shell {
+:is(.ly-settings-card, [data-ly-modal], [data-ly-credential-card]) .ly-textarea-shell {
 	background: transparent;
 }
 
@@ -400,7 +404,7 @@ div.ly-field {
  * changed they would be the one pill left on it. A segmented control's sliding fill and segments sit one
  * inset (2px) inside the frame, at 6px, so the inner and outer curves are concentric.
  */
-:is([data-ly-settings] main, .ly-settings-card, [data-ly-modal]) :is(.ly-field, .ly-dialog-action, [data-segmented], .ly-textarea-shell) {
+:is([data-ly-settings] main, .ly-settings-card, [data-ly-modal], [data-ly-credential-card]) :is(.ly-field, .ly-dialog-action, [data-segmented], .ly-textarea-shell) {
 	border-radius: 8px;
 }
 

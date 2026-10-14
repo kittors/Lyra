@@ -11,15 +11,15 @@
  */
 
 import type { CredentialPrompt } from "@lyra/core";
-import { Check, X } from "lucide-react";
+import { Check, Vault, X } from "lucide-react";
 import { useState } from "react";
 import { useI18n } from "../../i18n/index.ts";
 import { activeLocale } from "../../i18n/translate.ts";
+import { relativeTime } from "../../lib/relative-time.ts";
 import { bridge, onPhone } from "../../services/index.ts";
 import { ChoiceMark } from "../../ui/primitives/ChoiceMark.tsx";
 import { CredentialFields, type CredentialValues, KIND_ICON, KIND_LABEL, PROBLEM_LABEL } from "../vault/index.ts";
-
-const BUTTON = "flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-label transition-colors disabled:opacity-50";
+import { ApprovalButton } from "./ApprovalButton.tsx";
 
 export function CredentialCard({
 	requestId,
@@ -96,15 +96,20 @@ export function CredentialCard({
 							void submit(false);
 						}}
 					>
-						<CredentialFields kind={prompt.kind} values={values} onChange={setValues} autoFocus quiet />
-						<p className="mt-2 text-caption text-ink-faint">{t("credential.modelSeesName")}</p>
+						<CredentialFields kind={prompt.kind} values={values} onChange={setValues} autoFocus quiet placeholder={t("credential.modelSeesName")} />
 						<button type="submit" className="hidden" tabIndex={-1} aria-hidden />
 					</form>
 				) : saved ? (
-					<p className="rounded-lg bg-card px-3 py-2.5 text-label text-ink" data-ly-credential-saved="">
-						{t("credential.savedOne", { date: new Date(saved.createdAt).toLocaleDateString(activeLocale()) })}
-						{saved.username && <span className="text-ink-muted"> · {saved.username}</span>}
-					</p>
+					// The saved one as a box that will not open — the same box the vault's editor shows for a kept value.
+					<div className="ly-field w-full gap-2.5" data-ly-field="" data-ly-credential-saved="">
+						<Vault size={14} strokeWidth={1.8} className="shrink-0 text-ink-muted" aria-hidden />
+						<span className="shrink-0 text-ink">{t("credential.savedOne")}</span>
+						{saved.username && <span className="truncate text-ink-muted">{saved.username}</span>}
+						<span className="min-w-0 flex-1" />
+						<span className="shrink-0 text-ink-faint" data-ly-tip={new Date(saved.createdAt).toLocaleString(activeLocale())}>
+							{t("credential.savedAgo", { ago: relativeTime(new Date(saved.createdAt).toISOString()) })}
+						</span>
+					</div>
 				) : null}
 				{problem && (
 					<p role="alert" className="mt-2 break-words text-caption text-danger">
@@ -113,32 +118,23 @@ export function CredentialCard({
 				)}
 			</div>
 			<div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5 px-4 pt-2 pb-3" aria-busy={pending}>
-				<button type="button" disabled={pending} onClick={() => void decline()} className={`${BUTTON} mr-auto text-ink-muted hover:bg-card-hover hover:text-ink active:bg-elevated`}>
-					<X size={14} />
+				<ApprovalButton disabled={pending} onClick={() => void decline()} className="mr-auto" icon={<X size={14} />}>
 					{t("permission.reject")}
-				</button>
+				</ApprovalButton>
 				{!phone && typing && (
-					<button type="button" role="checkbox" aria-checked={remember} onClick={() => setRemember((on) => !on)} className={`group ${BUTTON} text-ink-muted hover:text-ink`} data-ly-credential-remember="">
-						<ChoiceMark checked={remember} kind="checkbox" />
+					<ApprovalButton role="checkbox" aria-checked={remember} onClick={() => setRemember((on) => !on)} className="group" icon={<ChoiceMark checked={remember} kind="checkbox" />} data-ly-credential-remember="">
 						{t("credential.remember")}
-					</button>
+					</ApprovalButton>
 				)}
 				{!phone && !typing && saved && (
-					<button type="button" disabled={pending} onClick={() => setTyping(true)} className={`${BUTTON} text-ink-muted hover:bg-card-hover hover:text-ink active:bg-elevated`}>
+					<ApprovalButton disabled={pending} onClick={() => setTyping(true)}>
 						{t("credential.typeAnew")}
-					</button>
+					</ApprovalButton>
 				)}
 				{!phone && (
-					<button
-						type="button"
-						disabled={pending}
-						onClick={() => void submit(!typing)}
-						data-ly-credential-submit=""
-						className={`${BUTTON} bg-ink px-3 font-medium text-shell transition-opacity hover:opacity-90 active:opacity-75`}
-					>
-						<Check size={14} />
+					<ApprovalButton tone="primary" disabled={pending} onClick={() => void submit(!typing)} icon={<Check size={14} />} data-ly-credential-submit="">
 						{typing ? t("credential.submit") : t("credential.useSaved")}
-					</button>
+					</ApprovalButton>
 				)}
 			</div>
 		</div>

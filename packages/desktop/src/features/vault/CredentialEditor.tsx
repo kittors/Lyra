@@ -14,7 +14,7 @@ import { useI18n } from "../../i18n/index.ts";
 import { bridge } from "../../services/index.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import { Dialog, DialogAction } from "../../ui/overlay/Dialog.tsx";
-import { InlineSelect, Segmented, TextInput } from "../settings/index.ts";
+import { Field, GlyphMark, InlineSelect, Segmented, TextInput } from "../settings/index.ts";
 import { CredentialFields, type CredentialValues } from "./CredentialFields.tsx";
 import { APPROVAL_LABEL, KIND_ICON, KIND_LABEL, KIND_ORDER, PROBLEM_LABEL } from "./labels.ts";
 import { suggestName } from "./naming.ts";
@@ -46,9 +46,7 @@ export function CredentialEditor({
 	const [reentering, setReentering] = useState(adding);
 	const [problem, setProblem] = useState("");
 	const [saving, setSaving] = useState(false);
-	const [deleting, setDeleting] = useState(false);
 	const name = typedName ?? suggestName(title, kind, taken);
-	const Icon = KIND_ICON[kind];
 
 	function localProblem(): string | null {
 		if (!title.trim()) return t("credential.problemTitle");
@@ -79,49 +77,15 @@ export function CredentialEditor({
 		}
 	}
 
-	if (deleting && item) {
-		return (
-			<Dialog
-				onClose={onClose}
-				label={t("vault.deleteConfirm", { name: item.title })}
-				title={t("vault.deleteConfirm", { name: item.title })}
-				detail={t("vault.deleteDetail")}
-				actions={(dismiss) => (
-					<>
-						<div className="flex-1" />
-						<DialogAction onClick={() => setDeleting(false)}>{t("common.cancel")}</DialogAction>
-						<DialogAction
-							tone="danger"
-							data-ly-vault-delete-confirm=""
-							onClick={() =>
-								dismiss(() => {
-									void bridge.credentials.remove(item.name).finally(onChanged);
-									onClose();
-								})
-							}
-						>
-							{t("common.delete")}
-						</DialogAction>
-					</>
-				)}
-			/>
-		);
-	}
-
 	return (
 		<Dialog
 			onClose={onClose}
 			label={adding ? t("vault.addTitle") : item.title}
 			title={adding ? t("vault.addTitle") : item.title}
-			icon={<Icon size={15} strokeWidth={1.8} className="shrink-0 text-ink-muted" aria-hidden />}
+			icon={<GlyphMark glyph={KIND_ICON[kind]} name={t(KIND_LABEL[kind])} size={22} />}
 			bodyClassName="max-h-[min(560px,64dvh)]"
 			actions={(dismiss) => (
 				<>
-					{!adding && (
-						<DialogAction tone="danger" onClick={() => setDeleting(true)} data-ly-vault-delete="">
-							{t("common.delete")}
-						</DialogAction>
-					)}
 					<div className="flex-1" />
 					<DialogAction onClick={() => dismiss()}>{t("common.cancel")}</DialogAction>
 					<DialogAction tone="primary" disabled={saving} onClick={() => void save(dismiss)} data-ly-vault-save="">
@@ -133,7 +97,7 @@ export function CredentialEditor({
 			{(dismiss) => (
 				<form
 					data-ly-vault-editor={adding ? "add" : "edit"}
-					className="space-y-4 pb-1"
+					className="flex flex-col gap-4 pb-1"
 					onSubmit={(event) => {
 						event.preventDefault();
 						void save(dismiss);
@@ -152,55 +116,37 @@ export function CredentialEditor({
 							/>
 						</div>
 					)}
-					<label className="block">
-						<span className="mb-1.5 block text-detail text-ink-muted">{t("vault.titleLabel")}</span>
-						<TextInput value={title} onChange={setTitle} autoFocus={adding} placeholder={t("vault.titlePlaceholder")} maxLength={80} data-ly-vault-title="" />
-					</label>
-					{adding && (
-						<label className="block">
-							<span className="mb-1.5 block text-detail text-ink-muted">{t("vault.nameLabel")}</span>
-							{/*
-							 * The reference as a message writes it, the name typed into its middle. The box is as
-							 * wide as the name — monospace, so `ch` is exact — and the closing bracket follows it
-							 * rather than standing at the far end of the field.
-							 */}
-							<div className="ly-field w-full gap-0 font-mono text-code" data-ly-field="">
-								<span className="shrink-0 text-ink-faint">[credential:</span>
-								<Input
-									value={name}
-									onChange={(event) => setTypedName(event.target.value.toLowerCase())}
-									spellCheck={false}
-									autoComplete="off"
-									maxLength={40}
-									aria-label={t("vault.nameLabel")}
-									data-ly-vault-name=""
-									style={{ width: `calc(${Math.max(name.length, 1)}ch + 2px)` }}
-									className="h-full min-w-0 shrink bg-transparent text-ink outline-none"
-								/>
-								<span className="shrink-0 text-ink-faint" data-ly-vault-name-end="">]</span>
-							</div>
-						</label>
-					)}
+					<div>
+						<Field label={t("vault.titleLabel")}>
+							<TextInput value={title} onChange={setTitle} autoFocus={adding} placeholder={t("vault.titlePlaceholder")} maxLength={80} data-ly-vault-title="" />
+						</Field>
+						<Reference name={name} editable={adding} onChange={setTypedName} />
+					</div>
 					{reentering ? (
 						<CredentialFields kind={kind} values={values} onChange={setValues} autoFocus={!adding} />
 					) : (
-						<div className="flex items-center justify-between gap-3 rounded-lg bg-card px-3 py-2.5" data-ly-vault-value-kept="">
-							<span className="text-label text-ink-muted">{t("vault.valueKept")}</span>
-							<button type="button" onClick={() => setReentering(true)} className="text-label text-ink transition-colors hover:text-accent" data-ly-vault-reenter="">
-								{t("vault.reenter")}
-							</button>
-						</div>
+						// The saved value as a box that will not open: dots, never the value, and the way to replace it.
+						<Field label={t(KIND_LABEL[kind])}>
+							<div className="ly-field w-full gap-3 pr-1.5" data-ly-field="" data-ly-vault-value-kept="">
+								{item?.username && <span className="shrink-0 text-ink">{item.username}</span>}
+								<span className="min-w-0 flex-1 truncate tracking-[0.2em] text-ink-faint" aria-label={t("vault.valueKept")}>
+									••••••••
+								</span>
+								<button type="button" onClick={() => setReentering(true)} className="h-7 shrink-0 rounded-md px-2.5 text-label text-ink-muted transition-colors hover:bg-card-hover hover:text-ink" data-ly-vault-reenter="">
+									{t("vault.reenter")}
+								</button>
+							</div>
+						</Field>
 					)}
-					<label className="block">
-						<span className="mb-1.5 block text-detail text-ink-muted">{t("vault.targetLabel")}</span>
-						<TextInput value={target} onChange={setTarget} mono spellCheck={false} autoComplete="off" placeholder={t("vault.targetPlaceholder")} data-ly-vault-target="" />
-					</label>
+					<Field label={t("vault.targetLabel")} hint={t("vault.targetHint")}>
+						<TextInput value={target} onChange={setTarget} mono spellCheck={false} autoComplete="off" placeholder="ssh://user@host" data-ly-vault-target="" />
+					</Field>
 					<div className="flex items-center justify-between gap-3">
-						<span className="text-detail text-ink-muted">{t("vault.approvalLabel")}</span>
+						<span className="text-label text-ink-muted">{t("vault.approvalLabel")}</span>
 						<InlineSelect value={approval} onChange={setApproval} ariaLabel={t("vault.approvalLabel")} options={APPROVALS.map((one) => ({ value: one, label: t(APPROVAL_LABEL[one]) }))} />
 					</div>
 					{problem && (
-						<p role="alert" className="break-words text-caption text-danger" data-ly-vault-problem="">
+						<p role="alert" className="break-words rounded-[9px] border border-danger/35 bg-danger/8 px-3 py-2 text-detail leading-relaxed text-danger" data-ly-vault-problem="">
 							{problem}
 						</p>
 					)}
@@ -208,5 +154,40 @@ export function CredentialEditor({
 				</form>
 			)}
 		</Dialog>
+	);
+}
+
+/**
+ * The reference as a message writes it, under the name it is derived from.
+ *
+ * A line rather than a field of its own: it is what the name turns into, and is rarely changed. The
+ * name is typed into the middle of it, in a box as wide as the name — monospace, so `ch` is exact —
+ * so the closing bracket follows the text instead of standing at the far end of the line.
+ */
+function Reference({ name, editable, onChange }: { name: string; editable: boolean; onChange: (name: string) => void }) {
+	const { t } = useI18n();
+	return (
+		<div className="mt-1.5 flex items-baseline gap-2 text-detail text-ink-faint" data-ly-vault-reference="">
+			<span className="shrink-0">{t("vault.nameLabel")}</span>
+			<span className="flex min-w-0 items-baseline font-mono">
+				[credential:
+				{editable ? (
+					<Input
+						value={name}
+						onChange={(event) => onChange(event.target.value.toLowerCase())}
+						spellCheck={false}
+						autoComplete="off"
+						maxLength={40}
+						aria-label={t("vault.nameLabel")}
+						data-ly-vault-name=""
+						style={{ width: `calc(${Math.max(name.length, 1)}ch + 2px)` }}
+						className="min-w-0 bg-transparent text-ink-muted underline decoration-ink-faint/50 decoration-dotted underline-offset-4 outline-none hover:text-ink focus:text-ink focus:decoration-accent"
+					/>
+				) : (
+					<span className="text-ink-muted">{name}</span>
+				)}
+				<span data-ly-vault-name-end="">]</span>
+			</span>
+		</div>
 	);
 }
