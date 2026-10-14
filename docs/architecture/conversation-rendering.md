@@ -102,6 +102,9 @@
 worktree 只改变执行目录，不改变已创建的会话 ID 和日志归属。要不要 worktree 按会话定：输入框上的开关随首条消息
 传下去（`initial.worktree`），设置里的开关只是它的默认值；建好之后 `SessionMeta.worktree` 记下它出自哪个项目，
 侧栏、归档、项目菜单都按这个项目归组（`sessionHome`），从它开的新会话回到这个项目。见 ADR-0038。
+在这之前建的工作树会话没有这个字段：每次启动后台从工作树本身认出它们（`.git` 指向 `worktrees/`、分支是
+`lyra/session-`；目录已删的按「仓库旁边 + 分支还在」推断），经 `move` 补上字段、不动 `updatedAt`
+（`electron/worktree-repair.ts`）。带这个字段的会话的 `cwd` 都进窗口的路径白名单（`electron/worktree-roots.ts`）。
 
 ## 页面保留
 

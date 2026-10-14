@@ -71,6 +71,8 @@ import { registerFileOpsIpc } from "./ipc/file-ops.ts";
 import { registerFormatIpc } from "./ipc/format.ts";
 import { rescueLegacyWorkspaces, scratchRoots } from "./scratch.ts";
 import { resolveWorktreesRoot } from "./git-worktrees.ts";
+import { repairLegacyWorktrees } from "./worktree-repair.ts";
+import { worktreeRoots } from "./worktree-roots.ts";
 import { applySettings, loadAppSettings, onSettingsChanged } from "./app-settings.ts";
 import { createKeepAwake, installKeepAwake } from "./keep-awake.ts";
 import { registerServicesIpc } from "./ipc/services.ts";
@@ -231,7 +233,15 @@ function allowedRoots(): string[] {
 	 */
 	const projectPaths = (settings?.projects ?? []).flatMap((project) => projectFolders(project));
 	const worktreeRoot = resolveWorktreesRoot(settings?.worktrees?.rootDir);
-	return [...projectPaths, ...scratchRoots(), worktreeRoot];
+	const roots = [...projectPaths, ...scratchRoots(), worktreeRoot];
+	/*
+	 * And each conversation's own worktree, wherever it was made. The worktrees root covers the ones
+	 * made now; one made beside its repository before ADR-0038, or under a `rootDir` changed since, is
+	 * under none of these, and a conversation filed in its project whose files cannot be listed is only
+	 * half filed. Only those are added: every root is resolved on disk at each check, and one per
+	 * worktree conversation ever made would make every listing pay for all of them.
+	 */
+	return [...roots, ...sessionWorktrees.roots().filter((tree) => containingRoot(tree, roots) === null)];
 }
 
 function projectPath(target: string): string | null {
@@ -261,6 +271,12 @@ function insideAProject(target: string): boolean {
  * plugin providing a different store is actually the one used.
  */
 let store: SessionStorage = new SessionStore();
+/**
+ * The worktrees conversations run in, kept current from the writes `store` reports: extra roots for
+ * `allowedRoots`. Only folders the main process itself recorded as a conversation's worktree get
+ * here — see `worktree-roots.ts` for why that is safe.
+ */
+const sessionWorktrees = worktreeRoots();
 /** Live sessions keyed by session id. A session stays warm so MCP servers are not respawned per turn. */
 
 /** The capability context: what the app can do, assembled from plugins at boot. */
@@ -557,7 +573,10 @@ app.whenReady().then(async () => {
 	useLlmRegistry(kernel.require<LlmRegistry>(LLM));
 	useToolRegistry(kernel.require<ToolRegistry>(TOOLS));
 	useSandbox(kernel.require<Sandbox>(SANDBOX));
-	store = observeSessionStorage(kernel.require<SessionStorage>(STORAGE), broadcastSessionChange);
+	store = observeSessionStorage(kernel.require<SessionStorage>(STORAGE), (change) => {
+		sessionWorktrees.observe(change);
+		broadcastSessionChange(change);
+	});
 	useCompaction(kernel.require<CompactionStrategy>(COMPACTION));
 	useApprovalPolicy(kernel.require<ApprovalPolicy>(APPROVAL));
 	useSkillRegistry(kernel.require<SkillRegistry>(SKILLS));
@@ -681,6 +700,20 @@ function bindScreenshotShortcut(): void {
 	// when clicking "新对话" created one up front.
 	const pruned = await store.pruneEmpty().catch(() => 0);
 	if (pruned > 0) console.log(`[lyra] 清理了 ${pruned} 个空会话`);
+
+	/*
+	 * The worktrees conversations run in, before any window can ask for a path inside one: one list
+	 * read, no git. Filing the ones from before `SessionMeta.worktree` asks git about each candidate,
+	 * so it runs behind the window rather than ahead of it; what it files reaches the sidebar as an
+	 * ordinary session change, and the gate through the same report. See `worktree-repair.ts`.
+	 */
+	const listed = await store.listSessions().catch(() => []);
+	sessionWorktrees.load(listed);
+	void repairLegacyWorktrees({ store, settings, scratch: scratchRoots(), busy: (id) => sessions.has(id) }, listed)
+		.then((filed) => {
+			if (filed.length > 0) console.log(`[lyra] 把 ${filed.length} 个旧工作树会话归到了原项目下`);
+		})
+		.catch((error: unknown) => console.warn("[worktrees] 归位旧工作树会话失败：", error));
 
 	/*
 	 * Previews outlive nothing. Anything belonging to a conversation that is gone goes with it,

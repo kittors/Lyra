@@ -214,6 +214,11 @@ const CHECKS = [
 		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--test", "--import", "./test/setup.ts", "--experimental-strip-types", "test/session-ops.test.ts"]],
 	},
 	{
+		id: "WORKTREE-repair",
+		what: "改版前建的工作树会话没有 worktree 字段：侧栏里各成一个同名项目、仓库旁边的目录不在白名单（文件树空、终端开在家目录、提交被拒）；归位时认错 submodule 和别人的工作树、写成 git 的路径写法多出一组、把旧会话顶到列表最上面",
+		run: ["node", ["--experimental-strip-types", "--test", "--import", "./packages/desktop/test/setup.ts", "packages/desktop/test/worktree-repair.test.ts", "packages/desktop/test/worktree-roots.test.ts"]],
+	},
+	{
 		id: "S7-annotate",
 		what: "标注拆成三个文件之后还画得出来吗",
 		window: true,
