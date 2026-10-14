@@ -109,6 +109,9 @@ import type {
 	SyncStatus,
 	WorkspaceDiffFile,
 	WorkspaceInfo,
+	WorktreeState,
+	MergeOutcome,
+	SyncOutcome,
 } from "./ipc-shapes.ts";
 
 export * from "./ipc-shapes.ts";
@@ -338,6 +341,18 @@ export interface LyraApi {
 		 * A conversation is read again only after it has been written to, so asking twice is cheap.
 		 */
 		list(): Promise<Gallery>;
+	};
+	/**
+	 * A conversation's own worktree, by conversation id: where it stands against the branch it was cut
+	 * from, merging it back, and bringing that branch's new commits in. Null or `refused` for one with
+	 * no worktree. Merging and syncing refuse while the conversation is running. See ADR-0038.
+	 */
+	worktree: {
+		state(sessionId: string): Promise<WorktreeState | null>;
+		merge(sessionId: string): Promise<MergeOutcome>;
+		sync(sessionId: string): Promise<SyncOutcome>;
+		/** Back out a sync left waiting on conflicts. */
+		abortSync(sessionId: string): Promise<boolean>;
 	};
 	workspace: {
 		/**

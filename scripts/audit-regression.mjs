@@ -219,6 +219,11 @@ const CHECKS = [
 		run: ["node", ["--experimental-strip-types", "--test", "--import", "./packages/desktop/test/setup.ts", "packages/desktop/test/worktree-repair.test.ts", "packages/desktop/test/worktree-roots.test.ts"]],
 	},
 	{
+		id: "WORKTREE-lifecycle",
+		what: "工作树的后半生：删除、归档不回收目录，自动清理带 --force 连没提交的改动一起删、认不出人自己建的工作树；合回 main 的冲突把项目目录留在半截合并里、挪分支时盖掉中间落进来的提交；收走的目录回不来；领先落后把合并提交算进去，刚合完显示「落后 1」",
+		run: ["node", ["--experimental-strip-types", "--test", "--import", "./packages/desktop/test/setup.ts", "packages/desktop/test/worktree-lifecycle.test.ts", "packages/desktop/test/worktree-merge.test.ts", "packages/desktop/test/git-worktrees.test.ts"]],
+	},
+	{
 		id: "S7-annotate",
 		what: "标注拆成三个文件之后还画得出来吗",
 		window: true,

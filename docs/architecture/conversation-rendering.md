@@ -105,6 +105,9 @@ worktree 只改变执行目录，不改变已创建的会话 ID 和日志归属�
 在这之前建的工作树会话没有这个字段：每次启动后台从工作树本身认出它们（`.git` 指向 `worktrees/`、分支是
 `lyra/session-`；目录已删的按「仓库旁边 + 分支还在」推断），经 `move` 补上字段、不动 `updatedAt`
 （`electron/worktree-repair.ts`）。带这个字段的会话的 `cwd` 都进窗口的路径白名单（`electron/worktree-roots.ts`）。
+删除、归档会话时收走它干净的工作树目录（分支全在基分支里就一起删），取消归档或再用起来时在原路径检出回来；输入框上
+工作树会话的 chip 说领先落后，点开能合回基分支、从基分支同步（`electron/worktree-lifecycle.ts`、`worktree-merge.ts`）。
+建不成工作树的原因记在 `SessionMeta.worktreeError` 上，输入框上一直有个提醒。见 ADR-0040。
 
 ## 页面保留
 

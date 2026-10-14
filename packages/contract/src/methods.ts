@@ -90,6 +90,12 @@ export const METHODS = {
 	gallery: {
 		list: { channel: "gallery:list", remote: false, why: "画廊里的图走 ly-media，手机上没有这条路由，列出来也一张都画不出来（ADR-0033）" },
 	},
+	worktree: {
+		state: { channel: "worktree:state", remote: false, why: "本机仓库操作" },
+		merge: { channel: "worktree:merge", remote: false, why: "本机仓库操作：改的是这台机器上检出的分支" },
+		sync: { channel: "worktree:sync", remote: false, why: "本机仓库操作：改的是这台机器上的工作树" },
+		abortSync: { channel: "worktree:abortSync", remote: false, why: "本机仓库操作" },
+	},
 	workspace: {
 		pick: { channel: "workspace:pick", remote: false, why: "开的是本机的文件选择对话框" },
 		foreignConfigs: { channel: "workspace:foreignConfigs", remote: false, why: "读本机仓库目录；手机上没有这个提示" },

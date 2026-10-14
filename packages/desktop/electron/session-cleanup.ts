@@ -12,6 +12,7 @@
  */
 
 import { lyraHome, removeSessionArtifacts, type SessionMeta, type SessionStorage } from "@lyra/core";
+import { reclaimWorktree } from "./worktree-lifecycle.ts";
 
 /** 本地日期键，和用量页、扫描器用的是同一个口径——不是 ISO/UTC。 */
 function dayKey(ms: number): string {
@@ -129,6 +130,8 @@ export async function clearSessions(
 	const freed = targets.reduce((sum, meta) => sum + (sizes[meta.id] ?? 0), 0);
 	await store.deleteMany(targets.map((meta) => ({ projectId: meta.projectId, id: meta.id })));
 	await Promise.all(targets.map((meta) => removeSessionArtifacts(home, meta.id).catch(() => {})));
+	// Their worktrees as a single delete takes them: committed work kept on its branch, uncommitted work left in place.
+	await Promise.all(targets.filter((meta) => meta.worktree).map((meta) => reclaimWorktree(meta, { dropMergedBranch: true }).catch(() => null)));
 
 	return { removed: targets.length, freed, skipped: matched.length - targets.length };
 }

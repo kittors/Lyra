@@ -16,7 +16,7 @@ Lyra 是一个 agent 运行时加两个前端。`packages/core` 平台无关，�
 | `mobile` | Expo 外壳：配对、扫码、承载桌面端界面的 WebView | 不依赖 `core`（Metro 没有 `node:`） |
 | `relay` | 中转服务。单文件，零依赖，两端都连不上对方时让它们碰头 | 谁也不依赖 |
 | `registry-shared` | 插件市场的契约：索引能说什么、API 答什么 | 谁也不依赖 |
-| `contract` | 渲染进程与主进程之间那条线：226 个方法写在一处，主进程按它注册、preload 按它生成 | 谁也不依赖 |
+| `contract` | 渲染进程与主进程之间那条线：230 个方法写在一处，主进程按它注册、preload 按它生成 | 谁也不依赖 |
 | `agent-cli` | 在 CI 里审 PR、分 issue 的那个 agent，跑的是同一个 `AgentSession` | `core` |
 
 ## 两个宿主，一份界面

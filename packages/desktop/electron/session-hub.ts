@@ -24,7 +24,7 @@ import { discardSideChat } from "./sidechat-discard.ts";
 import { notifyAgentEvent } from "./notify.ts";
 import { slimSnapshot } from "./display-transcript.ts";
 import { eachAppWindow } from "./window.ts";
-import { nativeText } from "./i18n.ts";
+import { bringBackWorktree } from "./worktree-lifecycle.ts";
 
 export interface HubDeps {
 	store(): SessionStorage;
@@ -202,8 +202,11 @@ export async function getOrCreateSession(cwd: string, _modelId: string): Promise
 
 	// Trigger async cleanup if enabled in settings
 	if (appSettings.worktrees?.autoCleanOld) {
-		const liveCwds = new Set(Array.from(sessions.values()).map((s) => s.cwd));
-		void cleanOldWorktrees(cwd, appSettings, liveCwds).catch(() => {});
+		// Every conversation that may come back to its worktree, not only the ones running now.
+		void deps.store().listSessions().then((all) => {
+			const inUse = new Set([...Array.from(sessions.values()).map((s) => s.cwd), ...all.filter((meta) => !meta.archived).map((meta) => meta.cwd)]);
+			return cleanOldWorktrees(cwd, appSettings, inUse);
+		}).catch(() => {});
 	}
 
 	return session;
@@ -300,19 +303,32 @@ async function startStoredSession(projectId: string, sessionId: string): Promise
 			const project = session.cwd;
 			const prepared = await autoCreateSessionWorktree(project, deps.settings(), sessionId);
 			session.cwd = prepared.cwd;
-			// Execution may move; project identity and all metadata edits remain on the same log.
+			/*
+			 * Execution may move; project identity and all metadata edits remain on the same log.
+			 *
+			 * Not made, the reason is kept on the conversation, because it asked for a copy and is about to
+			 * change the original. This used to fall back without a word — the person who chose a separate
+			 * worktree found out from `git status` in their own checkout — and then with a toast, which is
+			 * the wrong place for anything that matters later (`worktreeError`).
+			 */
 			await session.log.append({ type: "meta", meta: {
 				...session.meta,
 				cwd: prepared.cwd,
 				workspaceSetup: undefined,
-				...(prepared.worktreeCreated && prepared.branch ? { worktree: { project, branch: prepared.branch, ...(prepared.base ? { base: prepared.base } : {}) } } : {}),
+				...(prepared.worktreeCreated && prepared.branch
+					? { worktree: { project, branch: prepared.branch, ...(prepared.base ? { base: prepared.base } : {}) }, worktreeError: undefined }
+					: { worktreeError: prepared.error || "git worktree add" }),
 			} });
+		} else {
 			/*
-			 * Said in the conversation, because it asked for a copy and is about to change the original.
-			 * This used to fall back without a word: the person who chose a separate worktree found out
-			 * from `git status` in their own checkout.
+			 * Its worktree was taken back — archived, or cleaned up — and it is in use again
+			 * (`bringBackWorktree`).
 			 */
-			if (!prepared.worktreeCreated) broadcast(sessionId, { type: "notice", level: "warn", message: nativeText("worktree.notCreated", { reason: prepared.error ?? "" }) });
+			const fallback = await bringBackWorktree(session.meta);
+			if (fallback) {
+				session.cwd = fallback.cwd;
+				await session.log.append({ type: "meta", meta: { ...session.meta, ...fallback } });
+			}
 		}
 		if (retiring.has(sessionId)) return null;
 		await session.initialize();

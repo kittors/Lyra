@@ -19,7 +19,7 @@ import { useState } from "react";
 import { useLayout } from "../../app/layout.tsx";
 import { sessionTitle } from "../../lib/session-title.ts";
 import { SessionCard, useSessionCard } from "./SessionCard.tsx";
-import { SessionMenu } from "../modals/index.ts";
+import { SessionMenu, deleteSessionQuestion } from "../modals/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
@@ -157,7 +157,12 @@ export function SessionRow({
 	return (
 		<HoverRow
 			{...card.bind}
-			onMouseEnter={(event) => { if (event.buttons === 0) card.bind.onMouseEnter(event); }}
+			/*
+			 * Only the row itself. Its menu and its delete dialog are portals React counts as inside the row,
+			 * so the pointer arriving on the dialog's scrim "entered" the row and, 420ms later, put the card
+			 * over the dialog (`e2e/worktree-lifecycle-demo.ts` sampled it frame by frame).
+			 */
+			onMouseEnter={(event) => { if (event.buttons === 0 && event.currentTarget.contains(event.target as Node)) card.bind.onMouseEnter(event); }}
 			data-ly-row={session.id}
 			controls={hoverSlot(actionsCount === 2 ? 2 : 1)}
 			onContextMenu={(event) => {
@@ -197,14 +202,7 @@ export function SessionRow({
 					 * question needs an answer — it closes itself on the way out. A dialog owned by
 					 * something that unmounts on click is a dialog that never renders.
 					 */
-					onRequestDelete={() =>
-						confirm.ask({
-							title: t("sidebarList.deleteConfirm"),
-							detail: t("sidebarList.deleteDetail", { title: session.title, n: session.messageCount }),
-							confirmLabel: t("common.delete"),
-							onConfirm: () => void deleteSession(session),
-						})
-					}
+					onRequestDelete={() => void deleteSessionQuestion(session, () => void deleteSession(session)).then(confirm.ask)}
 				/>
 			)}
 			{confirm.element}

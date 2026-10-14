@@ -15,7 +15,7 @@ import {
 	Trash2,
 	X,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { SessionMeta } from "@lyra/core";
 import { MenuBody, MenuItem, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
 import { useI18n } from "../../i18n/index.ts";
@@ -23,6 +23,7 @@ import { useApp } from "../../store/index.ts";
 import { onPhone } from "../../services/index.ts";
 import { canOfferSplit, canSplit, contains, openInNewWindow, SplitMoveItems, splitWith, useSplit } from "../split/index.ts";
 import { sessionHome } from "../../lib/session-home.ts";
+import { prefetchDeleteQuestion } from "./delete-session.tsx";
 
 export function SessionMenu({
 	anchor,
@@ -53,6 +54,11 @@ export function SessionMenu({
 	const notify = useApp((s) => s.notify);
 
 	const [mode, setMode] = useState<"menu" | "rename" | "projects" | "copy">("menu");
+	// 删除 is offered on an archived conversation; what its worktree would leave behind is read now.
+	useEffect(() => {
+		if (session.archived) prefetchDeleteQuestion(session);
+		// oxlint-disable-next-line react-hooks/exhaustive-deps -- once per opening of the menu
+	}, []);
 	const [openIn, setOpenIn] = useState(false);
 	const openInRow = useRef<HTMLDivElement>(null);
 	const openInLeave = useRef<number>(0);

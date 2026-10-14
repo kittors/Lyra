@@ -271,8 +271,9 @@ async function main() {
 		await pause(1800);
 		const opened = await look();
 		check(
-			"打开后：项目 chip 是 demo-repo（不是工作树文件夹名），分支 chip 是 lyra/session-…",
-			opened.chips.includes("demo-repo") && opened.chips.some((tip) => tip === `lyra/session-${living.slice(0, 8)}`),
+			"打开后：项目 chip 是 demo-repo（不是工作树文件夹名），分支是 lyra/session-…（ADR-0040 起在工作树 chip 上）",
+			opened.chips.includes("demo-repo") &&
+				opened.chips.some((tip) => tip === `lyra/session-${living.slice(0, 8)}` || tip === `这个对话的工作树：lyra/session-${living.slice(0, 8)}`),
 			`chips：${opened.chips.join(" | ")}`,
 		);
 		await shot("02_打开归位后的工作树会话");
