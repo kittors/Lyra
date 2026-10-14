@@ -7,6 +7,7 @@ import { computeDiff, formatDiff } from "./diff.ts";
 import { displayPath, exists, resolveWorkspacePath } from "./paths.ts";
 import { hasRead, markRead } from "./read.ts";
 import { decodeInput, decodeText, encodeText } from "./text-layout.ts";
+import { introducedCredentials } from "../credentials/markers.ts";
 
 interface WriteArgs {
 	path: string;
@@ -95,20 +96,26 @@ export const writeTool: Tool<WriteArgs> = {
 		 * old file's to decide, not the text's. A new file is written exactly as given.
 		 */
 		const previous = alreadyExists ? decodeText(previousRaw) : null;
-		const content = previous ? decodeInput(args.content.replace(/^\uFEFF/, ""), previous.layout) : args.content;
+		// `[credential:x]` is the value the model read as that mark; see `restored` in `edit.ts`.
+		const given = ctx.credentials ? ctx.credentials.restore(args.content) : args.content;
+		const content = previous ? decodeInput(given.replace(/^\uFEFF/, ""), previous.layout) : given;
 		const written = previous ? encodeText(content, previous.layout) : content;
 		// What `read` will show of it from now on: the diff, the line count and the fingerprint are taken from this.
 		const before = previous?.text ?? "";
 		const after = decodeText(written).text;
 		// Once: the approval prompt and the result describe the same pair, and a whole-file diff is not free.
 		const diff = computeDiff(before, after);
+		const introduced = introducedCredentials(ctx.credentials?.secrets() ?? [], before, after);
+		if (introduced.length > 0 && !ctx.requestApproval) return errorResult(`Writing ${introduced.join(", ")} into a file needs someone to approve it, and this host cannot ask.`);
 
 		if (ctx.requestApproval) {
+			const shown = displayPath(ctx.cwd, absolute);
 			const decision = await ctx.requestApproval({
 				kind: "write",
-				title: alreadyExists ? `Overwrite ${displayPath(ctx.cwd, absolute)}` : `Create ${displayPath(ctx.cwd, absolute)}`,
-				detail: formatDiff(diff, displayPath(ctx.cwd, absolute)),
+				title: introduced.length > 0 ? `Write ${introduced.join(", ")} into ${shown}` : alreadyExists ? `Overwrite ${shown}` : `Create ${shown}`,
+				detail: formatDiff(diff, shown),
 				subject: absolute,
+				...(introduced.length > 0 ? { credentials: introduced, mustAsk: true } : {}),
 			});
 			if (decision !== "once" && decision !== "always") return errorResult("The user rejected this write.");
 		}

@@ -1,6 +1,6 @@
-import { persistSessionImage, type Tool, type ToolResult } from "@lyra/core";
+import { parseTarget, persistSessionImage, type Tool, type ToolContext, type ToolResult } from "@lyra/core";
 import type { BrowserResultDetails } from "../shared/browser.ts";
-import { actBrowser, readBrowser, type BrowserAction } from "./browser-actions.ts";
+import { actBrowser, maskFilled, readBrowser, type BrowserAction } from "./browser-actions.ts";
 import { awakeBrowser, browserContents, browserCommand, browserState, browserThumbnail, closeSessionBrowser, onWhite, openBrowser, selectBrowser } from "./browser-workspace.ts";
 
 function result(value: unknown, details: BrowserResultDetails = { kind: "browser" }): ToolResult {
@@ -16,13 +16,15 @@ const REDRAWS: ReadonlySet<string> = new Set(["click", "type", "press", "scroll"
  * Best effort, all of it: a card without a picture is still a card, and nothing here may turn an
  * action that worked into a tool call that failed.
  */
-async function view(id: string, picture: boolean, opened = false): Promise<BrowserResultDetails> {
+async function view(id: string, picture: boolean, opened = false, mask: readonly string[] = []): Promise<BrowserResultDetails> {
 	const details: BrowserResultDetails = { kind: "browser", tabId: id, ...(opened ? { opened } : {}) };
 	try {
 		const contents = browserContents(id);
 		details.url = contents.getURL();
 		details.title = contents.getTitle();
 		if (picture) {
+			// The thumbnail is kept with the conversation: a filled field is dots in it, not the value.
+			await maskFilled(id, mask);
 			const jpeg = await browserThumbnail(id);
 			if (jpeg) details.thumbnail = persistSessionImage(jpeg.toString("base64"), "image/jpeg");
 		}
@@ -31,6 +33,30 @@ async function view(id: string, picture: boolean, opened = false): Promise<Brows
 	}
 	return details;
 }
+/** This conversation's credential values, for masking a page before it is pictured. */
+const secretValues = (ctx: ToolContext): string[] => ctx.credentials?.secrets().map((secret) => secret.value) ?? [];
+
+/**
+ * What to type for `credential`, and the page it may be typed into.
+ *
+ * The binding is the credential's own, set when the person filled its card; a credential bound to an
+ * ssh host is not for a web page at all. One bound nowhere fits any page — the card said so.
+ */
+function secretFor(credential: unknown, action: BrowserAction, ctx: ToolContext): NonNullable<BrowserAction["secret"]> {
+	// Said to the model, so in English like every core tool's errors.
+	if (typeof credential !== "string") throw new Error("credential must be a credential name.");
+	if (action.action !== "type") throw new Error("credential is only for the type action.");
+	if (action.text !== undefined) throw new Error("Give either text or credential, not both.");
+	const name = credential.split(".")[0]!;
+	const value = ctx.credentials?.reveal(credential);
+	const meta = ctx.credentials?.describe(name);
+	if (!value || !meta) throw new Error(`No credential named ${credential} in this conversation; ask for it with request_credential.`);
+	const target = parseTarget(meta.target);
+	if (!target) return { value };
+	if (target.scheme !== "https" && target.scheme !== "http") throw new Error(`${name} is only for ${meta.target}, not for a web page.`);
+	return { value, expect: { protocol: target.scheme, host: target.host, ...(target.port ? { port: String(target.port) } : {}) } };
+}
+
 function fail(error: unknown): ToolResult {
 	return { isError: true, content: [{ type: "text", text: error instanceof Error ? error.message : String(error) }] };
 }
@@ -71,23 +97,24 @@ export function createBrowserTools(): { tools: Tool[]; dispose: () => void } {
 					owners.add(ctx.sessionId);
 					const id = await openBrowser(url.href, ctx.sessionId, args.newTab === true, false);
 					const page = await readBrowser(id);
-					return result({ tabId: id, page }, await view(id, true, true));
+					return result({ tabId: id, page }, await view(id, true, true, secretValues(ctx)));
 				} catch (error) { return fail(error); }
 			},
 		},
 		{
 			name: "browser_act", snippet: "Read, click, type, hover, scroll, press a key or evaluate the visible page", executionMode: "sequential", mutating: true,
-			description: "Operate a tab belonging to this session. click/type/hover require a CSS selector observed in the current page. type replaces the focused editable value through native browser input. scroll accepts x/y pixel deltas. press accepts a named key. eval accepts a JavaScript expression. Use read and screenshot to verify instead of fixed sleeps.",
-			parameters: { type: "object", properties: { action: { type: "string", enum: [...ACTIONS] }, tabId: { type: "string" }, selector: { type: "string" }, text: { type: "string" }, expression: { type: "string" }, x: { type: "number" }, y: { type: "number" } }, required: ["action"], additionalProperties: false },
+			description: "Operate a tab belonging to this session. click/type/hover require a CSS selector observed in the current page. type replaces the focused editable value through native browser input. scroll accepts x/y pixel deltas. press accepts a named key. eval accepts a JavaScript expression. Use read and screenshot to verify instead of fixed sleeps. To type a password or token, give `credential` (a name from request_credential, or name.username) instead of `text`: the value goes into the field without reaching you, and only on the page the credential is bound to.",
+			parameters: { type: "object", properties: { action: { type: "string", enum: [...ACTIONS] }, tabId: { type: "string" }, selector: { type: "string" }, text: { type: "string" }, credential: { type: "string", description: "For type: a credential name from request_credential, typed in place of text." }, expression: { type: "string" }, x: { type: "number" }, y: { type: "number" } }, required: ["action"], additionalProperties: false },
 			async execute(args, ctx) {
 				try {
 					if (!actionName(args.action)) throw new Error("未知浏览器操作");
 					const action: BrowserAction = { action: args.action };
 					for (const name of ["selector", "text", "expression"] as const) { const value = args[name]; if (value !== undefined) { if (typeof value !== "string") throw new Error(`${name} 必须是文本`); action[name] = value; } }
 					for (const name of ["x", "y"] as const) { const value = args[name]; if (value !== undefined) { if (typeof value !== "number") throw new Error(`${name} 必须是数字`); action[name] = value; } }
+					if (args.credential !== undefined) action.secret = secretFor(args.credential, action, ctx);
 					const id = await current(args.tabId, ctx.sessionId);
 					const outcome = await actBrowser(id, action, ctx.sessionId);
-					return result(outcome, await view(id, REDRAWS.has(action.action)));
+					return result(outcome, await view(id, REDRAWS.has(action.action), false, secretValues(ctx)));
 				} catch (error) { return fail(error); }
 			},
 		},
@@ -117,7 +144,7 @@ export function createBrowserTools(): { tools: Tool[]; dispose: () => void } {
 						if (typeof args.width !== "number" || typeof args.height !== "number") throw new Error("width 和 height 必须一起提供");
 						await browserCommand({ type: "viewport", id, viewport: { width: args.width, height: args.height } });
 					}
-					return result(await actBrowser(id, { action: "eval", expression: "({width:innerWidth,height:innerHeight,devicePixelRatio})" }, ctx.sessionId), await view(id, true));
+					return result(await actBrowser(id, { action: "eval", expression: "({width:innerWidth,height:innerHeight,devicePixelRatio})" }, ctx.sessionId), await view(id, true, false, secretValues(ctx)));
 				} catch (error) { return fail(error); }
 			},
 		},
@@ -129,8 +156,15 @@ export function createBrowserTools(): { tools: Tool[]; dispose: () => void } {
 				try {
 					const id = await current(args.tabId, ctx.sessionId);
 					const contents = browserContents(id, ctx.sessionId);
+					/*
+					 * Masked before the picture, because a picture is the one result masking cannot rewrite:
+					 * the exit leaves image data alone on purpose (rewriting base64 broke a conversation for good
+					 * in OpenHands). A plain-text field holding a value would otherwise go to the model as pixels.
+					 */
+					const values = secretValues(ctx);
+					await maskFilled(id, values, ctx.sessionId);
 					// On white, as the page appears in any browser — see `onWhite` for what came back without it.
-					return { content: [{ type: "image", data: onWhite(await contents.capturePage()).toPNG().toString("base64"), mimeType: "image/png" }], details: await view(id, true) };
+					return { content: [{ type: "image", data: onWhite(await contents.capturePage()).toPNG().toString("base64"), mimeType: "image/png" }], details: await view(id, true, false, values) };
 				} catch (error) { return fail(error); }
 			},
 		},

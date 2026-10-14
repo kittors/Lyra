@@ -62,6 +62,22 @@ export interface SandboxPolicy {
 	workspaceRoot: string;
 	/** Defaults to `allow`, so a policy written before this axis existed means what it did. */
 	network?: SandboxNetwork;
+	/**
+	 * Files a confined command may not read, whatever the mode — the vault's key and ciphertext.
+	 *
+	 * `SECRET_PATH` already asks before a command names them, but that is a pattern over the command's
+	 * text, and `python -c "open(os.path.join(...))"` builds the path where no pattern can see it.
+	 * Here the kernel refuses the read itself: measured, `cat`, a joined path, a symlink and a hard
+	 * link were all refused, and the files beside them stayed readable. Only files that exist: bwrap
+	 * cannot bind over a path that is not there.
+	 */
+	unreadable?: readonly string[];
+	/**
+	 * Local sockets a command must still reach when the network is denied: the askpass and agent
+	 * sockets of the credentials it was handed. Seatbelt counts a Unix-socket connect as outbound
+	 * network and denied it — measured, `ssh-add -l` failed with `Operation not permitted`.
+	 */
+	sockets?: readonly string[];
 }
 
 /**
@@ -164,7 +180,12 @@ export function seatbeltArgs(policy: SandboxPolicy): string[] {
 			`(allow network-outbound (remote ip ${sbplString("localhost:*")}))`,
 			`(allow network-bind (local ip ${sbplString("localhost:*")}))`,
 		);
+		// The resolved path: a literal written as `/tmp/…` matched nothing, measured, where `/private/tmp/…` did.
+		for (const socket of policy.sockets ?? []) forms.push(`(allow network-outbound (remote unix-socket (path-literal ${sbplString(canonicalPath(socket))})))`);
 	}
+	// After every allow: in a Seatbelt profile the later rule wins.
+	const unreadable = (policy.unreadable ?? []).map((path) => `(literal ${sbplString(canonicalPath(path))})`);
+	if (unreadable.length > 0) forms.push(`(deny file-read* ${unreadable.join(" ")})`);
 	return ["-p", forms.join(" ")];
 }
 
@@ -183,6 +204,8 @@ export function seatbeltArgs(policy: SandboxPolicy): string[] {
 export function bwrapArgs(policy: SandboxPolicy): string[] {
 	const args = ["--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc", "--die-with-parent"];
 	for (const root of writableRoots(policy)) args.push("--bind", root, root);
+	// An empty file over each one. A path socket needs nothing: `--unshare-net` leaves the filesystem alone.
+	for (const path of policy.unreadable ?? []) args.push("--ro-bind", "/dev/null", canonicalPath(path));
 	if (policy.network === "deny") args.push("--unshare-net");
 	return args;
 }

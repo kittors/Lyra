@@ -80,14 +80,16 @@ module.exports = {
 				"归了组、却每读一个文件弹一次窗。" +
 				"`mcp/placeholders` 也只有一个 `import type`：「这台服务还缺哪几个值」界面上画、连接时拦，" +
 				"两处必须是同一个答案——设置页说齐了、启动时却报缺，比两处都不说更糟。" +
-				"这一条是在真窗口里撞出来又验回去的——先看到过一整屏空白。",
+				"这一条是在真窗口里撞出来又验回去的——先看到过一整屏空白。" +
+				"`credentials/types` 同样只有 `import type`：「这一种凭据要填哪几栏」凭据卡片上画、保险箱页上画、" +
+				"broker 收值时照它收，三处必须是同一个答案。",
 			severity: "error",
 			from: { path: "^packages/desktop/src" },
 			to: {
 				path: "^packages/core/src",
 				pathNot:
 					"^packages/core/src/(types|tokens|activity|trajectory-view|commands-view|model-catalog|agents-builtin|platform)\\.ts$" +
-					"|^packages/core/src/(config/schedule|config/model-roles|config/models|config/project-folders|config/retry-policy|commands/builtin|plugins/install-record|mcp/placeholders|ai/thinking-options|rules/condition|runtime/delegation|images/models)\\.ts$",
+					"|^packages/core/src/(config/schedule|config/model-roles|config/models|config/project-folders|config/retry-policy|commands/builtin|plugins/install-record|mcp/placeholders|ai/thinking-options|rules/condition|runtime/delegation|images/models|credentials/types)\\.ts$",
 				dependencyTypesNot: ["type-only"],
 			},
 		},

@@ -26,6 +26,56 @@ export interface BrowserAction {
 	expression?: string;
 	x?: number;
 	y?: number;
+	/**
+	 * A credential's value to type instead of `text`, and where it may be typed. Filled in by
+	 * `browser-tools.ts` from the conversation's credentials; it never leaves this process.
+	 */
+	secret?: { value: string; expect?: { protocol: string; host: string; port?: string } };
+}
+
+/**
+ * Check the page and fill the field in one synchronous script, in the isolated world.
+ *
+ * One script, because two steps — check the origin, then type — leave the page a moment to navigate
+ * itself between them: Browser Use's domain check only ever saw the agent's own navigations, and a
+ * page's script, a redirect or `window.open` went straight past it (browser-use#5815). Here the page
+ * cannot move between the check and the write. The native setter and an `input` event are what a
+ * framework's controlled input listens to; the page's own scripts never see this one.
+ *
+ * The field is masked as it is filled (`-webkit-text-security`), so a screenshot shows dots even if
+ * the model presses "show password" — measured: the style stays on the element when its type flips.
+ */
+function fillScript(selector: string, secret: NonNullable<BrowserAction["secret"]>): string {
+	return `(() => {
+		const expect = ${JSON.stringify(secret.expect ?? null)};
+		if (expect && (location.protocol !== expect.protocol + ":" || location.hostname.toLowerCase() !== expect.host || (expect.port && location.port !== expect.port))) return { refused: location.origin };
+		const el = document.querySelector(${JSON.stringify(selector)});
+		if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) return { notInput: true };
+		const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+		Object.getOwnPropertyDescriptor(proto, "value").set.call(el, ${JSON.stringify(secret.value)});
+		el.dispatchEvent(new Event("input", { bubbles: true }));
+		el.dispatchEvent(new Event("change", { bubbles: true }));
+		el.style.setProperty("-webkit-text-security", "disc", "important");
+		return { origin: location.origin, echoed: (document.body?.innerText ?? "").includes(${JSON.stringify(secret.value)}) };
+	})()`;
+}
+
+/**
+ * Masks every field holding one of `values`, before a picture of the page is taken.
+ *
+ * Found by what is in them rather than remembered from the fill, because a framework that rebuilds
+ * a node rebuilds it without the style. Left in place afterwards: the person sees dots in the panel
+ * too. Best effort — a page that cannot be reached is a page with nothing to mask.
+ */
+export async function maskFilled(id: string, values: readonly string[], sessionId?: string): Promise<void> {
+	if (values.length === 0) return;
+	const code = `((values) => {
+		for (const el of document.querySelectorAll("input, textarea, [contenteditable]")) {
+			const text = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement ? el.value : (el.textContent ?? "");
+			if (text && values.some((value) => text.includes(value))) el.style.setProperty("-webkit-text-security", "disc", "important");
+		}
+	})(${JSON.stringify(values)})`;
+	await browserContents(id, sessionId).executeJavaScriptInIsolatedWorld(WORLD, [{ code }]).catch(() => {});
 }
 
 async function pointAt(contents: WebContents, selector?: string): Promise<{ x: number; y: number }> {
@@ -91,6 +141,16 @@ export async function actBrowser(id: string, action: BrowserAction, sessionId?: 
 	 * waits on something real; on screen the frame arrives first and nothing changes.
 	 */
 	await evaluatePage(contents, "new Promise((resolve) => { requestAnimationFrame(() => resolve()); setTimeout(resolve, 100); })");
+	if (action.action === "type" && action.secret) {
+		const outcome = (await contents.executeJavaScriptInIsolatedWorld(WORLD, [{ code: fillScript(action.selector, action.secret) }])) as { refused?: string; notInput?: true; origin?: string; echoed?: boolean };
+		if (outcome?.refused) {
+			const expect = action.secret.expect!;
+			throw new Error(`This page is not where the credential may be used: it is ${outcome.refused}, and the credential is only for ${expect.protocol}://${expect.host}${expect.port ? `:${expect.port}` : ""}.`);
+		}
+		if (outcome?.notInput) throw new Error("A credential can only be typed into an input or a textarea.");
+		// What was typed is not said back; only where, and whether the page shows it.
+		return { action: "type", filled: true, origin: outcome?.origin, ...(outcome?.echoed ? { warning: "The page shows the value that was typed." } : {}) };
+	}
 	if (action.action === "type") {
 		if (action.text === undefined) throw new Error("type 需要 text");
 		await contents.executeJavaScriptInIsolatedWorld(WORLD, [{ code: `(() => {const el=document.activeElement;if(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement){el.select();}else if(el?.isContentEditable){const s=getSelection();const r=document.createRange();r.selectNodeContents(el);s.removeAllRanges();s.addRange(r);}else{throw new Error('目标不是输入框');}})()` }]);

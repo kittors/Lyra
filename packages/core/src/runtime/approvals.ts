@@ -87,7 +87,14 @@ export class ApprovalGate {
 	resolve(requestId: string, decision: unknown): boolean {
 		const entry = this.pending.get(requestId);
 		if (!entry) return false;
-		if (entry.request.kind === "interactive") {
+		if (entry.request.kind === "credential") {
+			/*
+			 * Filled or refused, nothing else. "Filled" arrives from the broker after the value has
+			 * reached it through its own channel; an "always" means nothing for a card like this.
+			 */
+			if (decision !== "once" && decision !== "reject") return false;
+			entry.resolve(decision);
+		} else if (entry.request.kind === "interactive") {
 			const labels = (entry.request.options ?? []).map((option) => typeof option === "string" ? option : option.label);
 			if (decision === "reject") entry.resolve(decision);
 			else if (decision === "skip" && entry.request.allowSkip === true) {
@@ -119,8 +126,11 @@ export class ApprovalGate {
 	 */
 	async request(request: ApprovalRequest): Promise<ApprovalDecision> {
 		const mode = this.options.mode();
-		// A permission grant cannot answer a question, even in unattended/full-access mode.
-		if (request.kind !== "interactive") {
+		/*
+		 * A permission grant cannot answer a question, even in unattended/full-access mode — and a
+		 * credential card is a question. `mustAsk` is the one permission that is asked about anyway.
+		 */
+		if (request.kind !== "interactive" && request.kind !== "credential" && !request.mustAsk) {
 			if (mode === "full") return "once";
 			/*
 			 * Nothing remembered answers an escalation.
@@ -170,7 +180,7 @@ export class ApprovalGate {
 			 * How long depends on what is being asked; see `QUESTION_TIMEOUT_MS` for why a question
 			 * gets its own, much longer wait than a permission request does.
 			 */
-			const timeoutMs = request.kind === "interactive"
+			const timeoutMs = request.kind === "interactive" || request.kind === "credential"
 				? this.options.questionTimeoutMs ?? QUESTION_TIMEOUT_MS
 				: this.options.unattendedTimeoutMs ?? UNATTENDED_TIMEOUT_MS;
 			let timer: ReturnType<typeof setTimeout> | undefined;
@@ -183,7 +193,7 @@ export class ApprovalGate {
 					if (!this.pending.delete(id)) return;
 					this.options.settled?.(id);
 					// Not for an escalation, which has no future to answer for: see the top of `request`.
-					if (decision === "always" && request.escalation === undefined) {
+					if (decision === "always" && request.escalation === undefined && !request.mustAsk) {
 						this.allowList.add(request.subject);
 						this.options.remember(request.subject);
 					}

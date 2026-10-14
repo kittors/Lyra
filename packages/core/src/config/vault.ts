@@ -114,6 +114,14 @@ export async function unseal(sealed: string): Promise<string | null> {
 	}
 }
 
+/**
+ * The key and the ciphertext, for a sandbox to keep commands away from — together they open every
+ * saved secret, and a command runs as the same user who owns them. See `SandboxPolicy.unreadable`.
+ */
+export function vaultFiles(): string[] {
+	return [KEY_FILE(), FILE()];
+}
+
 /** Whether a stored value is one of ours, or a plaintext secret from a build that predates this. */
 export const isSealed = (value: string): boolean => value.startsWith("v1:");
 
@@ -165,6 +173,11 @@ export async function secret(id: string): Promise<string | null> {
 	const stored = (await read()).secrets[id];
 	if (stored === undefined) return null;
 	return isSealed(stored) ? unseal(stored) : stored;
+}
+
+/** The ids filed under a prefix, for a caller that keeps a list of its own (`credential:`). */
+export async function secretIds(prefix: string): Promise<string[]> {
+	return Object.keys((await read()).secrets).filter((id) => id.startsWith(prefix));
 }
 
 /**

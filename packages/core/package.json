@@ -25,7 +25,9 @@
 		"./rules-condition": "./src/rules/condition.ts",
 		"./install-record": "./src/plugins/install-record.ts",
 		"./mcp-placeholders": "./src/mcp/placeholders.ts",
-		"./sandbox-runner": "./src/sandbox/runner-entry.ts"
+		"./sandbox-runner": "./src/sandbox/runner-entry.ts",
+		"./askpass": "./src/credentials/askpass-entry.ts",
+		"./credential-fields": "./src/credentials/types.ts"
 	},
 	"scripts": {
 		"build": "tsc -p tsconfig.json",
@@ -36,13 +38,15 @@
 		"@lyra/registry-shared": "workspace:*",
 		"@modelcontextprotocol/sdk": "1.32.1",
 		"fflate": "^0.8.3",
+		"koffi": "^3.1.6",
+		"ssh2": "1.17.0",
 		"unpdf": "^1.8.1",
 		"xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
-		"yaml": "2.9.0",
-		"koffi": "^3.1.6"
+		"yaml": "2.9.0"
 	},
 	"devDependencies": {
 		"@types/node": "24.13.3",
+		"@types/ssh2": "^1.15.6",
 		"typescript": "5.9.3"
 	}
 }

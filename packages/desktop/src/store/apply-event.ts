@@ -415,6 +415,9 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
             // Rebuilt field by field, so anything added to the event has to be added here too.
             ...(event.expiresAt !== undefined ? { expiresAt: event.expiresAt } : {}),
             ...(event.from ? { from: event.from } : {}),
+            ...(event.credential ? { credential: event.credential } : {}),
+            ...(event.credentials?.length ? { credentials: event.credentials } : {}),
+            ...(event.mustAsk ? { mustAsk: true } : {}),
           },
         ],
       });

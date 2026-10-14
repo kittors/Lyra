@@ -27,6 +27,7 @@ import { exportTrajectory } from "../trajectory-export.ts";
 import { readTrajectoryChanges } from "../trajectory-changes.ts";
 import { ipcMain } from "electron";
 import { resolveSessionApproval } from "../approval-response.ts";
+import { credentialBroker } from "../credential-broker.ts";
 import { bringBackWorktree, reclaimWorktree } from "../worktree-lifecycle.ts";
 import type { AgentCapabilities, LyraApi } from "../ipc-types.ts";
 import {
@@ -44,6 +45,7 @@ import {
 	touchSession,
 } from "../session-hub.ts";
 import { slimSnapshot } from "../display-transcript.ts";
+import { screenSteer } from "../credential-screen.ts";
 import { steerDisplay } from "../prompt-input.ts";
 
 export interface SessionsIpcDeps {
@@ -164,6 +166,8 @@ export function registerSessionsIpc({
 		async (_event, projectId: string, sessionId: string) => {
 			const sessionMeta = (await store.listSessions()).find((s) => s.id === sessionId);
 			await disposeSession(sessionId);
+			// Only here, on deletion: a session closed to save memory comes back with what it was given.
+			credentialBroker.forget(sessionId);
 			await store.delete(projectId, sessionId);
 			await removeSessionArtifacts(lyraHome(), sessionId);
 			/*
@@ -363,7 +367,10 @@ export function registerSessionsIpc({
 
 	ipcMain.handle("subagents:steer", async (_event, sessionId: string, id: string, said: string | UserContent[], display?: unknown) => {
 		const session = sessions.get(sessionId);
-		return session?.steerSubAgent(id, said, steerDisplay(display)) ?? false;
+		if (!session) return false;
+		const shown = steerDisplay(display);
+		const screened = await screenSteer(sessionId, said, shown, "local");
+		return session.steerSubAgent(id, screened.said, shown ? { ...shown, ...(screened.displayText === undefined ? {} : { displayText: screened.displayText }) } : undefined);
 	});
 
 	ipcMain.handle("subagents:abort", async (_event, sessionId: string, id: string) => {

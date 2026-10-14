@@ -48,6 +48,7 @@ import { videoHost } from "../videos/host.ts";
 import { VIDEO_TOOL_NAME } from "../videos/types.ts";
 import type { ConversationPicks } from "../images/picks.ts";
 import { IMAGE_TOOL_NAME } from "../images/types.ts";
+import { CREDENTIAL_TOOL_NAME } from "../tools/request-credential.ts";
 import { writePreview } from "./previews.ts";
 import { SESSION_LEVEL_TOOLS } from "./session-ops.ts";
 import { makeYieldTool, renderYield, yieldInstruction, YIELD_KEY, type YieldOutcome } from "./yield-tool.ts";
@@ -162,6 +163,14 @@ export interface SubAgentOptions {
 	/** Passed through to the subagent; see `ToolContext.allowedPaths`. */
 	allowedPaths?: ReadonlySet<string>;
 	/**
+	 * The parent conversation's credentials, not a set of the run's own.
+	 *
+	 * What the person filled for the conversation is for whatever it delegates, and masking has to
+	 * know every value a delegated run might print. Absent, the run has none: `request_credential` is
+	 * not offered, and `bash` refuses a `credentials` argument.
+	 */
+	credentials?: AgentRunConfig["credentials"];
+	/**
 	 * Where the run doing the dispatching sits in the tree. Absent means the main conversation.
 	 *
 	 * Carried rather than counted, because the two limits need different things from it: depth is
@@ -268,7 +277,8 @@ export async function runSubAgent(
 	const withoutTask = (maySpawn && deepEnough && !delegationOff ? fromSession : fromSession.filter((tool) => tool.name !== "task"))
 		// The same rule as the session's: no image model, no drawing tool (`session-turn.ts`).
 		.filter((tool) => tool.name !== IMAGE_TOOL_NAME || imageModelRows(options.settings.providers).length > 0)
-		.filter((tool) => tool.name !== VIDEO_TOOL_NAME || mediaModelRows(options.settings.providers, "video").length > 0);
+		.filter((tool) => tool.name !== VIDEO_TOOL_NAME || mediaModelRows(options.settings.providers, "video").length > 0)
+		.filter((tool) => tool.name !== CREDENTIAL_TOOL_NAME || options.credentials !== undefined);
 
 	/*
 	 * A declared output shape turns the reply into an object.
@@ -707,6 +717,8 @@ export async function runSubAgent(
 					messages: [],
 					state: subState,
 				}),
+				// Explicitly, like the sandbox above: absent here would mean a delegated run's output went unmasked.
+				credentials: options.credentials,
 				// Inherited, so a host that replaced the provider call replaced it for the whole
 				// tree — a sub-agent quietly dialling out would defeat the point of overriding it.
 				streamFn: options.streamFn,

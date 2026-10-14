@@ -60,6 +60,8 @@ export function SecretInput({
 	onChange,
 	onBlur,
 	placeholder,
+	autoFocus,
+	label,
 }: {
 	value: string;
 	onChange: (value: string) => void;
@@ -71,6 +73,9 @@ export function SecretInput({
 	 */
 	onBlur?: (value: string) => void;
 	placeholder?: string;
+	autoFocus?: boolean;
+	/** The accessible name, where no `<label>` wraps the field. */
+	label?: string;
 }) {
 	const [visible, setVisible] = useState(false);
 	return (
@@ -92,6 +97,8 @@ export function SecretInput({
 				onChange={(e) => onChange(e.target.value)}
 				onBlur={onBlur ? (e) => onBlur(e.target.value) : undefined}
 				placeholder={placeholder}
+				autoFocus={autoFocus}
+				aria-label={label}
 				spellCheck={false}
 				autoComplete="off"
 				data-ly-secret-input=""

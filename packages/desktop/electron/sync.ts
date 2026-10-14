@@ -83,10 +83,11 @@ export async function startSync(): Promise<SyncStatus> {
 			create: async (cwd, modelId, initial) => {
 				const inside = await phoneProjectPath(cwd);
 				if (!inside) throw new Error(`手机只能在已打开的项目里新建会话，${cwd} 不在其中`);
-				return createSession(inside, modelId, initial);
+				return createSession(inside, modelId, initial, "remote");
 			},
-			prompt: promptSession,
-			editMessage: editSessionMessage,
+			// "remote": a phone's message is screened, but a mark typed there hands nothing over; see `credential-screen.ts`.
+			prompt: (id, content, options) => promptSession(id, content, options, "remote"),
+			editMessage: (id, index, content, options) => editSessionMessage(id, index, content, options, "remote"),
 			revertMessage: revertSessionMessage,
 			abort: abortSession,
 			dispose: disposeSession,

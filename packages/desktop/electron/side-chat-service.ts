@@ -3,6 +3,7 @@
 import { SideChat, restoredSideChatMessages, type SideAskOptions, type SideChatEvent, type UserContent } from "@lyra/core";
 import { settings } from "./app-settings.ts";
 import { broadcastSideChat, ensureLiveSession, sessions, sideChats } from "./session-hub.ts";
+import { screenMessage } from "./credential-screen.ts";
 import { loadSideChatSnapshot, saveSideChatTranscript, saveSideChat } from "./sidechat-store.ts";
 
 const opening = new Map<string, Promise<SideChat | null>>();
@@ -89,14 +90,17 @@ export async function sideChatSetModel(sessionId: string, modelId: string | null
 export async function sideChatAsk(sessionId: string, content: UserContent[], options?: SideAskOptions): Promise<void> {
 	const chat = await ensureSideChat(sessionId);
 	if (!chat) throw new Error(`Session ${sessionId} is not open.`);
+	// Screened like the main thread; a side chat runs no commands, so nothing is handed over.
+	const screened = await screenMessage(sessionId, content, undefined);
 	// 不给 `thinking` 就回落到主会话，再回落到全局设置——见 `sidechat.ts` 的 `run`。
-	void chat.ask(content, options ?? {}).catch((error: unknown) => reportError(sessionId, error));
+	void chat.ask(screened.content, options ?? {}).catch((error: unknown) => reportError(sessionId, error));
 }
 
 export async function sideChatEditAndResend(sessionId: string, index: number, content: UserContent[], options?: SideAskOptions): Promise<void> {
 	const chat = await ensureSideChat(sessionId);
 	if (!chat) throw new Error(`Session ${sessionId} is not open.`);
-	void chat.editAndResend(index, content, options ?? {}).catch((error: unknown) => reportError(sessionId, error));
+	const screened = await screenMessage(sessionId, content, undefined);
+	void chat.editAndResend(index, screened.content, options ?? {}).catch((error: unknown) => reportError(sessionId, error));
 }
 
 export function sideChatAbort(sessionId: string): void {

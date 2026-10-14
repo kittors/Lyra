@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useI18n } from "../../i18n/index.ts";
 import type { MessageKey } from "../../i18n/messages/index.ts";
 import { translate } from "../../i18n/translate.ts";
-import { MessageCircle, TriangleAlert } from "lucide-react";
+import { KeyRound, MessageCircle, TriangleAlert } from "lucide-react";
 import { Collapse } from "../../ui/layout/Collapse.tsx";
 import { Caret } from "../../ui/primitives/Caret.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
@@ -14,6 +14,7 @@ import { useAgentAvatars } from "../../store/agent-avatars.ts";
 import { AgentAvatar } from "../../ui/avatar/AgentAvatar.tsx";
 import { QuestionChoices } from "./QuestionChoices.tsx";
 import { PermissionChoices } from "./PermissionChoices.tsx";
+import { CredentialCard } from "./CredentialCard.tsx";
 import { approvalReason, riskSentence } from "./approval-content.ts";
 
 /** What is being asked for, by kind. Keys — this table is built at import time. */
@@ -24,6 +25,7 @@ const KIND_LABEL: Record<string, MessageKey> = {
 	read: "approval.read",
 	mcp: "approval.mcp",
 	network: "approval.network",
+	credential: "approval.credential",
 };
 
 /**
@@ -73,13 +75,22 @@ export function ApprovalOverlay() {
 	if (!request) return null;
 	const collapsed = collapsedId === request.id;
 	const interactive = request.kind === "interactive";
-	const Icon = interactive ? MessageCircle : TriangleAlert;
+	const credential = request.kind === "credential" ? request.credential : undefined;
+	const Icon = interactive ? MessageCircle : credential ? KeyRound : TriangleAlert;
 	const reason = approvalReason(request.reason, request.detail);
 	// On top of the command, where the gate used to write it into the text in one language.
 	const risk = riskSentence(request.risk, t);
 	const context = <>
 		{reason && <p className="mb-2.5 whitespace-pre-wrap break-words text-label leading-relaxed text-ink">{reason}</p>}
 		<pre className={`whitespace-pre-wrap break-words ${interactive ? "font-sans text-label leading-relaxed text-ink" : "font-mono text-code text-ink-muted"}`}>{risk ? `${risk}\n\n${request.detail}`.trim() : request.detail}</pre>
+		{/* The credentials this command will be handed: what saying yes gives it, besides the command. */}
+		{request.credentials?.length ? (
+			<p className="mt-2.5 flex flex-wrap items-center gap-1.5 text-detail text-ink-muted" data-approval-credentials="">
+				<KeyRound size={12} strokeWidth={1.8} className="shrink-0" aria-hidden />
+				{t("approval.usesCredentials")}
+				{request.credentials.map((name) => <code key={name} className="rounded-md bg-card px-1.5 font-mono text-ink">{name}</code>)}
+			</p>
+		) : null}
 	</>;
 	const tags = <>
 		{!interactive && <span className="shrink-0 text-caption text-ink-faint">{KIND_LABEL[request.kind] ? translate(KIND_LABEL[request.kind]) : request.kind}</span>}
@@ -122,12 +133,15 @@ export function ApprovalOverlay() {
 				{!phone && tags}
 				<button type="button" aria-expanded={!collapsed} aria-label={translate(collapsed ? "question.expand" : "question.collapse")} onClick={() => setCollapsedId(collapsed ? null : request.id)} className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-ink-muted hover:bg-card-hover"><Caret open={!collapsed} size={15} /></button>
 			</div>
-			<Collapse open={!collapsed} keepMounted className="min-h-0" bodyClassName="flex min-h-0 flex-col overflow-hidden">{interactive ? <>
+			<Collapse open={!collapsed} keepMounted className="min-h-0" bodyClassName="flex min-h-0 flex-col overflow-hidden">{credential ? (
+				<CredentialCard key={request.id} requestId={request.id} purpose={request.detail} prompt={credential} sessionId={sessionId} reject={() => respond(request.id, "reject", sessionId ?? undefined)} />
+			) : interactive ? <>
 				<p className="shrink-0 px-4 pb-1 text-caption text-ink-muted">{translate("question.fullAccessNote")}</p>
 				<QuestionChoices key={request.id} options={request.options ?? []} allowCustomInput={request.allowCustomInput !== false} selectionMode={request.selectionMode} allowSkip={request.allowSkip !== false} defaultOptionIndex={request.defaultOptionIndex} answer={decision => respond(request.id, decision, sessionId ?? undefined)}>{context}</QuestionChoices>
 			</> : <>
 				<Scroller className="ly-approval-scroll mx-2 max-h-[min(280px,30dvh)]" contentClassName="px-2 py-2">{context}</Scroller>
-				<PermissionChoices key={request.id} subject={request.subject} onceOnly={request.escalation !== undefined} answer={decision => respond(request.id, decision, sessionId ?? undefined)} />
+				{/* `mustAsk` asks every time whatever the answer, so "stop asking" would be a promise nothing keeps. */}
+				<PermissionChoices key={request.id} subject={request.subject} onceOnly={request.escalation !== undefined || request.mustAsk === true} answer={decision => respond(request.id, decision, sessionId ?? undefined)} />
 			</>}</Collapse>
 		</div>
 	</div>;

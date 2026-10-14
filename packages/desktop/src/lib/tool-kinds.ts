@@ -76,6 +76,7 @@ const KIND: Record<string, MessageKey> = {
 	recall: "tools.recall",
 	lsp: "tools.lsp",
 	ask_user: "tools.askUser",
+	request_credential: "tools.credential",
 	// 侧边聊天翻主对话用的那一个——它的工具组从前一律读作「使用工具 3 个」。
 	read_main_chat: "tools.readMainChat",
 	image_generate: "tools.image",
@@ -100,6 +101,7 @@ const ACTIVITY: [RegExp, string, (match: RegExpMatchArray) => string][] = [
 	[/^Video ?(.*)$/, "video_generate", (m) => m[1]],
 	[/^Suggest session ?(.*)$/, "spawn_session", (m) => m[1]],
 	[/^Archive session$/, "archive_session", () => ""],
+	[/^Credential: (.+)$/, "request_credential", (m) => m[1]],
 	[/^Read (.+)$/, "read", (m) => baseName(m[1])],
 	[/^Write (.+)$/, "write", (m) => baseName(m[1])],
 	[/^Edit (.+)$/, "edit", (m) => baseName(m[1])],

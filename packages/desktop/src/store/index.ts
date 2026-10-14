@@ -57,7 +57,7 @@ export function useSideChatRunningKey(ids: readonly string[]): string {
  * servers a bundle brought with it, where its directory is. Sending the sidebar's 插件 straight
  * to a settings pane made the first question unanswerable from anywhere.
  */
-type View = "chat" | "settings" | "pull-requests" | "scheduled" | "plugins" | "gallery";
+type View = "chat" | "settings" | "pull-requests" | "scheduled" | "plugins" | "gallery" | "vault";
 
 export type SettingsSection =
   | "general"
@@ -139,6 +139,12 @@ interface PendingApproval extends QuestionFields {
    * 主会话收尾之后才问出来的（它在后台跑），要等核心说它收场了（`approval_settled`）才拿走。
    */
   from?: ApprovalOrigin;
+  /** The card a credential is typed into. It holds no value; see `ApprovalRequest.credential`. */
+  credential?: ApprovalRequest["credential"];
+  /** The credentials a command will be handed, named on its permission card. */
+  credentials?: string[];
+  /** Asked whatever the mode, so the card offers no "always". See `ApprovalRequest.mustAsk`. */
+  mustAsk?: boolean;
 }
 
 /** A correction offered as a rule: what `rule_suggested` carries, and what the card asks about. */

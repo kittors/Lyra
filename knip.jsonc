@@ -23,6 +23,7 @@
         "electron/main.ts",
         "electron/preload.ts",
         "electron/sandbox-runner.ts",
+        "electron/askpass.ts",
         "src/main.tsx",
         "test/**/*.test.{ts,tsx}",
         "e2e/**/*.ts",
@@ -65,6 +66,12 @@
     // desktop's `out/main` once bundled — and knip cannot follow a require it cannot see. Without
     // the dependency the bundle cannot find it, and the Windows and Landlock runners cannot start.
     "koffi",
+
+    // Core's ssh-agent parses keys with `ssh2`, and the main bundle leaves it external
+    // (`electron.vite.config.ts`: its optional native addon cannot be bundled), so at run time it is
+    // loaded from the desktop's own node_modules. The import is in core's source, which is all knip
+    // sees; without the dependency the packaged app cannot lend a key to ssh.
+    "ssh2",
 
     // Fonts, reached from `src/styles/fonts.css` as `url("@fontsource-variable/…/files/…woff2")`.
     // knip does not follow CSS — it says so itself, as a configuration hint — so every font this
@@ -117,6 +124,7 @@
   // not need them: `rg` for grep, `bwrap` for the Linux sandbox, `ffmpeg` to encode the recording
   // an e2e probe makes, `objdump` for the glibc check that runs after a Linux package is built,
   // `sips` (part of macOS) to crop an e2e probe's screenshots, `tasklist` (part of Windows) for the
-  // relay test that weighs the relay process there.
-  "ignoreBinaries": ["rg", "bwrap", "ffmpeg", "objdump", "sips", "tasklist"]
+  // relay test that weighs the relay process there, `pbpaste`/`pbcopy` (part of macOS) for the
+  // credentials probe, which checks what reached the clipboard and puts back what was there.
+  "ignoreBinaries": ["rg", "bwrap", "ffmpeg", "objdump", "sips", "tasklist", "pbpaste", "pbcopy"]
 }

@@ -50,6 +50,7 @@ const PluginsView = screens.plugins.View;
 const PullRequestsView = screens["pull-requests"].View;
 const ScheduledView = screens.scheduled.View;
 const GalleryView = screens.gallery.View;
+const VaultView = screens.vault.View;
 const SettingsShell = screens.settings.View;
 
 export function App() {
@@ -248,12 +249,13 @@ function Shell() {
  * Usually invisible — the chunk is on the same disk and arrives within a frame or two. It is the
  * phone, loading the same bundle across a relay, that this is for.
  */
-function LazyScreen({ children, shape }: { children: React.ReactNode; shape: "settings" | "plugins" | "pull-requests" | "scheduled" | "gallery" }) {
+function LazyScreen({ children, shape }: { children: React.ReactNode; shape: "settings" | "plugins" | "pull-requests" | "scheduled" | "gallery" | "vault" }) {
 	const fallback =
 		shape === "settings" ? <SettingsFallback />
 		: shape === "plugins" ? <PluginsFallback />
 		: shape === "pull-requests" ? <PullRequestsFallback />
 		: shape === "gallery" ? <GalleryFallback />
+		// The vault's page has the schedule's shape: a heading at 880px over a list.
 		: <ScheduledFallback />;
 	return <Suspense fallback={fallback}>{children}</Suspense>;
 }
@@ -416,7 +418,7 @@ function SettingsFallback() {
 }
 
 /** The views drawn in place of the conversations rather than as one of them. */
-const SOLO_VIEWS: ReadonlySet<string> = new Set(["plugins", "pull-requests", "scheduled", "gallery"]);
+const SOLO_VIEWS: ReadonlySet<string> = new Set(["plugins", "pull-requests", "scheduled", "gallery", "vault"]);
 
 /**
  * The main area: the conversations on screen, or one of the views that is not a conversation.
@@ -436,11 +438,12 @@ function MainContent() {
 	return <>
 		<Workspace away={solo} />
 		<div className={solo ? "contents" : "hidden"}>
-			<RetainedViews active={active} limit={5} render={(key) => {
+			<RetainedViews active={active} limit={6} render={(key) => {
 				if (key === "plugins") return <SoloScreen><LazyScreen shape="plugins"><PluginsView /></LazyScreen></SoloScreen>;
 				if (key === "pull-requests") return <SoloScreen><LazyScreen shape="pull-requests"><PullRequestsView /></LazyScreen></SoloScreen>;
 				if (key === "scheduled") return <SoloScreen><LazyScreen shape="scheduled"><ScheduledView /></LazyScreen></SoloScreen>;
 				if (key === "gallery") return <SoloScreen><LazyScreen shape="gallery"><GalleryView /></LazyScreen></SoloScreen>;
+				if (key === "vault") return <SoloScreen><LazyScreen shape="vault"><VaultView /></LazyScreen></SoloScreen>;
 				return null;
 			}} />
 		</div>

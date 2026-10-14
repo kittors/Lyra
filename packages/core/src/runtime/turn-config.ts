@@ -97,6 +97,8 @@ export interface TurnConfigDeps {
 	allowedPaths?: ReadonlySet<string>;
 	/** 见 `AgentRunConfig.liveModel`：人一轮中途换了模型，从下一个请求起就换。 */
 	liveModel?: AgentRunConfig["liveModel"];
+	/** This conversation's credentials; see `ToolContext.credentials`. Handed to sub-agents too. */
+	credentials?: AgentRunConfig["credentials"];
 	/**
 	 * This conversation's image and video picks, read and written at the moment of drawing
 	 * (`images/picks.ts`). Absent for a host with no conversation to keep a pick in — the CLI, a
@@ -164,6 +166,7 @@ export function buildTurnConfig(
 			 */
 			images: imageHost({ source: media, named, messages: turn.messages, state: deps.state }),
 			videos: videoHost({ source: media, named, messages: turn.messages, state: deps.state }),
+			credentials: deps.credentials,
 			requestApproval: (request) => deps.requestApproval(request),
 			/*
 			 * What this turn's commands may change, derived from the permission mode.
@@ -236,6 +239,7 @@ export function buildTurnConfig(
 						},
 						dispatch: rootDispatch(),
 						allowedPaths: deps.allowedPaths,
+						credentials: deps.credentials,
 						// Read, not write: a delegated run draws with the conversation's pick as it stands,
 						// and a model it names for its own calls does not change the conversation's.
 						mediaPicks: deps.mediaPicks && { get: (kind) => deps.mediaPicks?.get(kind) },

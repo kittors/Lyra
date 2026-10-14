@@ -45,6 +45,7 @@ import {
 import type { LyraApi } from "./ipc-types.ts";
 import { resolveSessionApproval } from "./approval-response.ts";
 import { readTrajectoryChanges } from "./trajectory-changes.ts";
+import { screenSteer } from "./credential-screen.ts";
 import { initialPrompt, promptContent, promptOptions } from "./prompt-input.ts";
 import { settingsForPhone, settingsFromPhone } from "./phone-settings.ts";
 import { scratchRoots } from "./scratch.ts";
@@ -330,7 +331,10 @@ export const RPC: Record<string, Handler> = {
 	"git.generalScratch": async (deps) => deps.generalScratch(),
 	"subAgents.list": async (deps, [sessionId]) => deps.live(s(sessionId))?.subAgents.list() ?? [],
 	"subAgents.detail": async (deps, [sessionId, id]) => deps.live(s(sessionId))?.subAgents.detail(s(id)) ?? null,
-	"subAgents.steer": async (deps, [sessionId, id, message]) => deps.live(s(sessionId))?.steerSubAgent(s(id), said(message)) ?? false,
+	"subAgents.steer": async (deps, [sessionId, id, message]) => {
+		const live = deps.live(s(sessionId));
+		return live ? live.steerSubAgent(s(id), (await screenSteer(s(sessionId), said(message), undefined, "remote")).said) : false;
+	},
 	"subAgents.abort": async (deps, [sessionId, id]) => deps.live(s(sessionId))?.abortSubAgent(s(id)) ?? false,
 	"subAgents.dismiss": async (deps, [sessionId, id]) => deps.live(s(sessionId))?.dismissSubAgent(s(id)) ?? "unknown",
 	"subAgents.dismissFinished": async (deps, [sessionId]) => deps.live(s(sessionId))?.dismissFinishedSubAgents() ?? 0,

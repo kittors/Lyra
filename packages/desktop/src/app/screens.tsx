@@ -64,6 +64,7 @@ export const screens = {
 	"pull-requests": preloadableScreen(() => import("../features/pull-requests/PullRequestsView.tsx").then((m) => m.PullRequestsView)),
 	scheduled: preloadableScreen(() => import("../features/scheduled/ScheduledView.tsx").then((m) => m.ScheduledView)),
 	gallery: preloadableScreen(() => import("../features/gallery/GalleryView.tsx").then((m) => m.GalleryView)),
+	vault: preloadableScreen(() => import("../features/vault/VaultView.tsx").then((m) => m.VaultView)),
 	settings: preloadableScreen(() => import("../features/settings/SettingsShell.tsx").then((m) => m.SettingsShell)),
 };
 
@@ -92,7 +93,7 @@ function preloadScreen(name: string): void {
  * this is here to remove. Its rail button fetches it on hover instead. And not on the phone, where the
  * bundle crosses a relay and four screens nobody asked for would queue in front of what was.
  */
-const IDLE: readonly ScreenName[] = ["gallery", "plugins", "pull-requests", "scheduled"];
+const IDLE: readonly ScreenName[] = ["gallery", "plugins", "pull-requests", "scheduled", "vault"];
 
 export function usePreloadScreens(): void {
 	const ready = useApp((s) => s.ready);

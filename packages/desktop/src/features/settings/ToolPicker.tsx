@@ -19,7 +19,7 @@ const GROUPS: { key: MessageKey; tools: string[] }[] = [
 	{ key: "agentEditor.toolsWrite", tools: ["write", "edit"] },
 	{ key: "agentEditor.toolsShell", tools: ["bash", "bash_output"] },
 	{ key: "agentEditor.toolsWeb", tools: ["web_fetch", "web_search", "preview"] },
-	{ key: "agentEditor.toolsAgent", tools: ["todo_write", "task", "skill", "rule", "recall", "learn", "ask_user"] },
+	{ key: "agentEditor.toolsAgent", tools: ["todo_write", "task", "skill", "rule", "recall", "learn", "ask_user", "request_credential"] },
 ];
 
 const DOES: Record<string, MessageKey> = {
@@ -42,6 +42,7 @@ const DOES: Record<string, MessageKey> = {
 	recall: "tools.recall",
 	learn: "tools.learn",
 	ask_user: "tools.askUser",
+	request_credential: "tools.credential",
 };
 
 export function ToolPicker({ tools, value, readOnly, onChange }: {

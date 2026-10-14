@@ -21,7 +21,7 @@
 
 import { readFile, writeFile } from "node:fs/promises";
 import { errorResult } from "../agent/tool-run.ts";
-import type { Tool, ToolResult } from "../types.ts";
+import type { Tool, ToolContext, ToolResult } from "../types.ts";
 import { recordFileChange } from "./file-changes.ts";
 import { computeDiff, formatDiff } from "./diff.ts";
 import { applyHunks, parsePatch, PATCH_SYNTAX, PatchError, snapshotTag } from "./hunk.ts";
@@ -29,6 +29,7 @@ import { displayPath, resolveWorkspacePath } from "./paths.ts";
 import { indexToLineCol } from "./long-line.ts";
 import { hasRead, markRead, readRecord, wasShown, wasShownChars } from "./read.ts";
 import { decodeInput, decodeText, encodeText, type TextLayout } from "./text-layout.ts";
+import { introducedCredentials } from "../credentials/markers.ts";
 
 interface EditArgs {
 	path: string;
@@ -113,7 +114,7 @@ export const editTool: Tool<EditArgs> = {
 		 */
 		const { text: before, layout } = decodeText(raw);
 
-		const outcome = usesPatch ? applyPatchForm(args, before, ctx, absolute) : applyStringForm(args, before, layout, ctx, absolute);
+		const outcome = usesPatch ? applyPatchForm(restored(args, ctx), before, ctx, absolute) : applyStringForm(restored(args, ctx), before, layout, ctx, absolute);
 		if ("error" in outcome) return errorResult(outcome.error);
 		const { after, summary } = outcome;
 
@@ -121,13 +122,16 @@ export const editTool: Tool<EditArgs> = {
 
 		const diff = computeDiff(before, after);
 		const shown = displayPath(ctx.cwd, absolute);
+		const introduced = introducedCredentials(ctx.credentials?.secrets() ?? [], before, after);
+		if (introduced.length > 0 && !ctx.requestApproval) return errorResult(`Writing ${introduced.join(", ")} into a file needs someone to approve it, and this host cannot ask.`);
 
 		if (ctx.requestApproval) {
 			const decision = await ctx.requestApproval({
 				kind: "edit",
-				title: `Edit ${shown}`,
+				title: introduced.length > 0 ? `Write ${introduced.join(", ")} into ${shown}` : `Edit ${shown}`,
 				detail: formatDiff(diff, shown),
 				subject: absolute,
+				...(introduced.length > 0 ? { credentials: introduced, mustAsk: true } : {}),
 			});
 			if (decision !== "once" && decision !== "always") return errorResult("The user rejected this edit.");
 		}
@@ -164,6 +168,25 @@ export const editTool: Tool<EditArgs> = {
 };
 
 type Outcome = { after: string; summary: string } | { error: string };
+
+/**
+ * The edit as the model meant it: each `[credential:x]` stands for the value it read as that mark.
+ *
+ * Without this read-then-edit breaks on any file holding a credential — the model quotes what it was
+ * shown, and what it was shown is no longer on disk. oh-my-pi shipped that (#6968): every such edit
+ * failed to match and the model fell back to `sed -i`, around this tool's own checks.
+ */
+function restored(args: EditArgs, ctx: ToolContext): EditArgs {
+	const restore = ctx.credentials?.restore;
+	if (!restore) return args;
+	return {
+		...args,
+		...(typeof args.patch === "string" ? { patch: restore(args.patch) } : {}),
+		...(typeof args.old_string === "string" ? { old_string: restore(args.old_string) } : {}),
+		...(typeof args.new_string === "string" ? { new_string: restore(args.new_string) } : {}),
+	};
+}
+
 
 function applyPatchForm(args: EditArgs, before: string, ctx: Parameters<typeof hasRead>[0], absolute: string): Outcome {
 	const actual = snapshotTag(before);

@@ -28,6 +28,7 @@ import { lspTool } from "./lsp.ts";
 import { previewTool } from "./preview.ts";
 import { readTool } from "./read.ts";
 import { recallTool } from "./recall.ts";
+import { requestCredentialTool } from "./request-credential.ts";
 import { ruleTool } from "./rule.ts";
 import { webSearchTool } from "./search.ts";
 import { symbolTool } from "./symbol.ts";
@@ -60,6 +61,7 @@ export const AGENT_TOOLS = [
 	recallTool,
 	learnTool,
 	askUserTool,
+	requestCredentialTool,
 ] as unknown as Tool[];
 
 /** Reaching outside the machine, and showing the result. */
