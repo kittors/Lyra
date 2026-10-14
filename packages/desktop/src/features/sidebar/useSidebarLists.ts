@@ -11,10 +11,9 @@
  * about layout.
  */
 
-import { translate } from "../../i18n/translate.ts";
 import type { SessionMeta } from "@lyra/core";
 import { useMemo } from "react";
-import { sessionTitle } from "../../lib/session-title.ts";
+import { deleteSessionQuestion } from "../modals/index.ts";
 import { useApp } from "../../store/index.ts";
 import { openInPane } from "../split/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
@@ -136,13 +135,7 @@ export function useSidebarLists({
 		? {
 				onOpen: open,
 				onRestore: restore,
-				onDelete: (meta) =>
-					confirm.ask({
-						title: translate("sidebarList.deleteConfirm"),
-						detail: translate("sidebarList.deleteDetail", { title: sessionTitle(meta.title), n: meta.messageCount }),
-						confirmLabel: translate("common.delete"),
-						onConfirm: () => void deleteSession(meta),
-					}),
+				onDelete: (meta) => void deleteSessionQuestion(meta, () => void deleteSession(meta)).then(confirm.ask),
 			}
 		: {
 				onOpen: open,

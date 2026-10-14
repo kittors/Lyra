@@ -19,7 +19,7 @@ import { WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { sessionTitle } from "../../lib/session-title.ts";
 import { useApp } from "../../store/index.ts";
-import { SessionMenu } from "../modals/index.ts";
+import { SessionMenu, deleteSessionQuestion } from "../modals/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
 import { closePane } from "./actions.ts";
@@ -96,14 +96,7 @@ function ScreenTitle({ sessionId, screen }: { sessionId: string | null; screen: 
 					anchor={menu.anchor}
 					session={meta}
 					onClose={menu.close}
-					onRequestDelete={() =>
-						confirm.ask({
-							title: t("sidebarList.deleteConfirm"),
-							detail: t("sidebarList.deleteDetail", { title: meta.title, n: meta.messageCount }),
-							confirmLabel: t("common.delete"),
-							onConfirm: () => void deleteSession(meta),
-						})
-					}
+					onRequestDelete={() => void deleteSessionQuestion(meta, () => void deleteSession(meta)).then(confirm.ask)}
 				/>
 			)}
 			{confirm.element}

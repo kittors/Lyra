@@ -12,7 +12,8 @@ import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import type { Settings } from "@lyra/core";
 import { git } from "./git-exec.ts";
 import { isGitRepo } from "./git.ts";
-import { canonicalPath, pathKey } from "./path-key.ts";
+import { canonicalPath } from "./path-key.ts";
+import { uncommittedFiles } from "./worktree-lifecycle.ts";
 
 export interface WorktreeCreateOptions {
 	/** Custom target directory, if not default */
@@ -236,71 +237,60 @@ export async function autoCreateSessionWorktree(
 }
 
 /**
- * Cleans up old managed worktrees when exceeding keepLimit or when autoCleanOld is enabled.
+ * Make room when the worktrees Lyra made for conversations pass `keepLimit`, oldest first.
+ *
+ * Only Lyra's own — linked worktrees on a `lyra/session-` branch — and of those only ones safe to take
+ * back: none a conversation still uses (`inUse`: every conversation not archived, not only the ones
+ * running), none holding uncommitted changes, never `--force`. The branch stays, so a conversation that
+ * comes back checks its worktree out again (`restoreWorktree`). This used to count every linked worktree,
+ * a person's own among them, spare only the conversations alive in memory, and force the removal — so it
+ * could delete a worktree someone was working in by hand, uncommitted changes and all. See ADR-0038.
  */
 export async function cleanOldWorktrees(
 	repoCwd: string,
 	settings: Settings,
-	activeSessionCwds: Set<string> = new Set(),
+	inUse: Set<string> = new Set(),
 ): Promise<number> {
 	if (!settings.worktrees?.autoCleanOld) return 0;
 	if (!(await isGitRepo(repoCwd))) return 0;
-
 	const keepLimit = Math.max(1, settings.worktrees.keepLimit ?? 15);
-	const out = await git(repoCwd, ["worktree", "list", "--porcelain"]).catch(() => "");
+	const listed = await git(repoCwd, ["worktree", "list", "--porcelain"]).catch(() => "");
+	// One record per worktree, blank-line separated; the first is the main checkout, which is never ours to remove.
+	const ours = listed
+		.split("\n\n")
+		.slice(1)
+		.map((record) => {
+			const lines = record.split("\n");
+			const path = lines.find((line) => line.startsWith("worktree "))?.slice("worktree ".length);
+			const branch = lines.find((line) => line.startsWith("branch "))?.slice("branch ".length);
+			return path && branch?.startsWith("refs/heads/lyra/session-") ? path : null;
+		})
+		.filter((path): path is string => path !== null);
+	if (ours.length <= keepLimit) return 0;
+
 	/*
-	 * Canonical spellings on both sides of the guard below.
-	 *
-	 * These two sets of paths come from different places — one from git's output, one from
-	 * `path.join` in the caller — and on Windows they never matched: git prints forward slashes.
-	 * The effect was not a cosmetic mismatch but the guard silently never firing, so the cleanup
-	 * deleted the worktree of whatever session was running. See `path-key.ts`.
+	 * Canonical spellings on both sides: git prints its own (forward slashes on Windows, `/private/var`
+	 * on macOS), the callers pass theirs, and a guard comparing the two raw never fires. A conversation's
+	 * folder may also be a package inside its worktree, so "uses" means at or under it.
 	 */
-	const active = new Set([...activeSessionCwds].map(pathKey));
-	const worktrees: { path: string; isMain: boolean }[] = [];
-	let currentPath: string | null = null;
-
-	const flush = (isMain: boolean) => {
-		if (currentPath) {
-			worktrees.push({ path: currentPath, isMain });
-			currentPath = null;
-		}
+	const using = [...inUse].map((cwd) => canonicalPath(cwd));
+	const held = (tree: string) => {
+		const root = canonicalPath(tree);
+		return using.some((cwd) => {
+			const inside = relative(root, cwd);
+			return inside === "" || (!inside.startsWith("..") && !isAbsolute(inside));
+		});
 	};
+	const aged = await Promise.all(ours.map(async (path) => ({ path, mtime: await stat(path).then((s) => s.mtimeMs, () => 0) })));
+	aged.sort((a, b) => a.mtime - b.mtime);
 
-	for (const line of out.split("\n")) {
-		if (line.startsWith("worktree ")) {
-			flush(worktrees.length === 0);
-			currentPath = line.slice("worktree ".length);
-		}
-	}
-	flush(worktrees.length === 0);
-
-	const linkedTrees = worktrees.filter((w) => !w.isMain);
-	if (linkedTrees.length <= keepLimit) return 0;
-
-	// Sort linked trees by modification time (oldest first)
-	const withStats = await Promise.all(
-		linkedTrees.map(async (tree) => {
-			try {
-				const s = await stat(tree.path);
-				return { path: tree.path, mtime: s.mtimeMs };
-			} catch {
-				return { path: tree.path, mtime: 0 };
-			}
-		}),
-	);
-
-	withStats.sort((a, b) => a.mtime - b.mtime);
-	const excess = withStats.length - keepLimit;
 	let cleaned = 0;
-
-	for (let i = 0; i < withStats.length && cleaned < excess; i++) {
-		const target = withStats[i];
-		// Do not delete a worktree that is currently used by a live session
-		if (active.has(pathKey(target.path))) continue;
-		const res = await removeWorktree(repoCwd, target.path, true);
-		if (res.ok) cleaned++;
+	for (const tree of aged) {
+		if (cleaned >= ours.length - keepLimit) break;
+		if (held(tree.path) || (await uncommittedFiles(tree.path)).length > 0) continue;
+		const removed = await git(repoCwd, ["worktree", "remove", tree.path]).then(() => true, () => false);
+		if (removed) cleaned++;
 	}
-
+	if (cleaned > 0) await git(repoCwd, ["worktree", "prune"]).catch(() => "");
 	return cleaned;
 }

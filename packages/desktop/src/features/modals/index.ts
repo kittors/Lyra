@@ -8,9 +8,12 @@
  */
 
 export { BranchMenu } from "./BranchMenu.tsx";
+export { deleteSessionQuestion } from "./delete-session.tsx";
 export { PermissionPicker } from "./PermissionPicker.tsx";
 export { ProjectDialog } from "./ProjectDialog.tsx";
 export { ProjectMenu } from "./ProjectMenu.tsx";
 export { ProjectPicker } from "./ProjectPicker.tsx";
 export { SessionMenu } from "./SessionMenu.tsx";
 export { UpdateDialog } from "./UpdateDialog.tsx";
+export { WorktreeFailedNote, WorktreeMenu } from "./WorktreeMenu.tsx";
+export { useWorktreeState } from "./useWorktreeState.ts";

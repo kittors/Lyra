@@ -14,12 +14,13 @@
  * stop button, its project.
  */
 
-import { createContext, useContext, useEffect } from "react";
+import { createContext, useContext, useEffect, useMemo } from "react";
 import type { Message, SessionMeta, SubAgentSummary } from "@lyra/core";
 import type { WorkspaceInfo } from "../../electron/ipc-types.ts";
 import { isProjectLess } from "../lib/project-scope.ts";
 import { useApp, type AppState } from "../store/index.ts";
 import { useSubAgents } from "../store/subAgents.ts";
+import { worktreeWorkspace } from "../store/session-workspace.ts";
 import type { Cache } from "../store/derive.ts";
 import type { ToolRun } from "../store/tool-run.ts";
 
@@ -274,6 +275,9 @@ export function useScopedWorkspace(): { workspace: WorkspaceInfo | null; scratch
 	const known = useApp((s) => (cwd === null ? undefined : s.workspaceByPath[cwd]));
 	const named = useApp((s) => (cwd === null ? undefined : s.settings?.projects.find((project) => project.path === cwd)?.name));
 	const describe = useApp((s) => s.describeWorkspace);
+	// A conversation's own worktree is named for its project here too, as in the live slot (`sessionWorkspace`).
+	const worktreeOf = meta?.worktree?.project;
+	const asWorktree = useMemo(() => (known && worktreeOf ? worktreeWorkspace(known, worktreeOf) : known), [known, worktreeOf]);
 	const unread = !live && cwd !== null && !projectLess && !known;
 	useEffect(() => {
 		if (unread && cwd) void describe(cwd);
@@ -283,5 +287,5 @@ export function useScopedWorkspace(): { workspace: WorkspaceInfo | null; scratch
 	if (cwd === null) return NO_WORKSPACE;
 	if (projectLess) return { workspace: null, scratchCwd: cwd };
 	// Named at once from the conversation; the branch arrives with the read.
-	return { workspace: known ?? { path: cwd, name: named ?? meta?.projectName ?? cwd, isGitRepo: false, branch: null }, scratchCwd: null };
+	return { workspace: asWorktree ?? { path: cwd, name: named ?? meta?.projectName ?? cwd, isGitRepo: false, branch: null, ...(worktreeOf ? { worktreeOf } : {}) }, scratchCwd: null };
 }

@@ -1,7 +1,7 @@
 // Through the browser-safe door: the main barrel reaches the filesystem, and this runs in a page.
 import { translate } from "../../i18n/translate.ts";
 import { parseInvocation, parseSkillMention } from "@lyra/core/commands-view";
-import { Camera, ChevronDown, CircleAlert, Folder, GitBranch, MessageSquare, Plus, X } from "lucide-react";
+import { Camera, ChevronDown, CircleAlert, Folder, GitBranch, GitFork, MessageSquare, Plus, X } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { motionReduced } from "../../ui/motion/reduced.ts";
 import { ChangeBar } from "../git/index.ts";
@@ -28,7 +28,7 @@ import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { MediaModelButton, ModelTrigger } from "../models/index.ts";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
-import { BranchMenu } from "../modals/index.ts";
+import { BranchMenu, WorktreeFailedNote, WorktreeMenu, useWorktreeState } from "../modals/index.ts";
 import { PermissionPicker } from "../modals/index.ts";
 import { ProjectPicker } from "../modals/index.ts";
 import { useLayout } from "../../app/layout.tsx";
@@ -368,6 +368,9 @@ export function Composer({ centered = false }: {
 	const permissionMenu = usePopover();
 	const projectMenu = usePopover();
 	const branchMenu = usePopover();
+	const worktreeMenu = usePopover();
+	const worktreeFailed = usePopover();
+	const worktree = useWorktreeState(meta, running);
 
 	/** No project behind this conversation, and that was the choice — not a step left undone. */
 	const chatting = !workspace && Boolean(scratchCwd);
@@ -640,7 +643,22 @@ export function Composer({ centered = false }: {
 							}}
 							active={projectMenu.open}
 						/>
-						{workspace?.branch && (
+						{meta?.worktree ? (
+							/*
+							 * A conversation in a worktree of its own: the worktree's branch, with how far it has
+							 * moved from its base — what is waiting to be merged back, what has landed there since.
+							 * The fork is the mark the toggle and the sidebar give such a conversation.
+							 */
+							<Chip
+								icon={<GitFork size={16} strokeWidth={1.8} />}
+								label={meta.worktree.branch}
+								tip={t("worktreeChip.tip", { branch: meta.worktree.branch })}
+								marks={<WorktreeMarks ahead={worktree.state?.ahead ?? 0} behind={worktree.state?.behind ?? 0} conflicted={Boolean(worktree.state?.merging)} />}
+								dimmed={worktree.state?.present === false}
+								onClick={worktreeMenu.toggle}
+								active={worktreeMenu.open}
+							/>
+						) : workspace?.branch && (
 							/*
 							 * The name stays put while a switch runs; the mark says it is running.
 							 *
@@ -658,6 +676,24 @@ export function Composer({ centered = false }: {
 							/>
 						)}
 						{offersWorktree && <WorktreeToggle on={inWorktree} onChange={(on) => setWorktreePick({ draft: draftKey, on })} />}
+						{meta?.worktreeError && !meta.worktree && (
+							/*
+							 * It asked for a worktree and runs in the project instead. Said here, where the
+							 * project and branch are read before sending, and for as long as it is true.
+							 */
+							<button
+								type="button"
+								data-ly-worktree-failed=""
+								aria-label={t("worktreeChip.failed")}
+								data-ly-tip={t("worktreeChip.failed")}
+								aria-haspopup="dialog"
+								aria-expanded={worktreeFailed.open}
+								onClick={worktreeFailed.toggle}
+								className={`ly-composer-control flex shrink-0 items-center rounded-full px-2 text-amber-500 transition-colors duration-[var(--ly-t-quick)] ${worktreeFailed.open ? "bg-card-hover" : "hover:bg-card-hover"}`}
+							>
+								<CircleAlert size={16} strokeWidth={1.9} aria-hidden />
+							</button>
+						)}
 						<div className="min-w-2 flex-1" />
 						<ChangeBar />
 					</div>
@@ -862,6 +898,12 @@ export function Composer({ centered = false }: {
 			{permissionMenu.open && <PermissionPicker anchor={permissionMenu.anchor} onClose={permissionMenu.close} />}
 			{projectMenu.open && <ProjectPicker anchor={projectMenu.anchor} onClose={projectMenu.close} />}
 			{branchMenu.open && <BranchMenu anchor={branchMenu.anchor} onClose={branchMenu.close} />}
+			{worktreeMenu.open && meta?.worktree && (
+				<WorktreeMenu anchor={worktreeMenu.anchor} onClose={worktreeMenu.close} meta={meta} view={worktree} running={running} />
+			)}
+			{worktreeFailed.open && meta?.worktreeError && (
+				<WorktreeFailedNote anchor={worktreeFailed.anchor} onClose={worktreeFailed.close} reason={meta.worktreeError} />
+			)}
 			{/* 句子里那一枚被右键点中时弹的菜单——见 `useComposerAttachments`。 */}
 			{kit.menu}
 		</div>
@@ -871,16 +913,25 @@ export function Composer({ centered = false }: {
 function Chip({
 	icon,
 	label,
+	tip,
+	marks,
 	onClick,
 	active,
 	busy,
+	dimmed,
 }: {
 	icon: React.ReactNode;
 	label: string;
+	/** What the tooltip says, when the label alone does not; the label otherwise. */
+	tip?: string;
+	/** Small facts after the label: how far a worktree has moved from its base. */
+	marks?: React.ReactNode;
 	onClick: (event: React.MouseEvent<HTMLElement>) => void;
 	active?: boolean;
 	/** Something is being changed about what this names; the label is held until it lands. */
 	busy?: boolean;
+	/** What it names is not on disk right now — a worktree that was taken back. */
+	dimmed?: boolean;
 }) {
 	const { t } = useI18n();
 	const rolls = useRolled(label);
@@ -888,7 +939,7 @@ function Chip({
 	return (
 		<button
 			type="button"
-			data-ly-tip={busy ? t("composer.switchingBranch") : label}
+			data-ly-tip={busy ? t("composer.switchingBranch") : (tip ?? label)}
 			aria-haspopup="menu"
 			aria-expanded={active}
 			aria-busy={busy || undefined}
@@ -896,14 +947,30 @@ function Chip({
 			/* Dimmed while it is being changed, so the name reads as "still this, for now". */
 			className={`ly-composer-control ly-scroll flex min-w-0 items-center gap-1 rounded-full pr-2 pl-3 text-label transition-[color,background-color,opacity] duration-[var(--ly-t-quick)] ${
 				busy ? "opacity-60" : ""
-			} text-ink ${active ? "bg-card-hover" : "hover:bg-card-hover"}`}
+			} ${dimmed ? "text-ink-muted" : "text-ink"} ${active ? "bg-card-hover" : "hover:bg-card-hover"}`}
 		>
 			<span className="shrink-0 text-ink-muted">{icon}</span>
 			{/* Keyed on the label so switching project or branch rolls the new one in. `ScrollText`
 			    cannot take `RollingText` as a child — it measures the string to decide whether the
 			    chip scrolls on hover — so the remount happens around it instead, on the same terms. */}
 			<ScrollText key={label} text={label} className={`min-w-0 ${rolls ? "ly-roll" : ""}`} />
+			{marks}
 			<ChevronDown size={14} className="shrink-0 text-ink-muted" aria-hidden />
 		</button>
+	);
+}
+
+/**
+ * `↑3 ↓1`: commits waiting to be merged back, commits on the base since. Nothing when there is nothing
+ * to say, and a mark of its own while a sync waits on conflicts.
+ */
+function WorktreeMarks({ ahead, behind, conflicted }: { ahead: number; behind: number; conflicted: boolean }) {
+	if (!ahead && !behind && !conflicted) return null;
+	return (
+		<span data-ly-worktree-marks="" className="flex shrink-0 items-center gap-1 text-caption text-ink-faint tabular-nums">
+			{ahead > 0 && <span>↑{ahead}</span>}
+			{behind > 0 && <span>↓{behind}</span>}
+			{conflicted && <CircleAlert size={12} strokeWidth={2} className="text-amber-500" aria-hidden />}
+		</span>
 	);
 }

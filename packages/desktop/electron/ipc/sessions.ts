@@ -27,7 +27,7 @@ import { exportTrajectory } from "../trajectory-export.ts";
 import { readTrajectoryChanges } from "../trajectory-changes.ts";
 import { ipcMain } from "electron";
 import { resolveSessionApproval } from "../approval-response.ts";
-import { cleanOldWorktrees } from "../git-worktrees.ts";
+import { bringBackWorktree, reclaimWorktree } from "../worktree-lifecycle.ts";
 import type { AgentCapabilities, LyraApi } from "../ipc-types.ts";
 import {
 	activateSession,
@@ -166,13 +166,12 @@ export function registerSessionsIpc({
 			await disposeSession(sessionId);
 			await store.delete(projectId, sessionId);
 			await removeSessionArtifacts(lyraHome(), sessionId);
-
-			// If session was running in a dedicated worktree and autoCleanOld is enabled, clean it up
-			const appSettings = readSettings();
-			if (sessionMeta?.cwd && appSettings.worktrees?.autoCleanOld) {
-				const liveCwds = new Set(Array.from(sessions.values()).map((s) => s.cwd));
-				void cleanOldWorktrees(sessionMeta.cwd, appSettings, liveCwds).catch(() => {});
-			}
+			/*
+			 * Its worktree goes with it, and its branch too once everything on it is in the base. One
+			 * holding uncommitted changes stays where it is: deleting a conversation is not a decision about
+			 * work it never committed, and the delete dialog says where that work is kept.
+			 */
+			if (sessionMeta?.worktree) void reclaimWorktree(sessionMeta, { dropMergedBranch: true }).catch(() => {});
 		},
 	);
 
@@ -227,6 +226,22 @@ export function registerSessionsIpc({
 			// An archived session has no reason to keep its MCP servers and browser alive.
 			if (archived) await disposeSession(sessionId);
 			await store.setArchived(projectId, sessionId, archived);
+			const all = await store.listSessions();
+			const meta = all.find((s) => s.id === sessionId);
+			if (!meta?.worktree) return all;
+			/*
+			 * Nor its worktree, when everything in it is committed: the folder goes, and the branch with it
+			 * once everything on it is in the base — otherwise the branch stays, holding the commits. One
+			 * with uncommitted changes is kept as it is.
+			 */
+			if (archived) {
+				void reclaimWorktree(meta, { dropMergedBranch: true }).catch(() => {});
+				return all;
+			}
+			// Back in the list, back on disk: a conversation people can pick up again has its folder.
+			const fallback = await bringBackWorktree(meta).catch(() => null);
+			if (!fallback) return all;
+			await store.append(meta, { type: "meta", meta: { ...meta, ...fallback } });
 			return store.listSessions();
 		},
 	);
@@ -240,6 +255,8 @@ export function registerSessionsIpc({
 		await Promise.all(
 			archived.map((s) => removeSessionArtifacts(lyraHome(), s.id)),
 		);
+		// Worktrees as a single delete takes them: committed work kept on its branch, uncommitted work left in place.
+		await Promise.all(archived.filter((s) => s.worktree).map((s) => reclaimWorktree(s, { dropMergedBranch: true }).catch(() => null)));
 		return store.listSessions();
 	});
 

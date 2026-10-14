@@ -15,8 +15,20 @@ import { bridge } from "../services/index.ts";
 
 export async function sessionWorkspace(meta: Pick<SessionMeta, "cwd" | "worktree">): Promise<WorkspaceInfo | null> {
 	const workspace = await bridge.workspace.info(meta.cwd);
-	if (!workspace || !meta.worktree) return workspace;
-	return { ...workspace, name: baseName(meta.worktree.project) || workspace.name, worktreeOf: meta.worktree.project };
+	if (!meta.worktree) return workspace;
+	/*
+	 * Taken back — archived, or cleaned up — the folder is not there until the conversation is used
+	 * again. It is still this project's conversation, so it is named as one rather than shown in no
+	 * project at all; with nothing checked out there is no branch to show and nothing to list.
+	 */
+	return workspace
+		? worktreeWorkspace(workspace, meta.worktree.project)
+		: { path: meta.cwd, name: baseName(meta.worktree.project), isGitRepo: false, branch: null, worktreeOf: meta.worktree.project };
+}
+
+/** What git says about a worktree's folder, named for the project it belongs to. */
+export function worktreeWorkspace(workspace: WorkspaceInfo, project: string): WorkspaceInfo {
+	return { ...workspace, name: baseName(project) || workspace.name, worktreeOf: project };
 }
 
 /**

@@ -46,6 +46,12 @@ export interface SessionMeta {
 	 */
 	worktree?: SessionWorktree;
 	/**
+	 * Why this conversation runs in the project although it asked for a worktree of its own — the one
+	 * it asked for could not be made, or one taken back could not be checked out again. Said where the
+	 * worktree's chip would be (`WorktreeChip`), not in a toast; kept so it still says so tomorrow.
+	 */
+	worktreeError?: string;
+	/**
 	 * How many messages were already written when the model was last changed mid-conversation.
 	 *
 	 * Everything before this index was produced by a different model, and carries that provider's

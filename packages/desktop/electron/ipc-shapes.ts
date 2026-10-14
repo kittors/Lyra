@@ -307,3 +307,6 @@ export interface PluginUpdateState {
 	 */
 	revision: number;
 }
+
+// A conversation's own worktree, as the window shows it; a file of its own so the git modules that produce these import nothing back.
+export type { MergeOutcome, SyncOutcome, WorktreeState } from "./worktree-types.ts";
