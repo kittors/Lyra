@@ -2808,4 +2808,7 @@ export const ru = {
 	"vault.deleteOne": "Удалить «{name}»",
 	"vault.targetHint": "ssh://user@host или https://сайт; пусто — без ограничений",
 	"credential.savedAgo": "сохранено {ago}",
+	"credential.refUnknown": "В хранилище нет записи с таким именем",
+	"credential.refPhone": "На компьютере нажмите, чтобы скопировать",
+	"tools.listCredentials": "Просмотр хранилища",
 } satisfies MessageCatalog;

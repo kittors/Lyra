@@ -38,7 +38,8 @@ export function registerCredentialsIpc(): void {
 		return result;
 	});
 
-	ipcMain.handle("credentials:list", () => credentialBroker.saved());
+	// With a conversation, also what a card there was given and not told to keep: a reply may name it.
+	ipcMain.handle("credentials:list", (_event, sessionId?: string) => credentialBroker.known(typeof sessionId === "string" ? sessionId : undefined));
 
 	ipcMain.handle("credentials:add", async (_event, input: unknown) => resultOf(await credentialBroker.addSaved(addInputOf(input))));
 
@@ -47,8 +48,8 @@ export function registerCredentialsIpc(): void {
 
 	ipcMain.handle("credentials:remove", (_event, name: string) => credentialBroker.removeSaved(String(name)));
 
-	ipcMain.handle("credentials:copy", async (_event, name: string) => {
-		const copyable = await credentialBroker.copyable(String(name));
+	ipcMain.handle("credentials:copy", async (_event, name: string, sessionId?: string) => {
+		const copyable = await credentialBroker.copyable(String(name), typeof sessionId === "string" ? sessionId : undefined);
 		if (!copyable) return { copied: false };
 		if (copyable.secret) copySecret(copyable.text);
 		else clipboard.writeText(copyable.text);

@@ -2808,4 +2808,7 @@ export const ko = {
 	"vault.deleteOne": "「{name}」 삭제",
 	"vault.targetHint": "ssh://user@host 또는 https://사이트. 비우면 제한 없음",
 	"credential.savedAgo": "{ago} 저장",
+	"credential.refUnknown": "보관함에 이 이름은 없습니다",
+	"credential.refPhone": "컴퓨터에서 누르면 복사됩니다",
+	"tools.listCredentials": "보관함 확인",
 } satisfies MessageCatalog;

@@ -2808,4 +2808,7 @@ export const ja = {
 	"vault.deleteOne": "「{name}」を削除",
 	"vault.targetHint": "ssh://user@host か https://サイト。空欄なら制限なし",
 	"credential.savedAgo": "{ago}に保存",
+	"credential.refUnknown": "保管庫にこの名前のものはありません",
+	"credential.refPhone": "パソコンでクリックするとコピーできます",
+	"tools.listCredentials": "保管庫を確認",
 } satisfies MessageCatalog;

@@ -2808,4 +2808,7 @@ export const en = {
 	"vault.deleteOne": "Delete “{name}”",
 	"vault.targetHint": "ssh://user@host or https://site; leave empty for anywhere",
 	"credential.savedAgo": "saved {ago}",
+	"credential.refUnknown": "Nothing by this name in the vault",
+	"credential.refPhone": "Click it on the computer to copy",
+	"tools.listCredentials": "Looked in the vault",
 } satisfies MessageCatalog;

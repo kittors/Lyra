@@ -21,6 +21,7 @@ import type { CredentialAccess, CredentialAsk } from "../src/credentials/types.t
 import { bashTool } from "../src/tools/bash.ts";
 import { editTool } from "../src/tools/edit.ts";
 import { markRead } from "../src/tools/read.ts";
+import { listCredentialsTool } from "../src/tools/list-credentials.ts";
 import { requestCredentialTool } from "../src/tools/request-credential.ts";
 import { writeTool } from "../src/tools/write.ts";
 import type { ApprovalRequest, Tool, ToolContext, ToolResult } from "../src/types.ts";
@@ -69,6 +70,15 @@ async function shown(ctx: ToolContext, file: string): Promise<void> {
 }
 
 const text = (result: ToolResult) => result.content.map((block) => (block.type === "text" ? block.text : "")).join("\n");
+
+test("list_credentials：给模型的是引用、名称和能用在哪，问「密码是多少」时它照着写引用", async () => {
+	const listed = text(await listCredentialsTool.execute({}, context()));
+	assert.match(listed, /\[credential:kzhy-root\] kzhy \(password, only for ssh:\/\/root@100\.64\.0\.5, this conversation only\)/);
+	assert.match(listed, /\[credential:linear-token\] Linear \(token, this conversation only\)/);
+	assert.equal(listed.includes(PASSWORD) || listed.includes(TOKEN), false, "never a value");
+	assert.equal((await listCredentialsTool.execute({}, { ...context(), credentials: undefined })).isError, true);
+	assert.match(requestCredentialTool.guidelines!.join("\n"), /list_credentials/, "the model is told how to answer a question about a value");
+});
 
 test("request_credential：给模型的话里有用法，没有值；没填时叮嘱别让人贴进对话", async () => {
 	const ctx = context();

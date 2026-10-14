@@ -17,6 +17,29 @@ import { IconButton } from "./IconButton.tsx";
 
 const TICK_MS = 1400;
 
+/**
+ * The tick, as a hook, for a copy that is not an icon button — a chip in a sentence copies too. `run`
+ * takes the copy and resolves the state from it; the tick goes back to idle on its own.
+ */
+export function useCopyFeedback(): { state: "idle" | "done" | "failed"; run: (copy: () => Promise<boolean>) => void } {
+	const [state, setState] = useState<"idle" | "done" | "failed">("idle");
+	const timer = useRef<number | undefined>(undefined);
+	// What it sits in can go before the tick does — a deleted credential's row — and a timer left behind writes to nothing.
+	useEffect(() => () => window.clearTimeout(timer.current), []);
+	const settle = (next: "done" | "failed") => {
+		setState(next);
+		window.clearTimeout(timer.current);
+		timer.current = window.setTimeout(() => setState("idle"), TICK_MS);
+	};
+	const run = (copy: () => Promise<boolean>) => {
+		void copy().then(
+			(ok) => settle(ok ? "done" : "failed"),
+			() => settle("failed"),
+		);
+	};
+	return { state, run };
+}
+
 export function CopyButton({
 	label,
 	text,
@@ -39,17 +62,7 @@ export function CopyButton({
 	size?: "xs" | "sm" | "md";
 	className?: string;
 }) {
-	const [state, setState] = useState<"idle" | "done" | "failed">("idle");
-	const timer = useRef<number | undefined>(undefined);
-	// The row it sits in can go before the tick does — a deleted credential — and a timer left behind writes to nothing.
-	useEffect(() => () => window.clearTimeout(timer.current), []);
-
-	const settle = (next: "done" | "failed") => {
-		setState(next);
-		window.clearTimeout(timer.current);
-		timer.current = window.setTimeout(() => setState("idle"), TICK_MS);
-	};
-	const run = () => (copy ? copy() : navigator.clipboard.writeText(text ?? "").then(() => true));
+	const { state, run } = useCopyFeedback();
 
 	return (
 		<IconButton
@@ -58,12 +71,7 @@ export function CopyButton({
 			className={className}
 			label={state === "done" ? (done ?? translate("common.copied")) : state === "failed" ? translate("copy.failed") : label}
 			icon={state === "done" ? <Check size={13} strokeWidth={2.2} className="ly-pop text-ok" /> : (icon ?? <Copy size={13} strokeWidth={1.9} />)}
-			onClick={() => {
-				void run().then(
-					(ok) => settle(ok ? "done" : "failed"),
-					() => settle("failed"),
-				);
-			}}
+			onClick={() => run(copy ?? (() => navigator.clipboard.writeText(text ?? "").then(() => true)))}
 		/>
 	);
 }

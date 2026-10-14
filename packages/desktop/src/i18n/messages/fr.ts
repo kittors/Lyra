@@ -2808,4 +2808,7 @@ export const fr = {
 	"vault.deleteOne": "Supprimer « {name} »",
 	"vault.targetHint": "ssh://user@host ou https://site ; vide pour toute adresse",
 	"credential.savedAgo": "enregistré {ago}",
+	"credential.refUnknown": "Rien sous ce nom dans le coffre-fort",
+	"credential.refPhone": "Cliquez dessus sur l’ordinateur pour copier",
+	"tools.listCredentials": "Coffre-fort consulté",
 } satisfies MessageCatalog;

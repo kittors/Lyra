@@ -2808,4 +2808,7 @@ export const zhTW = {
 	"vault.deleteOne": "刪除「{name}」",
 	"vault.targetHint": "ssh://使用者@主機 或 https://網址；留空表示不限",
 	"credential.savedAgo": "{ago}存的",
+	"credential.refUnknown": "保險箱裡沒有這一項",
+	"credential.refPhone": "在電腦上點它就能複製",
+	"tools.listCredentials": "查看保險箱",
 } satisfies MessageCatalog;

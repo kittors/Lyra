@@ -6,4 +6,5 @@
  */
 
 export { CredentialFields, type CredentialValues } from "./CredentialFields.tsx";
+export { CredentialRef } from "./CredentialRef.tsx";
 export { KIND_ICON, KIND_LABEL, PROBLEM_LABEL } from "./labels.ts";

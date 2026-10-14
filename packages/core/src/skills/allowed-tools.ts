@@ -45,6 +45,7 @@ const BUILTIN_TOOLS = [
 	"learn",
 	"ask_user",
 	"request_credential",
+	"list_credentials",
 	"web_fetch",
 	"web_search",
 	"preview",

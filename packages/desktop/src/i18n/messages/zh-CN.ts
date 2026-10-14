@@ -2997,6 +2997,9 @@ export const zhCN = {
 	"vault.deleteOne": "删除「{name}」",
 	"vault.targetHint": "ssh://用户@主机 或 https://网址；留空表示不限",
 	"credential.savedAgo": "{ago}存的",
+	"credential.refUnknown": "保险箱里没有这一项",
+	"credential.refPhone": "在电脑上点它就能复制",
+	"tools.listCredentials": "查看保险箱",
 } as const;
 
 export type MessageKey = keyof typeof zhCN;

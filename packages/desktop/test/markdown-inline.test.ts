@@ -21,6 +21,7 @@ function shape(tokens: Inline[]): string {
 			if (t.kind === "image") return `img(${t.src})`;
 			if (t.kind === "link") return `link[${t.href}](${shape(t.children)})`;
 			if (t.kind === "tag") return `${t.name}(${shape(t.children)})`;
+			if (t.kind === "credential") return `cred(${t.name})`;
 			return `${t.kind}(${shape(t.children)})`;
 		})
 		.join(" ");
@@ -152,4 +153,12 @@ test("a declared width comes through, and only when it is a pixel count", () => 
 		const token = parseInline(`<img src="a.png" ${attrs}>`)[0];
 		assert.equal(token.kind === "image" && token.width, undefined, attrs);
 	}
+});
+
+test("a credential reference is a token of its own, wherever it sits; anything else in brackets stays text", () => {
+	assert.equal(shape(parseInline("密码在这：[credential:nas-root]。")), '"密码在这：" cred(nas-root) "。"');
+	assert.equal(shape(parseInline("**[credential:gh-token]**")), "strong(cred(gh-token))");
+	// A link that happens to be labelled like one is still a link.
+	assert.equal(shape(parseInline("[credential:x](https://example.com)")), 'link[https://example.com]("credential:x")');
+	assert.equal(shape(parseInline("[credential:Bad Name] [credential:] [credential:nas-root.passphrase]")), '"[credential:Bad Name] [credential:] [credential:nas-root.passphrase]"');
 });

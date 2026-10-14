@@ -48,7 +48,7 @@ import { videoHost } from "../videos/host.ts";
 import { VIDEO_TOOL_NAME } from "../videos/types.ts";
 import type { ConversationPicks } from "../images/picks.ts";
 import { IMAGE_TOOL_NAME } from "../images/types.ts";
-import { CREDENTIAL_TOOL_NAME } from "../tools/request-credential.ts";
+import { CREDENTIAL_TOOLS } from "../tools/request-credential.ts";
 import { writePreview } from "./previews.ts";
 import { SESSION_LEVEL_TOOLS } from "./session-ops.ts";
 import { makeYieldTool, renderYield, yieldInstruction, YIELD_KEY, type YieldOutcome } from "./yield-tool.ts";
@@ -278,7 +278,7 @@ export async function runSubAgent(
 		// The same rule as the session's: no image model, no drawing tool (`session-turn.ts`).
 		.filter((tool) => tool.name !== IMAGE_TOOL_NAME || imageModelRows(options.settings.providers).length > 0)
 		.filter((tool) => tool.name !== VIDEO_TOOL_NAME || mediaModelRows(options.settings.providers, "video").length > 0)
-		.filter((tool) => tool.name !== CREDENTIAL_TOOL_NAME || options.credentials !== undefined);
+		.filter((tool) => !CREDENTIAL_TOOLS.has(tool.name) || options.credentials !== undefined);
 
 	/*
 	 * A declared output shape turns the reply into an object.

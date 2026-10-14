@@ -108,15 +108,15 @@ export async function updateSaved(vault: CredentialVault, name: string, patch: S
 }
 
 /**
- * What the vault page's copy button puts on the clipboard: the secret, or for a key its public half —
- * the half anyone copies a key for. The private key never leaves; a command gets it from the agent.
+ * What a copy button puts on the clipboard: the secret, or for a key its public half — the half anyone
+ * copies a key for. The private key never leaves; a command gets it from the agent.
  */
-export function copyableOf(record: CredentialRecord): { text: string; secret: boolean } | null {
-	if (record.kind === "ssh_key") {
-		const read = readPrivateKey(record.values.private_key ?? "", record.values.passphrase);
-		return "problem" in read ? null : { text: publicKeyLine(read.key, record.name), secret: false };
+export function copyableOf(name: string, kind: CredentialKind, values: Partial<Record<FieldKey, string>>): { text: string; secret: boolean } | null {
+	if (kind === "ssh_key") {
+		const read = readPrivateKey(values.private_key ?? "", values.passphrase);
+		return "problem" in read ? null : { text: publicKeyLine(read.key, name), secret: false };
 	}
-	const text = record.values[record.kind === "token" ? "token" : "password"];
+	const text = values[kind === "token" ? "token" : "password"];
 	return text ? { text, secret: true } : null;
 }
 
