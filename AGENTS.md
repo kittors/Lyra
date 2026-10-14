@@ -320,3 +320,25 @@ CI 的单元测试跑 Linux 和 Windows；macOS 只在 PR、tag 和手动触发�
 type 取 `feat` `fix` `perf` `refactor` `docs` `test` `chore` `ci` `build` `revert`；
 scope 取 `core` `desktop` `electron` `ui` `mobile` `relay` `cli` `registry` `sync` `release` `deps`，
 写错只警告不拦。前四个 type 会进 CHANGELOG，其余不进。
+
+## 收尾：合进 main 和 dev，留下干净的仓库
+
+提交了、检查全绿、真窗口验过，这件事还没到终点。下面几条都做到才算交付，发版之前也要全部成立：
+
+- **所有代码都合进 main 和 dev。** 在 `fix/<名>` 分支上提交，先 `git rebase main` 长在最新的 main 上、在这棵
+  树上重跑检查，再 `git merge --no-ff fix/<名> -m "Merge branch 'fix/<名>'"` 合进 main，合完把 dev 快进到 main
+  （`git fetch . main:dev`）。只停在 worktree 分支、暂存区或 stash 里的改动不算做完。
+- **本地和远端一致。** 本地 `main`、`dev` 与 `origin/main`、`origin/dev` 是同一个提交。推送走 pre-push 钩子
+  （全套检查加 knip），不加 `--no-verify`；推完 `git fetch` 再逐个核对这四个分支的提交号。
+- **清掉多余的 worktree。** 合进去的 worktree——包括子智能体的 `.claude/worktrees/agent-*`——用
+  `git worktree remove` 删掉，再 `git worktree prune`。`git worktree list` 里只剩主工作区和还在做的。
+- **工作区干净。** `git status` 为空，`git stash list` 为空。自己留在 `/tmp` 的日志、备份、截图裁剪，探针
+  建的测试数据，用完就删；拿不准是谁的就别删。
+- **分支干净。** 本地只留 `main`、`dev` 和还在做的分支；远端只留 `main`、`dev` 和还开着的 PR 的分支。合完的
+  分支用 `git branch -d` 删——`-d` 只删已经合进去的，删不掉就说明还有东西没合。
+- **备份引用和本地独有的标签，确认没用了再删。** `refs/backup/*` 是合并、改写历史时留的保险；只在本地、远端
+  没有的标签多半是半途而废的发版。删之前逐个核对内容在不在 main 里：这个提交是 main 的祖先，或者它改过的每个
+  文件的那个版本在 main 的历史里出现过（`git rev-list --objects main` 里找得到那个 blob）。有一个对不上，就去
+  看它是不是被别的实现取代了，说不清就留着并告诉人。
+- **不清别人的东西。** 外部贡献者和 Dependabot 开着的 PR 不归这一条管：合不合是另一个决定，删它的分支等于关掉
+  那个 PR。
