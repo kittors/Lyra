@@ -102,6 +102,7 @@ test("autoCreateSessionWorktree creates dedicated worktree under a configured ro
 	const res = await autoCreateSessionWorktree(dir, customSettings, "session-12345678");
 	assert.equal(res.worktreeCreated, true);
 	assert.equal(res.branch, "lyra/session-session-");
+	assert.equal(res.base, "main", "the branch it was cut from, for merging back into");
 	assert.ok(res.cwd.includes("session-worktrees"));
 	assert.ok(existsSync(res.cwd));
 });

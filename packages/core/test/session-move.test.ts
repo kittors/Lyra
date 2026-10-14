@@ -131,3 +131,32 @@ test("对着一条已经不在了的会话点移动，答 null 而不是抛异�
 		assert.equal(await store.move(projectIdFor("/tmp/nowhere"), "没有这个 id", "/tmp/project-b", "B 项目"), null);
 	});
 });
+
+/*
+ * 归位改前建的工作树会话：照旧在工作树里跑，算在它出来的那个项目名下，而且不跳到列表顶上。
+ *
+ * 写 meta 会把 `updatedAt` 刷成现在——一次启动修复就会让所有旧的工作树会话一起跳到最上面。归位是
+ * 「换个地方放」，不是用了它，所以走 `move`，和归档一样不碰时间。
+ */
+test("带着工作树归位：字段写上、跨重启还在、updatedAt 不动；再移去别处就清掉", async () => {
+	await withStore(async (store, root) => {
+		const tree = "/tmp/repo-1234abcd";
+		const meta = await store.create(tree, "fake/model", "工作树里的对话");
+		await store.append(meta, { type: "message", message: { role: "user", content: [{ type: "text", text: "改一下" }], timestamp: Date.now() } });
+		const before = (await store.listSessions()).find((one) => one.id === meta.id)!.updatedAt;
+		const worktree = { project: "/tmp/repo", branch: "lyra/session-1234abcd" };
+		await store.move(meta.projectId, meta.id, tree, "repo", worktree);
+		const reopened = (await new SessionStore(root).listSessions()).find((one) => one.id === meta.id)!;
+		assert.deepEqual(reopened.worktree, worktree);
+		assert.equal(reopened.cwd, tree, "it still runs in the worktree");
+		assert.equal(reopened.projectName, "repo");
+		assert.equal(reopened.updatedAt, before, "filed, not used: it does not jump to the top of the list");
+		// The same filing again writes nothing.
+		const seq = reopened.seq;
+		await store.move(reopened.projectId, meta.id, tree, "repo", worktree);
+		assert.equal((await store.listSessions()).find((one) => one.id === meta.id)!.seq, seq);
+		// Moved to another project by hand: it no longer lives where its worktree came from.
+		await store.move(reopened.projectId, meta.id, "/tmp/project-b", "project-b");
+		assert.equal((await new SessionStore(root).listSessions()).find((one) => one.id === meta.id)!.worktree, undefined);
+	});
+});

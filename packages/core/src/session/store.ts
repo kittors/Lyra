@@ -33,7 +33,7 @@ import type { SessionReadCursor, SessionRecordChanges } from "./read-changes.ts"
 import { REPLAY_KINDS, replayRecords } from "./replay-records.ts";
 import { auxiliaryCall, spendOf, type SpendEntry, type SpendRow } from "./spend.ts";
 import type { ActiveDay, SessionStorage } from "./storage.ts";
-import type { Boundary, SessionMeta, SessionRecord, SessionRecordInput } from "./types.ts";
+import type { Boundary, SessionMeta, SessionRecord, SessionRecordInput, SessionWorktree } from "./types.ts";
 
 export type { Boundary, SessionMeta, SessionRecord, SessionRecordInput } from "./types.ts";
 
@@ -387,13 +387,14 @@ export class SessionStore implements SessionStorage, PartialSink {
 	 * Already there is not nothing: a renamed project keeps its id and changes its name, and that
 	 * still has to be written. Only when neither changed is there nothing to record.
 	 */
-	async move(_projectId: string, sessionId: string, cwd: string, projectName: string): Promise<SessionMeta | null> {
+	async move(_projectId: string, sessionId: string, cwd: string, projectName: string, worktree?: SessionWorktree): Promise<SessionMeta | null> {
 		await this.ready();
 		const base = this.metaOf(sessionId);
 		if (!base) return null;
 		const projectId = projectIdFor(cwd);
-		if (projectId === base.projectId && base.cwd === cwd && base.projectName === projectName) return base;
-		return this.write(sessionId, { type: "move", cwd, projectId, projectName }, false);
+		const sameWorktree = JSON.stringify(base.worktree ?? null) === JSON.stringify(worktree ?? null);
+		if (projectId === base.projectId && base.cwd === cwd && base.projectName === projectName && sameWorktree) return base;
+		return this.write(sessionId, { type: "move", cwd, projectId, projectName, ...(worktree ? { worktree } : {}) }, false);
 	}
 
 	async delete(projectId: string, sessionId: string): Promise<void> {

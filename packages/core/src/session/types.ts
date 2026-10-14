@@ -8,6 +8,13 @@
 import type { AgentEvent } from "../agent/events.ts";
 import type { Message, ThinkingLevel, Usage } from "../types.ts";
 
+/** A conversation's own git worktree: see `SessionMeta.worktree`. */
+export interface SessionWorktree {
+	project: string;
+	branch: string;
+	base?: string;
+}
+
 export interface SessionMeta {
 	id: string;
 	title: string;
@@ -32,8 +39,12 @@ export interface SessionMeta {
 	 * no registered project — so each conversation run in one opened a group of its own, under the
 	 * project's name again, and moved there the moment its worktree was made. Whatever asks which
 	 * project a conversation is in asks this first (`sessionHome` on the desktop).
+	 *
+	 * `base` is the branch the worktree was cut from — what "merge back" merges into and "sync" brings
+	 * in. Absent on a worktree made before it was recorded, or cut from a detached HEAD; those use the
+	 * repository's default branch.
 	 */
-	worktree?: { project: string; branch: string };
+	worktree?: SessionWorktree;
 	/**
 	 * How many messages were already written when the model was last changed mid-conversation.
 	 *
@@ -127,7 +138,7 @@ export type SessionRecord =
 	 * year would otherwise leap to the top of the list for being tidied. Being a record also tells a
 	 * client syncing with `?since=N` that it moved.
 	 */
-	| { seq: number; ts: number; type: "move"; cwd: string; projectId: string; projectName: string }
+	| { seq: number; ts: number; type: "move"; cwd: string; projectId: string; projectName: string; worktree?: SessionWorktree }
 	/**
 	 * Everything after `afterSeq` is void.
 	 *

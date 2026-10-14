@@ -18,7 +18,7 @@ import type { PartialSink } from "./partial.ts";
 import type { SessionReadCursor, SessionRecordChanges } from "./read-changes.ts";
 import type { SpendRow } from "./spend.ts";
 import type { LoadedSession } from "./store.ts";
-import type { SessionMeta, SessionRecord, SessionRecordInput } from "./types.ts";
+import type { SessionMeta, SessionRecord, SessionRecordInput, SessionWorktree } from "./types.ts";
 
 /** One local day of activity. */
 export interface ActiveDay {
@@ -53,7 +53,8 @@ export interface SessionStorage extends Partial<PartialSink> {
 	truncateFrom(projectId: string, sessionId: string, messageIndex: number): Promise<{ meta: SessionMeta; messages: Message[] } | null>;
 	setArchived(projectId: string, sessionId: string, archived: boolean): Promise<SessionMeta | null>;
 	/** Re-file a session under another project: a new `cwd`, and with it a new `projectId`. */
-	move(projectId: string, sessionId: string, cwd: string, projectName: string): Promise<SessionMeta | null>;
+	/** `worktree`: filed as a conversation in that worktree; absent clears it (see `applyRecord`). Never touches `updatedAt`. */
+	move(projectId: string, sessionId: string, cwd: string, projectName: string, worktree?: SessionWorktree): Promise<SessionMeta | null>;
 	delete(projectId: string, sessionId: string): Promise<void>;
 	deleteMany(targets: { projectId: string; id: string }[]): Promise<void>;
 	pruneEmpty(minAgeMs?: number): Promise<number>;
