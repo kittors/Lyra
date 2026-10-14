@@ -44,6 +44,7 @@ const BUILTIN_TOOLS = [
 	"recall",
 	"learn",
 	"ask_user",
+	"request_credential",
 	"web_fetch",
 	"web_search",
 	"preview",

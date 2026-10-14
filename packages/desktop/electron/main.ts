@@ -12,6 +12,7 @@ import {
 	DEFAULT_PLUGINS,
 	pruneSessionArtifacts,
 	useSandboxRunner,
+	useAskpassEntry,
 	registerSearchProvider,
 	duckDuckGoProvider,
 	instantAnswerProvider,
@@ -104,6 +105,7 @@ import { MEDIA_SCHEME, PREVIEW_SCHEME, registerPreviewProtocols } from "./previe
 import { nameMediaDownloads } from "./media-downloads.ts";
 import { guardWebviews, installPermissionHandlers } from "./window-security.ts";
 import { registerGitIpc } from "./ipc/git.ts";
+import { registerCredentialsIpc } from "./ipc/credentials.ts";
 import { registerUsageIpc } from "./ipc/usage.ts";
 import { registerGalleryIpc } from "./ipc/gallery.ts";
 import { registerWorktreeIpc } from "./ipc/worktree.ts";
@@ -370,6 +372,8 @@ protocol.registerSchemesAsPrivileged([
  * with `bad option`, and the runner never once started. See `core/sandbox/runner-entry.ts`.
  */
 useSandboxRunner(join(import.meta.dirname, "sandbox-runner.js"));
+// The helper ssh, sudo and git ask for a credential's password: the same kind of file, beside it.
+useAskpassEntry(join(import.meta.dirname, "askpass.js"));
 
 app.setName("Lyra");
 
@@ -986,6 +990,7 @@ function registerIpc(): void {
 	});
 
 	registerGitIpc({ insideAProject });
+	registerCredentialsIpc();
 	registerUsageIpc({ store: () => store });
 	registerGalleryIpc({ store: () => store });
 	registerWorktreeIpc({ store: () => store });

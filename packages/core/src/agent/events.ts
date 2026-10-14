@@ -72,6 +72,12 @@ export type AgentEvent =
 			expiresAt?: number;
 			/** 哪个子代理在问；主会话自己问的没有。见 `ApprovalRequest.from`。 */
 			from?: import("../types.ts").ApprovalOrigin;
+			/** The card a credential is typed into; holds no value. See `ApprovalRequest.credential`. */
+			credential?: import("../types.ts").ApprovalRequest["credential"];
+			/** The credentials a command will be handed, named on its permission card. */
+			credentials?: string[];
+			/** Asked whatever the mode; the card leaves "always" out. See `ApprovalRequest.mustAsk`. */
+			mustAsk?: boolean;
 		}
 	/**
 	 * 一个待决的授权不再等了：答了、超时了、或者问它的那个子代理停下了。

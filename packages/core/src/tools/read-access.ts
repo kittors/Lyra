@@ -48,6 +48,8 @@ export type ReadVerdict =
 			reason: string;
 			/** `file` narrows the grant to this path alone, for credentials. */
 			scope: "file" | "tree";
+			/** The vault's own files: asked about in every mode. See `ApprovalRequest.mustAsk`. */
+			vault?: true;
 	  };
 
 export interface ReadAccessOptions {
@@ -168,6 +170,14 @@ export function assessRead(absolute: string, cwd: string, options: ReadAccessOpt
 		if (allowed.has(absolute)) return { decision: "allow" };
 	}
 
+	/*
+	 * The vault before every other credential, because full access answers those without asking and
+	 * must not answer these: the key and the ciphertext together open every saved key and password.
+	 * Matched against this profile's own home as well as the spelling, since `LYRA_HOME` may move it.
+	 */
+	if (absolute === join(homeDir, "vault.key") || absolute === join(homeDir, "credentials.json") || /[/\\]\.lyra[/\\](?:vault\.key|credentials\.json)$/i.test(absolute)) {
+		return { decision: "ask", reason: "读取 Lyra 的保险库", scope: "file", vault: true };
+	}
 	if (SECRET_PATH.test(absolute)) return { decision: "ask", reason: "读取本机密钥文件", scope: "file" };
 
 	if (contains(cwd, absolute)) return { decision: "allow" };
@@ -439,10 +449,13 @@ async function askForRead(
 		kind: "read",
 		title: `${verdict.reason}：${basename(absolute) || shown}`,
 		detail: absolute,
-		reason: verdict.scope === "file"
-			? "密钥按文件单独批准；同一目录下的其他密钥仍会再问一次。"
-			: `批准后，这个会话读取 ${grant} 里的文件不再询问。`,
+		reason: verdict.vault
+			? "这两个文件合在一起能打开所有保存的密钥和凭据。完全访问模式下也会问，批准只算这一次。"
+			: verdict.scope === "file"
+				? "密钥按文件单独批准；同一目录下的其他密钥仍会再问一次。"
+				: `批准后，这个会话读取 ${grant} 里的文件不再询问。`,
 		subject: readGrantSubject(grant),
+		...(verdict.vault ? { mustAsk: true } : {}),
 	});
 	if (decision === "once" || decision === "always") return { ok: true };
 	return { ok: false, message: `用户拒绝了这次读取：${shown}` };

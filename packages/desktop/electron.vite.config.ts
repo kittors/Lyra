@@ -53,9 +53,10 @@ export default defineConfig({
 				/*
 				 * The sandbox runner is an entry of its own: it is started in Node mode as a script,
 				 * and has to be a file that does nothing but confine and run a command. See
-				 * `electron/sandbox-runner.ts`.
+				 * `electron/sandbox-runner.ts`. The askpass helper is the same kind of file for the same
+				 * reason: ssh starts it once per password prompt. See `electron/askpass.ts`.
 				 */
-				input: { index: resolve("electron/main.ts"), "sandbox-runner": resolve("electron/sandbox-runner.ts") },
+				input: { index: resolve("electron/main.ts"), "sandbox-runner": resolve("electron/sandbox-runner.ts"), askpass: resolve("electron/askpass.ts") },
 				/*
 				 * `electron` is a devDependency, so the externalize plugin leaves it in — and
 				 * bundling its CommonJS loader breaks on `__dirname` under ESM output.
@@ -78,10 +79,14 @@ export default defineConfig({
 				 * UTF-8」, four times over. Latent until something in `electron/` changes, because
 				 * until then the main bundle is served from cache and never re-resolved.
 				 *
+				 * `ssh2` for the same family of reason, milder: it reaches for two optional native
+				 * add-ons (a cipher binding and `cpu-features`) inside `try`, and a bundler following
+				 * those requires has nothing it can inline. Core uses it only to parse private keys.
+				 *
 				 * Listed here rather than left to the plugin because assigning `external`
 				 * replaces what the plugin contributes instead of adding to it.
 				 */
-				external: ["electron", "node-pty", "koffi", /^@koromix\//],
+				external: ["electron", "node-pty", "koffi", /^@koromix\//, "ssh2"],
 			},
 		},
 		resolve: {

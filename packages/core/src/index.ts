@@ -132,6 +132,24 @@ export {
  * never sees a token, which is the point of it living behind IPC.
  */
 export { isSealed, resetVault, seal, secret, unseal } from "./config/vault.ts";
+/** Credentials the agent uses by name and never sees; see `credentials/broker.ts`. */
+export { CredentialBroker, CredentialUnavailable, type SubmitProblem, type SubmitResult } from "./credentials/broker.ts";
+export { useAskpassEntry } from "./credentials/askpass-server.ts";
+export { memoryStore, vaultStore, type CredentialRecord, type CredentialVault } from "./credentials/store.ts";
+export type { SavedInput, SavedOutcome, SavedPatch, SavedProblem } from "./credentials/saved.ts";
+export { parseTarget } from "./credentials/types.ts";
+export type {
+	CredentialAccess,
+	CredentialApproval,
+	CredentialField,
+	CredentialKind,
+	CredentialMeta,
+	CredentialPrompt,
+	CredentialSpec,
+	CredentialSubmission,
+	CredentialTarget,
+	FieldKey,
+} from "./credentials/types.ts";
 /** Replacing a file whole, for the main process's own files; see `utils/atomic-write.ts`. */
 export { renameWithRetry, writeFileAtomic } from "./utils/atomic-write.ts";
 export {

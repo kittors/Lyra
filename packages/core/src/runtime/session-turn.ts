@@ -25,6 +25,7 @@ import { imageModelRows, mediaModelRows } from "../images/models.ts";
 import type { ConversationPicks } from "../images/picks.ts";
 import { IMAGE_TOOL_NAME } from "../images/types.ts";
 import { VIDEO_TOOL_NAME } from "../videos/types.ts";
+import { CREDENTIAL_TOOL_NAME } from "../tools/request-credential.ts";
 import { adoptMentionedMedia, describeMediaTools } from "./media-turn.ts";
 import { buildSystemPrompt, loadProjectInstructions } from "../prompt/system.ts";
 import { TODOS_KEY, type TodoItem } from "../tools/todo.ts";
@@ -98,6 +99,8 @@ export interface TurnInputs {
 	liveModel?: AgentRunConfig["liveModel"];
 	/** This conversation's image and video picks — see `TurnConfigDeps.mediaPicks`. */
 	mediaPicks?: ConversationPicks;
+	/** This conversation's credentials — see `ToolContext.credentials`. */
+	credentials?: AgentRunConfig["credentials"];
 }
 
 /**
@@ -325,7 +328,9 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 				(tool.name !== "learn" || memoryEnabled) &&
 				(tool.name !== "task" || delegation.tier !== "off" || delegation.mentioned.length > 0) &&
 				(tool.name !== IMAGE_TOOL_NAME || drawing) &&
-				(tool.name !== VIDEO_TOOL_NAME || filming),
+				(tool.name !== VIDEO_TOOL_NAME || filming) &&
+				// Offered only where a card can be shown; a tool that can only say "no" costs a turn to learn it.
+				(tool.name !== CREDENTIAL_TOOL_NAME || input.credentials !== undefined),
 		),
 		settings.providers,
 		{ image: IMAGE_TOOL_NAME, video: VIDEO_TOOL_NAME },
@@ -424,6 +429,7 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 			delegations: input.delegations,
 			liveModel: input.liveModel,
 			mediaPicks: input.mediaPicks,
+			credentials: input.credentials,
 			signal: input.signal,
 			streamFn: input.streamFn,
 			requestApproval: input.requestApproval,

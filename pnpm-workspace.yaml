@@ -20,6 +20,11 @@ allowBuilds:
   # Unpacks the workerd binary. It is what `wrangler dev` runs the registry Worker on locally,
   # so without this the platform can only be tested by deploying it.
   workerd: true
+  # ssh2's optional native speed-ups: an AES-GCM/ChaCha addon, and a CPU probe that orders the
+  # cipher preference by what the processor accelerates. Core uses ssh2 only as an agent-protocol
+  # server and a private-key parser, which negotiate no ciphers and sign with node:crypto.
+  cpu-features: false
+  ssh2: false
 
 # Transitive dependencies pinned past a published advisory.
 #

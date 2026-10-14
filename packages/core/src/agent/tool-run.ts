@@ -44,7 +44,7 @@ export async function runTools(
 			summary: tool?.summarize?.(call.arguments) ?? call.name,
 		});
 
-		const result = await executeOne(tool, call, config, state, emit);
+		const result = masked(await executeOne(tool, call, config, state, emit), config);
 		await emit({
 			type: "tool_end",
 			toolCallId: call.id,
@@ -142,7 +142,7 @@ async function executeOne(
 		sessionId: config.sessionId,
 		signal: config.signal,
 		state,
-		requestApproval: config.requestApproval,
+		requestApproval: maskedAsk(config),
 		sandboxMode: config.sandboxMode,
 		sandboxNetwork: config.sandboxNetwork,
 		allowedHosts: config.allowedHosts,
@@ -151,10 +151,12 @@ async function executeOne(
 		writePreview: config.writePreview,
 		images: config.images,
 		videos: config.videos,
+		credentials: config.credentials,
 		spawnSubAgent: config.spawnSubAgent,
 		resources: config.resources,
 		scratchDir: config.scratchDir,
-		onProgress: (partial) => void emit({ type: "tool_update", toolCallId: call.id, partial }),
+		// Streamed output reaches the window and the phone without being logged; it is masked all the same.
+		onProgress: (partial) => void emit({ type: "tool_update", toolCallId: call.id, partial: masked(partial, config) }),
 	};
 
 	if (config.beforeToolCall) {
@@ -256,6 +258,44 @@ export async function failTruncatedCalls(
 		results.push(message);
 	}
 	return results;
+}
+
+/**
+ * A result with this conversation's credentials taken out of it, on its way to the log, the window
+ * and the model.
+ *
+ * Here, after `afterToolCall` and before `tool_end`, because this is the one place every result
+ * passes: a hook's output is already appended, and nothing has been written or sent yet. It is not
+ * on the `useToolPipeline` seam, so a plugin replacing how tools run cannot route around it.
+ *
+ * A masker that fails withholds the result rather than letting it through. Missing once is a leak;
+ * withholding once costs a step.
+ */
+/**
+ * The approval channel, with credentials taken out of what a card shows.
+ *
+ * Cards are written down — `approval_request` is a persisted event — and an edit's card carries its
+ * diff, a write's the file it writes. A file holding a credential would otherwise put the value into
+ * the log by way of the question about it. `subject` is left alone: it is what an "always" answer is
+ * remembered by, and it is a command or a path, which carry names, not values.
+ */
+function maskedAsk(config: AgentRunConfig): ToolContext["requestApproval"] {
+	const { requestApproval: ask, credentials } = config;
+	if (!ask || !credentials) return ask;
+	return (request) => {
+		const redactor = credentials.redactor();
+		if (redactor.empty) return ask(request);
+		return ask({ ...request, title: redactor.text(request.title), detail: redactor.text(request.detail), ...(request.reason ? { reason: redactor.text(request.reason) } : {}) });
+	};
+}
+
+function masked(result: ToolResult, config: AgentRunConfig): ToolResult {
+	if (!config.credentials) return result;
+	try {
+		return config.credentials.redactor().result(result);
+	} catch {
+		return errorResult("This result could not be checked for credentials, so it was withheld. Run the step again, or another way.");
+	}
 }
 
 export function errorResult(text: string): ToolResult {

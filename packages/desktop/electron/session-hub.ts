@@ -13,12 +13,14 @@ import { AgentSession, backgroundJobs, createSessionOpsTools, type AgentEvent, t
 import type { BrowserWindow } from "electron";
 import { browserState, closeSessionBrowser } from "./browser-workspace.ts";
 import { createBrowserTools } from "./browser-tools.ts";
+import { credentialBroker } from "./credential-broker.ts";
+import { handOver, screenMessage } from "./credential-screen.ts";
 import { autoCreateSessionWorktree, cleanOldWorktrees } from "./git-worktrees.ts";
 import type { SessionChange } from "./ipc-shapes.ts";
 import type { SessionSnapshot, LyraApi } from "./ipc-types.ts";
 import { createStoredSession, type InitialPrompt } from "./create-session.ts";
 import { archiveAfterTurn } from "./session-ops.ts";
-import { initialPrompt, promptContent, promptOptions } from "./prompt-input.ts";
+import { initialPrompt, type PromptOrigin, promptContent, promptOptions } from "./prompt-input.ts";
 import { ensureSessionWorkspace } from "./scratch.ts";
 import { discardSideChat } from "./sidechat-discard.ts";
 import { notifyAgentEvent } from "./notify.ts";
@@ -72,8 +74,13 @@ const archives = archiveAfterTurn({
 /** Shared by every session: they hold no state, and `ctx.sessionId` says whose call it is. */
 const sessionOps = createSessionOpsTools({ archiveAfterTurn: (id) => archives.request(id) });
 
-export async function createSession(cwd: string, modelId: string, initial?: InitialPrompt): Promise<SessionSnapshot> {
-	const saved = await createStoredSession(deps.store(), deps.settings(), cwd, modelId, initialPrompt(initial));
+export async function createSession(cwd: string, modelId: string, initial?: InitialPrompt, origin: PromptOrigin = "local"): Promise<SessionSnapshot> {
+	const checked = initialPrompt(initial);
+	// The first message is written here, before the conversation has an id to hold anything.
+	const screened = checked ? await screenMessage(null, checked.content, checked.displayText) : null;
+	const saved = await createStoredSession(deps.store(), deps.settings(), cwd, modelId,
+		checked && screened ? { ...checked, content: screened.content, ...(screened.displayText === undefined ? {} : { displayText: screened.displayText }) } : checked);
+	if (screened) await handOver(saved.meta.id, screened.named, origin);
 	stageSession(saved);
 	if (initial) submitted.add(saved.meta.id);
 	return saved;
@@ -82,16 +89,22 @@ export async function createSession(cwd: string, modelId: string, initial?: Init
 function stageSession(saved: SessionSnapshot): AgentSession {
 	const browser = createBrowserTools();
 	const session = new AgentSession({ cwd: saved.meta.cwd, settings: deps.settings(), store: deps.store(), meta: saved.meta,
-		extraTools: [...browser.tools, ...sessionOps], emit: (event) => broadcast(saved.meta.id, event) });
+		extraTools: [...browser.tools, ...sessionOps], credentials: credentialBroker, emit: (event) => broadcast(saved.meta.id, event) });
 	session.restore(saved.messages);
 	sessions.set(saved.meta.id, session);
 	browsers.set(saved.meta.id, browser.dispose);
 	return session;
 }
 
-export const promptSession: LyraApi["agent"]["prompt"] = async (id, content, options) => {
-	const input = promptContent(content);
-	const requested = promptOptions(options);
+type PromptArgs = Parameters<LyraApi["agent"]["prompt"]>;
+
+export async function promptSession(id: string, content: PromptArgs[1], options?: PromptArgs[2], origin: PromptOrigin = "local"): ReturnType<LyraApi["agent"]["prompt"]> {
+	const checked = promptOptions(options);
+	const screened = await screenMessage(id, promptContent(content), checked.displayText);
+	const input = screened.content;
+	const requested = { ...checked, ...(screened.displayText === undefined ? {} : { displayText: screened.displayText }) };
+	// Before the turn starts, so its first command finds the credential the message handed over.
+	await handOver(id, screened.named, origin);
 	let session: AgentSession | null;
 	try { session = await ensureLiveSession(id); }
 	finally { submitted.delete(id); }
@@ -103,7 +116,7 @@ export const promptSession: LyraApi["agent"]["prompt"] = async (id, content, opt
 		broadcast(id, { type: "agent_end", reason: "error", error: message });
 	});
 	return session.meta;
-};
+}
 /** Disposers for each session's browser tools, keyed the same way. */
 export const browsers = new Map<string, () => void>();
 /** Side chats, one per session, built on first use and dropped with the session. */
@@ -115,12 +128,16 @@ export async function editSessionMessage(
 	index: number,
 	content: Parameters<LyraApi["agent"]["editMessage"]>[2],
 	options: Parameters<LyraApi["agent"]["editMessage"]>[3] = {},
+	origin: PromptOrigin = "local",
 ): Promise<void> {
 	const session = await ensureLiveSession(sessionId);
 	if (!session) throw new Error("找不到这个会话。");
 	if (session.running) throw new Error("请先停止当前回复，再编辑消息。");
+	const screened = await screenMessage(sessionId, content, options.displayText);
+	await handOver(sessionId, screened.named, origin);
+	const edited = { ...options, ...(screened.displayText === undefined ? {} : { displayText: screened.displayText }) };
 	// Acknowledge submission immediately; the rerun and any failure arrive on the shared stream.
-	void session.editAndResend(index, content, options).catch((error: unknown) => {
+	void session.editAndResend(index, screened.content, edited).catch((error: unknown) => {
 		const message = error instanceof Error ? error.message : String(error);
 		broadcast(sessionId, { type: "notice", level: "error", message });
 		broadcast(sessionId, { type: "agent_end", reason: "error", error: message });
@@ -189,6 +206,7 @@ export async function getOrCreateSession(cwd: string, _modelId: string): Promise
 		settings: appSettings,
 		store: deps.store(),
 		extraTools: [...browser.tools, ...sessionOps],
+		credentials: credentialBroker,
 		emit: (event: AgentEvent) => broadcast(session.meta.id, event),
 	});
 	await session.initialize();

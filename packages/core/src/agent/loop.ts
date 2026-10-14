@@ -91,6 +91,11 @@ export interface AgentRunConfig {
 	images?: ToolContext["images"];
 	/** Passed through to the tools; see `ToolContext.videos`. */
 	videos?: ToolContext["videos"];
+	/**
+	 * Passed through to the tools, and what every result is masked against before anyone sees it.
+	 * See `ToolContext.credentials` and `runTools`.
+	 */
+	credentials?: ToolContext["credentials"];
 	spawnSubAgent?: ToolContext["spawnSubAgent"];
 	/** 这段对话的缓存键，每个请求都带上——见 `RequestOptions.cacheKey`。 */
 	cacheKey?: string;

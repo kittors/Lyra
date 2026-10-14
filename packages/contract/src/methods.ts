@@ -334,6 +334,14 @@ export const METHODS = {
 		setDisabled: { channel: "rules:setDisabled", remote: false, why: "规则管理在桌面端" },
 		setForeignUser: { channel: "rules:setForeignUser", remote: false, why: "规则管理在桌面端" },
 	},
+	credentials: {
+		submit: { channel: "credentials:submit", remote: false, why: "凭据只在电脑上填：经中转的帧是明文，填进卡片的值不能走这条路" },
+		list: { channel: "credentials:list", remote: false, why: "存下的凭据只在电脑上管理" },
+		add: { channel: "credentials:add", remote: false, why: "凭据只在电脑上填：经中转的帧是明文" },
+		update: { channel: "credentials:update", remote: false, why: "存下的凭据只在电脑上管理，重新填的值也不能走中转" },
+		remove: { channel: "credentials:remove", remote: false, why: "存下的凭据只在电脑上管理" },
+		copy: { channel: "credentials:copy", remote: false, why: "写的是这台电脑的剪贴板，手机上点了也粘不到手机里" },
+	},
 	forge: {
 		kinds: { channel: "forge:kinds", remote: false, why: "代码托管的令牌不出桌面端" },
 		accounts: { channel: "forge:accounts", remote: false, why: "代码托管的令牌不出桌面端" },

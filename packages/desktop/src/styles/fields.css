@@ -158,3 +158,11 @@
 .ly-textarea:disabled {
   opacity: 0.6;
 }
+
+/*
+ * A secret in a box that has no `type="password"`: the private key's textarea. Dots, as a password
+ * field draws them, so a shared screen or a recording shows that a key was pasted and not the key.
+ */
+.ly-secret-text {
+  -webkit-text-security: disc;
+}

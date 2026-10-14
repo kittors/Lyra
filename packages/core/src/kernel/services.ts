@@ -135,7 +135,15 @@ export interface Sandbox {
 	 */
 	run(
 		command: string,
-		options: { cwd: string; env?: Record<string, string>; mode?: SandboxMode; network?: SandboxNetwork; shell?: CommandShell },
+		options: {
+			cwd: string;
+			env?: Record<string, string>;
+			mode?: SandboxMode;
+			network?: SandboxNetwork;
+			shell?: CommandShell;
+			/** Local sockets the command must reach even with the network denied — see `SandboxPolicy.sockets`. */
+			sockets?: readonly string[];
+		},
 	): SandboxProcess;
 }
 

@@ -224,6 +224,21 @@ const CHECKS = [
 		run: ["node", ["--experimental-strip-types", "--test", "--import", "./packages/desktop/test/setup.ts", "packages/desktop/test/worktree-lifecycle.test.ts", "packages/desktop/test/worktree-merge.test.ts", "packages/desktop/test/git-worktrees.test.ts"]],
 	},
 	{
+		id: "CRED-values",
+		what: "SSH 密码、私钥、令牌只能贴进对话：值进了发给模型的请求、会话库、事件和改过的文件，子智能体那一路不脱敏，命令能把保险库文件读出来自己解；ssh2 的 agent 一遇到 OpenSSH 8.9 的 session-bind 就整个登录失败",
+		run: ["node", ["--experimental-strip-types", "--test", "--import", "./packages/core/test/setup.ts", "packages/core/test/credential-redact.test.ts", "packages/core/test/credential-askpass.test.ts", "packages/core/test/credential-agent.test.ts", "packages/core/test/credential-broker.test.ts", "packages/core/test/credential-tools.test.ts", "packages/core/test/credential-sentinel.test.ts", "packages/core/test/credential-guards.test.ts"]],
+	},
+	{
+		id: "CRED-desktop",
+		what: "凭据进主进程的闸门：卡片与保险箱的入参不逐字段重建、回给页面的结果带着值；贴进输入框的真值原样发给模型；手机上打一个引用就把存下的凭据交给了对话",
+		run: ["node", ["--experimental-strip-types", "--test", "--import", "./packages/desktop/test/setup.ts", "packages/desktop/test/credential-input.test.ts", "packages/desktop/test/credential-screen.test.ts", "packages/desktop/test/vault-naming.test.ts"]],
+	},
+	{
+		id: "CRED-ui",
+		what: "凭据卡片与保险箱页：填的值走了审批通道、存过的不先问、手机上有输入框、必须每次问的还给「不再询问」；复制值经过渲染进程，钥匙复制出私钥",
+		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/credential-card.test.ts", "test/ui/vault-view.test.ts"]],
+	},
+	{
 		id: "S7-annotate",
 		what: "标注拆成三个文件之后还画得出来吗",
 		window: true,

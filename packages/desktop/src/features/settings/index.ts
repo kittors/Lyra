@@ -10,7 +10,7 @@
 export { PluginIcon, safeColour } from "./PluginIcon.tsx";
 export { CODE_DEFAULTS } from "./appearance-defaults.ts";
 export { formatCost } from "./usage-format.ts";
-export { Toggle } from "./controls.tsx";
+export { Segmented, Toggle } from "./controls.tsx";
 export { TextInput, InlineSelect, SecretInput } from "./inputs.tsx";
 export { newMcpServer } from "./mcp-defaults.ts";
 export { NumberField, TimeField } from "./pickers.tsx";

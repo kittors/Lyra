@@ -235,9 +235,10 @@ export function LayoutProvider({ children, nav = true }: { children: React.React
 	 * The gallery has no use for the conversation list. It is a place of its own — the pictures from
 	 * every conversation at once — and the list beside it only narrowed the album. Going there folds the
 	 * sidebar away and coming back unfolds it as it was; the toggle still opens it there, for that visit
-	 * only, without deciding how every other view looks.
+	 * only, without deciding how every other view looks. The vault is the same kind of place: what is
+	 * kept there belongs to no conversation.
 	 */
-	const gallery = useApp((state) => state.view === "gallery");
+	const gallery = useApp((state) => state.view === "gallery" || state.view === "vault");
 	const [galleryNav, setGalleryNav] = useState(false);
 	useEffect(() => {
 		if (!gallery) setGalleryNav(false);

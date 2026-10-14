@@ -85,6 +85,7 @@
 		"prettier-plugin-toml": "^2.0.6",
 		"qrcode.react": "^4.2.0",
 		"sql-formatter": "^15.8.2",
+		"ssh2": "1.17.0",
 		"thinking-orbs": "^0.3.1",
 		"ws": "8.21.3",
 		"xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",

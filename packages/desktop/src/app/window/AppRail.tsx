@@ -5,14 +5,15 @@
  * the list beneath them. As icons beside the sidebar they are reachable however far the list is
  * scrolled, and they cost the list nothing. 对话 is first because it is where the window opens, and
  * the only way back from the others that does not depend on remembering which one you came from.
- * 画廊 comes last of them: the pictures drawn in every conversation, which no conversation shows.
+ * 画廊 comes after them: the pictures drawn in every conversation, which no conversation shows. 保险箱
+ * is last: the credentials conversations are handed, kept on this computer.
  *
  * At the bottom, the app rather than the work: the update mark when there is one, and settings. The
  * sidebar keeps 新对话 and the motto; a narrow window, whose sidebar is a drawer, has no rail and
  * puts all of these back in the drawer.
  */
 
-import { Blocks, Clock, GitPullRequest, House, Settings as SettingsIcon, ImagePlay } from "lucide-react";
+import { Blocks, Clock, GitPullRequest, House, Settings as SettingsIcon, ImagePlay, Vault } from "lucide-react";
 
 import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
@@ -24,7 +25,7 @@ import { reachScreen } from "../screen-reach.ts";
 /** The rail's width; the panel with the sidebar and the content starts right after it. */
 export const RAIL_WIDTH = MAIN_RAIL_WIDTH;
 
-type Place = "chat" | "pull-requests" | "scheduled" | "plugins" | "gallery" | "settings";
+type Place = "chat" | "pull-requests" | "scheduled" | "plugins" | "gallery" | "vault" | "settings";
 
 export function AppRail() {
 	const { t } = useI18n();
@@ -49,6 +50,7 @@ export function AppRail() {
 			{item("scheduled", t("sidebar.scheduled"), <Clock size={17} strokeWidth={1.8} />, { count: failures, label: t("scheduled.unseenFailures", { n: failures }), tone: "danger" })}
 			{item("plugins", t("sidebar.plugins"), <Blocks size={17} strokeWidth={1.8} />, { count: waiting, label: t("sidebar.pluginUpdates", { n: waiting }), tone: "accent" })}
 			{item("gallery", t("gallery.title"), <ImagePlay size={17} strokeWidth={1.8} />)}
+			{item("vault", t("vault.title"), <Vault size={17} strokeWidth={1.8} />)}
 			<span className="flex-1" />
 			<UpdateBadge rail />
 			{item("settings", t("phone.settings"), <SettingsIcon size={17} strokeWidth={1.8} />)}

@@ -12,7 +12,7 @@
  */
 
 import { execFile, spawn, type ChildProcess, type StdioOptions } from "node:child_process";
-import { closeSync } from "node:fs";
+import { closeSync, existsSync } from "node:fs";
 import { Socket } from "node:net";
 import type { Readable } from "node:stream";
 import { commandShell, type CommandShell } from "../platform.ts";
@@ -20,6 +20,7 @@ import { osPipe } from "./linux/libc.ts";
 import type { Sandbox, SandboxProcess } from "../kernel/services.ts";
 import { confine } from "./backend.ts";
 import { commandEnv } from "./login-path.ts";
+import { vaultFiles } from "../config/vault.ts";
 import type { SandboxMode, SandboxNetwork } from "./policy.ts";
 
 /**
@@ -67,7 +68,7 @@ const DRAIN_AFTER_EXIT_MS = 250;
 export class LocalSandbox implements Sandbox {
 	run(
 		command: string,
-		options: { cwd: string; env?: Record<string, string>; mode?: SandboxMode; network?: SandboxNetwork; shell?: CommandShell },
+		options: { cwd: string; env?: Record<string, string>; mode?: SandboxMode; network?: SandboxNetwork; shell?: CommandShell; sockets?: readonly string[] },
 	): SandboxProcess {
 		// The shell the command was written for; without one, the shell this mode runs (see `commandShell`).
 		const shell = options.shell ?? commandShell(options.mode);
@@ -97,7 +98,14 @@ export class LocalSandbox implements Sandbox {
 		const network = options.network ?? "allow";
 		const wrap =
 			options.mode || network === "deny"
-				? confine({ mode: options.mode ?? "danger-full-access", workspaceRoot: options.cwd, network })
+				? confine({
+						mode: options.mode ?? "danger-full-access",
+						workspaceRoot: options.cwd,
+						network,
+						// Every confined command, not only those handed a credential: the files open every saved key.
+						unreadable: vaultFiles().filter((path) => existsSync(path)),
+						sockets: options.sockets,
+					})
 				: null;
 		/*
 		 * stdin is `/dev/null`, not a pipe.

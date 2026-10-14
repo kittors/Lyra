@@ -18,6 +18,8 @@ import { authorizeCommandReads } from "./read-access.ts";
 import { describeStatus, readExit } from "./exit-status.ts";
 import { commandShell, type CommandShell } from "../platform.ts";
 import type { SandboxProcess } from "../kernel/services.ts";
+import { StreamRedactor } from "../credentials/redact.ts";
+import type { PreparedCommand } from "../credentials/types.ts";
 import type { Tool, ToolContext, ToolResult } from "../types.ts";
 
 const DEFAULT_TIMEOUT_MS = 120_000;
@@ -35,6 +37,8 @@ interface BashArgs {
 	escalate?: string;
 	/** Why that wider mode is needed, in one sentence, shown to the user verbatim. */
 	justification?: string;
+	/** Credentials this command is handed, by name — see `credentials/broker.ts`. */
+	credentials?: string[];
 }
 
 /**
@@ -151,7 +155,8 @@ export const bashTool: Tool<BashArgs> = {
 		"Commands may run under a file sandbox. A blocked write is reported as a policy denial, not a bug in the " +
 		"command — do not retry it another way. When one is denied and a wider mode would let it through, retry that " +
 		"exact command once with `escalate` and `justification`; the user is asked, and the grant covers only that call. " +
-		"Never escalate up front: only after this session has actually denied the same access.",
+		"Never escalate up front: only after this session has actually denied the same access. " +
+		"A command that needs a password, key or token names it in `credentials` (from request_credential); never put one on the command line.",
 	parameters: {
 		type: "object",
 		properties: {
@@ -174,6 +179,13 @@ export const bashTool: Tool<BashArgs> = {
 			justification: {
 				type: "string",
 				description: "One sentence on why the wider mode is needed. Shown to the user verbatim.",
+			},
+			credentials: {
+				type: "array",
+				items: { type: "string" },
+				description:
+					"Names of credentials from request_credential that this command needs. ssh, scp, sudo -A and git ask for a password " +
+					"themselves; ssh keys are lent through an agent; a token is in $NAME (kzhy-root is $KZHY_ROOT). Only this command gets them.",
 			},
 		},
 		required: ["command"],
@@ -254,14 +266,34 @@ export const bashTool: Tool<BashArgs> = {
 		const refusedRead = await authorizeCommandReads(args.command, ctx);
 		if (refusedRead) return errorResult(refusedRead);
 
+		const named = args.credentials;
+		if (named !== undefined && (!Array.isArray(named) || !named.every((name) => typeof name === "string"))) return errorResult("`credentials` must be a list of credential names.");
+		if (named?.length && (!ctx.credentials || !ctx.requestApproval)) return errorResult("This host has no credentials to hand a command.");
+		/*
+		 * Before the permission card, so a credential that is not there fails without asking anyone
+		 * to approve a command that cannot run — and a saved one is let into the conversation first.
+		 */
+		let prepared: PreparedCommand | undefined;
+		if (named?.length) {
+			try {
+				prepared = await ctx.credentials!.prepare(named, args.command, ctx.requestApproval!);
+			} catch (error) {
+				return errorResult(error instanceof Error ? error.message : String(error));
+			}
+		}
+
 		if (ctx.requestApproval && !args.escalate && !isReadOnlyCommand(args.command)) {
 			const decision = await ctx.requestApproval({
 				kind: "bash",
 				title: args.description ?? "Run shell command",
 				detail: args.command,
 				subject: args.command,
+				...(named?.length ? { credentials: named } : {}),
 			});
-			if (decision !== "once" && decision !== "always") return errorResult("The user rejected this command.");
+			if (decision !== "once" && decision !== "always") {
+				await prepared?.dispose();
+				return errorResult("The user rejected this command.");
+			}
 		}
 
 		/*
@@ -270,7 +302,14 @@ export const bashTool: Tool<BashArgs> = {
 		 */
 		const shell = commandShell(ctx.sandboxMode);
 
-		if (args.run_in_background) return startBackground(args, { ...ctx, sandboxMode: mode }, shell);
+		/*
+		 * Masked as it arrives, so the output log on disk — which no later step rewrites — never holds
+		 * a value. Any credential this conversation holds, not only the ones named: a command can print
+		 * a value it read from a file the model wrote earlier.
+		 */
+		const stream = ctx.credentials ? new StreamRedactor(() => ctx.credentials!.redactor()) : undefined;
+
+		if (args.run_in_background) return startBackground(args, { ...ctx, sandboxMode: mode }, shell, { stream, prepared });
 
 		/*
 		 * A timeout the model asked for is a limit; the default one is only a point to stop waiting.
@@ -289,6 +328,8 @@ export const bashTool: Tool<BashArgs> = {
 		const outputLog = await createOutputLog(ctx.scratchDir);
 		/** Set when the command outlives this call: its log then stays open for the job that continues it. */
 		let handedOff = false;
+		/** Set when a job took the credentials over: their sockets stay until that job ends. */
+		let credentialsHandedOff = false;
 		const result = await new Promise<ToolResult>((resolve) => {
 			/*
 			 * `mode` may have been widened by an escalation just now; `network` never is.
@@ -299,7 +340,7 @@ export const bashTool: Tool<BashArgs> = {
 			 */
 			let child: SandboxProcess;
 			try {
-				child = getSandbox().run(args.command, { cwd: ctx.cwd, mode, network: ctx.sandboxNetwork, shell });
+				child = getSandbox().run(args.command, { cwd: ctx.cwd, mode, network: ctx.sandboxNetwork, shell, env: prepared?.env, sockets: prepared?.sockets });
 			} catch (error) {
 				// A sandbox that cannot confine says so by throwing; the model gets the sentence, not a crash.
 				resolve(errorResult(`Failed to start command: ${error instanceof Error ? error.message : String(error)}`));
@@ -335,9 +376,10 @@ export const bashTool: Tool<BashArgs> = {
 				clearInterval(ticker);
 				ticker = undefined;
 			};
-			child.onOutput((chunk) => {
+			child.onOutput((raw) => {
 				// Once the call has answered, the output belongs to whatever took the command over.
 				if (settled) return;
+				const chunk = stream ? stream.push(raw) : raw;
 				outputLog?.append(chunk);
 				output = clip(output + chunk);
 				pending = true;
@@ -363,7 +405,8 @@ export const bashTool: Tool<BashArgs> = {
 					return;
 				}
 				handedOff = true;
-				const id = adoptJob(ctx, args.command, child, output, outputLog);
+				credentialsHandedOff = true;
+				const id = adoptJob(ctx, args.command, child, output, outputLog, { stream, prepared });
 				resolve({
 					content: [{
 						type: "text",
@@ -405,6 +448,12 @@ export const bashTool: Tool<BashArgs> = {
 				clearTimeout(timer);
 				stopTicking();
 				ctx.signal?.removeEventListener("abort", onAbort);
+				// What the masker held back waiting for a value's last character: the stream is over.
+				const rest = stream?.flush() ?? "";
+				if (rest) {
+					outputLog?.append(rest);
+					output = clip(output + rest);
+				}
 				const text = clip(output).trim();
 				/*
 				 * Say when it was the sandbox, not the command.
@@ -441,8 +490,17 @@ export const bashTool: Tool<BashArgs> = {
 				const reading = readExit(args.command, code, output, shell.kind);
 				const status =
 					code === 0 ? undefined : `[${describeStatus(code, signal)}${reading.meaning ? ` — ${reading.meaning}; not a failure` : ""}]`;
-				const leftBehind = lingering ? adoptJob(ctx, args.command, lingering, "", undefined) : undefined;
+				/*
+				 * What it left running may be what uses the credentials — `ssh -f`, a tunnel — so the
+				 * sockets stay until that ends, and its output is masked like the command's was.
+				 */
+				if (lingering) credentialsHandedOff = true;
+				const leftBehind = lingering
+					? adoptJob(ctx, args.command, lingering, "", undefined, { stream: ctx.credentials ? new StreamRedactor(() => ctx.credentials!.redactor()) : undefined, prepared })
+					: undefined;
 				const markers = [
+					// A prompt the askpass helper would not answer, so a refusal is not read as a wrong password.
+					...(prepared?.notes() ?? []),
 					...(denied ? [sandboxDenialMarker(ranUnder), escalationHint("command")] : []),
 					...(cutOff ? [networkDenialMarker()] : []),
 					...(leftBehind
@@ -459,6 +517,7 @@ export const bashTool: Tool<BashArgs> = {
 					details: {
 						kind: "bash",
 						command: args.command,
+						...(named?.length ? { credentials: named } : {}),
 						exitCode: code,
 						...(signal ? { signal } : {}),
 						...(reading.meaning && !reading.failed ? { exitMeaning: reading.meaning } : {}),
@@ -470,6 +529,7 @@ export const bashTool: Tool<BashArgs> = {
 				});
 			});
 		});
+		if (!credentialsHandedOff) await prepared?.dispose();
 		const outputDetails = handedOff ? { outputPath: outputLog?.path } : await outputLog?.close();
 		let changeIds: string[] = [];
 		try { changeIds = await afterCommand(ctx, baseline); } catch (error) { changeWarning = String(error); }
@@ -485,12 +545,19 @@ export const bashTool: Tool<BashArgs> = {
  * with its output still attached. Either way it can be read and stopped like one started with
  * `run_in_background`, and `dispose` stops it with the session.
  */
+/** What a job carries on for the command it continues: its output masking, and the credentials it was handed. */
+interface JobCredentials {
+	stream?: StreamRedactor;
+	prepared?: PreparedCommand;
+}
+
 function adoptJob(
 	ctx: ToolContext,
 	command: string,
 	process: SandboxProcess,
 	output: string,
 	outputLog: Awaited<ReturnType<typeof createOutputLog>> | undefined,
+	credentials: JobCredentials = {},
 ): string {
 	const id = randomUUID();
 	const job: BackgroundJob = {
@@ -503,24 +570,31 @@ function adoptJob(
 		pid: process.pid,
 		status: "running",
 	};
-	track(job, process, outputLog);
+	track(job, process, outputLog, credentials);
 	backgroundJobs(ctx.state).add(job, process);
 	return id;
 }
 
 /** Follow a job's output and exit, whoever started it. */
-function track(job: BackgroundJob, process: SandboxProcess, outputLog: Awaited<ReturnType<typeof createOutputLog>> | undefined): void {
-	process.onOutput((chunk) => {
+function track(job: BackgroundJob, process: SandboxProcess, outputLog: Awaited<ReturnType<typeof createOutputLog>> | undefined, credentials: JobCredentials = {}): void {
+	const { stream, prepared } = credentials;
+	const append = (chunk: string) => {
+		if (!chunk) return;
 		outputLog?.append(chunk);
 		job.output = clip(job.output + chunk);
-	});
+	};
+	process.onOutput((raw) => append(stream ? stream.push(raw) : raw));
 	process.onExit((code) => {
+		append(stream?.flush() ?? "");
+		// The job was what the sockets were kept for; with it gone they go too.
+		void prepared?.dispose();
 		void outputLog?.close().then((details) => Object.assign(job, details));
 		job.exitCode = code;
 		job.finishedAt = Date.now();
 		job.status = code !== null && code !== 0 ? "failed" : "exited";
 	});
 	process.onError((error) => {
+		void prepared?.dispose();
 		void outputLog?.close().then((details) => Object.assign(job, details));
 		job.error = error.message;
 		job.status = "failed";
@@ -528,13 +602,14 @@ function track(job: BackgroundJob, process: SandboxProcess, outputLog: Awaited<R
 	});
 }
 
-async function startBackground(args: BashArgs, ctx: ToolContext, shell: CommandShell): Promise<ToolResult> {
+async function startBackground(args: BashArgs, ctx: ToolContext, shell: CommandShell, credentials: JobCredentials): Promise<ToolResult> {
 	const outputLog = await createOutputLog(ctx.scratchDir);
 	const id = randomUUID();
 	let child: SandboxProcess;
 	try {
-		child = getSandbox().run(args.command, { cwd: ctx.cwd, mode: ctx.sandboxMode, network: ctx.sandboxNetwork, shell });
+		child = getSandbox().run(args.command, { cwd: ctx.cwd, mode: ctx.sandboxMode, network: ctx.sandboxNetwork, shell, env: credentials.prepared?.env, sockets: credentials.prepared?.sockets });
 	} catch (error) {
+		await credentials.prepared?.dispose();
 		await outputLog?.close();
 		return errorResult(`Failed to start command: ${error instanceof Error ? error.message : String(error)}`);
 	}
@@ -549,7 +624,7 @@ async function startBackground(args: BashArgs, ctx: ToolContext, shell: CommandS
 		pid: child.pid,
 		status: "running",
 	};
-	track(job, child, outputLog);
+	track(job, child, outputLog, credentials);
 
 	backgroundJobs(ctx.state).add(job, child);
 	return {

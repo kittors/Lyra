@@ -41,6 +41,7 @@ import type { Boundary, SessionMeta } from "../session/store.ts";
 import type { SessionStorage } from "../session/storage.ts";
 import type { ApprovalDecision, ApprovalRequest, Message, MessageAttachment, ThinkingLevel, Tool, UserContent } from "../types.ts";
 import { ApprovalGate, sessionApprovalGate } from "./approvals.ts";
+import type { CredentialAccess } from "../credentials/types.ts";
 import type { ContextBreakdown } from "./context.ts";
 import { describeContext, describeSession, type SessionFacts, type SessionStatus } from "./reporting.ts";
 import { CapabilityWatcher } from "./capability-watch.ts";
@@ -80,6 +81,13 @@ export interface AgentSessionOptions {
 	streamFn?: AgentRunConfig["streamFn"];
 	/** A turn override suppresses title requests unless this separate stream is supplied. */
 	titleSummaryStream?: typeof streamAssistant;
+	/**
+	 * Where this conversation's credentials are kept — `credentials/broker.ts`, one per process.
+	 *
+	 * A host provides it when it can show the card a credential is typed into. Absent, the
+	 * conversation has none: `request_credential` is not offered.
+	 */
+	credentials?: { forSession(sessionId: string): CredentialAccess };
 }
 
 /**
@@ -130,6 +138,8 @@ export class AgentSession {
 	/** 盯着技能和规则目录的那个，没有可听的目录时是 null。 */
 	private watcher: CapabilityWatcher | null = null;
 	private streamFn?: AgentRunConfig["streamFn"];
+	/** Where this conversation's credentials are kept; see `AgentSessionOptions.credentials`. */
+	private readonly credentials?: AgentSessionOptions["credentials"];
 	/**
 	 * 标题那件事的全部，在 `session-title.ts` 里。
 	 *
@@ -256,6 +266,7 @@ export class AgentSession {
 		this.globalSettings = options.settings;
 		this.store = options.store;
 		this.streamFn = options.streamFn;
+		this.credentials = options.credentials;
 		this.title = new SessionTitle({
 			settings: () => this.settings,
 			append: (record) => this.log.append(record),
@@ -1032,6 +1043,7 @@ export class AgentSession {
 				delegations: this.delegations,
 				liveModel: this.liveModel,
 				mediaPicks: this.mediaPicks,
+				credentials: this.credentials?.forSession(this.log.meta.id),
 			});
 			await this.activeTurn;
 		} finally {

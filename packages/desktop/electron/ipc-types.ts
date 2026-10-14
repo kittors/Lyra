@@ -11,6 +11,7 @@
 import type { SessionChange } from "./ipc-shapes.ts";
 import type { FilePanelState, FilePanelVersion } from "../shared/file-panel-state.ts";
 import type { TrajectoryEntry, TrajectoryChanges, AgentDefinitionRecord, AgentDefinitionSave, Gallery } from "@lyra/core";
+import type { CredentialApproval, CredentialKind, CredentialMeta, CredentialSubmission, FieldKey, SavedProblem, SubmitResult } from "@lyra/core";
 import type { ForgeAccount, ForgeKind, ForgeKindInfo } from "./forge/types.ts";
 import type {
 	BranchList,
@@ -57,6 +58,9 @@ export type { OpenTarget } from "./open-targets.ts";
 import type { OpenTarget } from "./open-targets.ts";
 
 export type UpdatePhase = DownloadPhase;
+
+/** What the vault page is told after a save: the credential without its values, or why it was not saved. */
+export type SavedResult = { ok: true; meta: CredentialMeta } | { ok: false; problem: SavedProblem; message?: string };
 
 import type {
 	AgentEvent,
@@ -1157,6 +1161,24 @@ export interface LyraApi {
 		keep(sessionId: string, scope: RuleDestination, name: string, content: string): Promise<{ path: string; renamed?: string }>;
 		/** They said no. Two in a row and this session stops offering. */
 		decline(sessionId: string): Promise<void>;
+	};
+	/**
+	 * Credential cards, and the vault page where the person keeps credentials by hand.
+	 *
+	 * Values go in through `submit`, `add` and `update` and never come back out: what returns carries
+	 * names, kinds and where each may be used, nothing more. `copy` puts one on the system clipboard
+	 * from the main process. Desktop only — see `ipc/credentials.ts`.
+	 */
+	credentials: {
+		/** What the person typed into a card. The card closes once the value is held, not before. */
+		submit(sessionId: string, requestId: string, submission: CredentialSubmission): Promise<SubmitResult>;
+		list(): Promise<CredentialMeta[]>;
+		add(input: { name: string; kind: CredentialKind; title: string; target?: string; approval?: CredentialApproval; values: Partial<Record<FieldKey, string>> }): Promise<SavedResult>;
+		/** `values` re-enters every field of the kind; left out, what is saved stays. */
+		update(name: string, patch: { title?: string; target?: string | null; approval?: CredentialApproval; values?: Partial<Record<FieldKey, string>> }): Promise<SavedResult>;
+		remove(name: string): Promise<void>;
+		/** A password or token, wiped from the clipboard after `clearsAfter` ms; a key's public line, left there. */
+		copy(name: string): Promise<{ copied: boolean; clearsAfter?: number | null }>;
 	};
 	/**
 	 * The code hosts this app is signed in to.

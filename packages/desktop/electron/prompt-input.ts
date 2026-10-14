@@ -35,7 +35,7 @@ export function promptContent(value: unknown): UserContent[] {
  * 路——同一个形状在 `sync.ts` 里已经犯过一次（手机可在任意目录建会话，等价拿回被白名单挡掉的
  * terminal 能力），那次的注释还在。
  */
-type PromptOrigin = "local" | "remote";
+export type PromptOrigin = "local" | "remote";
 
 /**
  * A finished phone upload's path on this desktop, by the id the phone was given; see `sync-uploads.ts`.

@@ -12,6 +12,7 @@ import type { SandboxMode, SandboxNetwork } from "../sandbox/policy.ts";
 import type { ResourceRouter } from "../resources/router.ts";
 import type { RiskCode, RiskParams } from "../tools/risk-reasons.ts";
 import type { UserContent } from "./message.ts";
+import type { CredentialAccess, CredentialPrompt } from "../credentials/types.ts";
 
 export type { RiskCode, RiskParams };
 
@@ -168,6 +169,13 @@ export interface ToolContext {
 	images?: ImageHost;
 	/** Film with one of the user's video models; see `videos/types.ts`. Absent, and `video_generate` is not offered. */
 	videos?: VideoHost;
+	/**
+	 * This conversation's credentials, by name — see `credentials/broker.ts`.
+	 *
+	 * Provided by a host that can show the card a credential is typed into. Absent — the CLI, a test
+	 * — `request_credential` is not offered and `bash` refuses a `credentials` argument.
+	 */
+	credentials?: CredentialAccess;
 	logger?: Logger;
 }
 
@@ -186,7 +194,7 @@ export interface QuestionFields {
 }
 
 export interface ApprovalRequest extends QuestionFields {
-	kind: "bash" | "write" | "edit" | "read" | "mcp" | "network" | "interactive";
+	kind: "bash" | "write" | "edit" | "read" | "mcp" | "network" | "interactive" | "credential";
 	title: string;
 	detail: string;
 	/**
@@ -221,6 +229,23 @@ export interface ApprovalRequest extends QuestionFields {
 	 * 在跑，人要据以决定的恰恰是「这个活该不该由它来干」。
 	 */
 	from?: ApprovalOrigin;
+	/**
+	 * The card a credential is typed into, on `kind: "credential"`.
+	 *
+	 * Holds no value and gets none back: what the person types goes to the broker through its own
+	 * channel, and this request is answered only with whether it was filled. See `credentials/types.ts`.
+	 */
+	credential?: CredentialPrompt;
+	/** The credentials a command will be handed, so its permission card can name them. */
+	credentials?: string[];
+	/**
+	 * Asked whatever the permission mode, and never answered by an "always" from before.
+	 *
+	 * For reading the vault's own files. Full access lets a command read anything, and those two files
+	 * together open every saved key — so they are asked about even where nothing else is. See
+	 * `tools/read-access.ts`.
+	 */
+	mustAsk?: boolean;
 }
 
 /**
