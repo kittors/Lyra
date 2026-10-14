@@ -465,9 +465,15 @@ export function ComposerSend({ running, disabled, onSend, onStop, continueReady 
 	const { t } = useI18n();
 	const mode = running ? "stop" : continueReady ? "continue" : "send";
 	const label = running ? t("composer.stop") : tip ?? t("composer.send");
+	/*
+	 * Round, quiet at rest and ink under the pointer; ink while it is a stop button. This is the look
+	 * from before 0c2a5d19 made it an ink square, brought back at the person's asking (2026-10-14).
+	 * The transition names its properties: `transition-all` also carries `visibility`, which kept this
+	 * button painting over the view that had replaced it (`e2e/workspace-put-away.test.ts`).
+	 */
 	return <button type="button" data-composer-send={active ? mode : undefined} data-ly-tip={label} aria-label={label}
 		disabled={!running && disabled} onClick={running ? onStop : onSend}
-		className={`ly-composer-control ly-composer-icon relative flex shrink-0 items-center justify-center rounded-lg transition-colors duration-[var(--ly-t-quick)] ease-[var(--ly-e-soft)] ${running ? "bg-elevated text-ink hover:bg-card-hover" : "bg-ink text-shell enabled:hover:bg-ink/80 disabled:opacity-50"}`}>
+		className={`ly-composer-control ly-composer-icon relative flex shrink-0 items-center justify-center rounded-full transition-[background-color,color,opacity] duration-[var(--ly-t-quick)] ease-[var(--ly-e-soft)] ${running ? "bg-ink text-shell hover:opacity-85" : "bg-elevated text-ink enabled:hover:bg-ink enabled:hover:text-shell disabled:opacity-45"}`}>
 		<span className="ly-send-icon" data-active={mode === "stop"}><svg width="11" height="11" viewBox="0 0 11 11" aria-hidden><rect width="11" height="11" rx="1.5" fill="currentColor" /></svg></span>
 		<span className="ly-send-icon" data-active={mode === "continue"}><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden><path d="M5 3.5 12.5 8 5 12.5Z" fill="currentColor" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" /></svg></span>
 		<span className="ly-send-icon" data-active={mode === "send"}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 19V5M5 12l7-7 7 7" /></svg></span>
