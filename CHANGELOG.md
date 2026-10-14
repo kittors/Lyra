@@ -5,6 +5,184 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.28](https://github.com/kittors/Lyra/releases/tag/v0.9.28) - 2026-10-14
+<!-- lyra:notes en -->
+
+### New features
+
+- **Lyra makes videos now.** Set up a video model — xAI, Volcengine Ark, OpenAI, Veo or Alibaba Cloud Bailian — and ask for a video in a conversation. Its card shows what stage it is at, how long it has waited and how far along it is; once it arrives it plays in Lyra's own player. Full window fills the Lyra window without starting the video over; the real Full screen is under More.
+- **Choose which model draws, per conversation.** With two or more image or video models set up, a wand appears beside the model button in the message box, listing image models and video models. What you pick applies to this conversation only. Naming a model with @ in a message switches to it as well.
+- **Draw it again, or turn it into a video.** Hover a picture and choose Again: redraw it with another image model from the same prompt, or Make it a video with a video model. A video card offers Remake with.
+- **Gallery is now Studio.** Videos sit next to pictures, marked with their length; a picture's history shows when it was made into a video, and the detail page plays it.
+- **Choose a worktree for each new conversation.** Beside the project and branch, a new conversation's message box has a Worktree switch. Turn it on and the conversation works in a copy of the repository of its own, leaving your checkout alone; the setting is now only the default. These conversations stay under their project in the sidebar — each one used to open a group of its own with the project's name — and the copy goes into `~/.lyra/worktrees` instead of a new folder beside your repository.
+- **Merge a worktree back, or bring main in.** In a worktree conversation, the chip above the message box shows the worktree's branch and how far it has moved, like `↑2 ↓1`. Its menu has Merge into main and Sync from main. A merge that would conflict is backed out at once, so your project folder is never left half-merged, and the menu names the files. A sync that stops on conflicts offers Ask this chat to resolve them, or Abandon this sync. After a merge the menu offers Archive this chat.
+- **Worktrees are cleared away when you are done.** Deleting or archiving a conversation removes its worktree folder, and its branch as well once every commit on it is in main. Taking the conversation out of the archive checks it out again in the same place. A folder with uncommitted changes in it is never removed, and the delete dialog says what stays behind: the files not committed, the commits not merged.
+- **A conversation can suggest another one.** When it comes across something worth its own conversation, it shows a Suggested chat card. Nothing starts until you press Start, and you stay where you are. The card can start it in a new worktree; the new chat takes the card's title, and the card shows what it is doing. A conversation can also archive itself once its work is done — after its last reply has finished.
+
+### Improvements & Fixes
+
+- **Worktree conversations from earlier versions are back under their project.** Each one sat in a group of its own named after the project, and its folder beside the repository was out of Lyra's reach: the file tree was empty and committing from it was refused. They are filed back when Lyra starts; their files show and committing works.
+- **A video's progress bar can be dragged.** Dragging it, clicking on it or pressing ← → went back to the first frame — for generated videos, and for audio and video files in the file panel. Seeking works now.
+- **Switching to Studio no longer stutters.** While the conversation list slid away, the grid of pictures was laid out again on every frame; it is now laid out once. A full-page view opened for the first time no longer shows a placeholder for a third of a second first (355 ms → 27 ms).
+- **MCP tools no longer get every Gemini request rejected through a relay.** An MCP server that declares an array parameter without saying what is in it made every request fail with "The request itself was rejected", in old and new conversations alike. Such parameters are completed before they are sent.
+- **A worktree that could not be made is no longer mentioned only once.** It used to be a notice that was gone in a few seconds, while the conversation went on changing your own checkout. An amber mark now sits after the branch in the message box; click it to see why.
+
+<!-- lyra:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 新功能
+
+- **能做视频了。** 配一个视频模型——xAI、火山方舟、OpenAI、Veo 或阿里云百炼——在对话里说要一段视频就行。视频卡片写着做到哪一步、已经等了多久、进度多少；做好以后用 Lyra 自己的播放器放。「全屏」铺满 Lyra 窗口，视频不会从头开始；真正占满屏幕的「屏幕全屏」在「更多」里。
+- **按对话选用哪个模型来画。** 配了两个以上生图或视频模型时，输入框的模型按钮旁边多一根魔法棒，菜单里分「生图模型」「视频模型」，选的只对这个对话生效。在消息里用 @ 点名一个模型，也会切过去。
+- **换个模型再画，或者做成视频。** 画好的图悬停点「再生成」：换个生图模型照原来的提示词重画，或者「做成视频」。视频卡片上有「换个视频模型重做」。
+- **画廊改名「创作」。** 视频和图片排在一起，标着时长；图的生成链路里能看到它被做成了视频，详情页直接播放。
+- **开新对话时，按次选要不要工作树。** 新对话的输入框上，项目和分支后面有一个「工作树」开关：打开后这个对话在仓库的一份副本里干活，不动你自己的检出。设置里那个开关现在只是默认值。这些对话在侧栏里归在原项目下——以前每开一个就多出一个和项目同名的分组；副本建在 `~/.lyra/worktrees`，你的仓库旁边不再多出一个目录。
+- **把工作树合回 main，或者把 main 的新提交拿进来。** 工作树对话的输入框上方，那颗 chip 写着工作树的分支和它走出去多远，比如 `↑2 ↓1`。点开有「合并到 main」「从 main 同步」。合并会冲突时立刻撤回，项目目录里不会留下合了一半的状态，菜单列出是哪些文件；同步停在冲突上时，可以「交给这个对话解决」，也可以「放弃这次同步」。合并成功后，菜单里给出「归档这个对话」。
+- **工作树用完会收走。** 删除或归档一个对话，它的工作树目录跟着收走；分支上的提交全进了 main 的话，分支也一起删。从归档里拿回来，会在原来的位置重新检出。目录里有没提交的改动时一律不收；删除确认框会写清楚留下了什么：哪些文件没提交、哪些提交没合并。
+- **对话可以建议另开一个会话。** 它做事时碰到一件值得单独做的事，会给出一张「建议的新会话」卡片；点了「开始」才开始，你留在当前对话里，不会被切走。卡片上可以选在新工作树里开始；开出来的会话用卡片的标题，卡片上写着它正在做什么。对话也能在事情做完后归档自己——等它最后那句话说完再归。
+
+### 优化与修复
+
+- **旧版本建的工作树对话回到了原项目下。** 以前它们各自成一个和项目同名的分组，仓库旁边那个目录也不在 Lyra 够得着的范围里：文件树是空的，从里面提交会被拒绝。现在启动时会把它们归回去，文件列得出来，也能提交了。
+- **视频的进度条能拖了。** 以前拖进度条、点进度条、按 ← →，都会跳回第一帧——生成的视频是这样，文件面板里的音视频也是。
+- **切到「创作」不再一卡一卡的。** 会话列表收起的那一下，图片网格每一帧都重新排一次版；现在只排一次。独立页第一次打开，也不再先挂三分之一秒的占位（355 毫秒 → 27 毫秒）。
+- **装了某些 MCP 之后，经中转用 Gemini 不再每条都被拒。** MCP 服务器把数组参数写成没说元素是什么时，每次请求都报「这次请求本身不被接受」，新旧对话都一样。现在发出去之前会把这类参数补全。
+- **工作树没建成，不再只提一句。** 以前是一条几秒就消失的提示，对话接着改的却是你自己的检出。现在输入框上分支后面一直有一个琥珀色的标记，点开能看到原因。
+
+</details>
+
+<!-- lyra:notes zh-TW -->
+
+<details>
+<summary>中文（繁體）</summary>
+
+### 新功能
+
+- **可以做影片了。** 設定一個影片模型——xAI、火山方舟、OpenAI、Veo 或阿里雲百煉——在對話裡說要一段影片就行。影片卡片會寫著做到哪一步、已經等了多久、進度多少；做好之後用 Lyra 自己的播放器播放。「全螢幕」會鋪滿 Lyra 視窗，影片不會從頭開始；真正佔滿螢幕的「佔滿螢幕」在「更多」裡。
+- **依對話選用哪個模型來畫。** 設定了兩個以上生圖或影片模型時，輸入框的模型按鈕旁會多一根魔法棒，選單分成「生圖模型」「影片模型」，選的只對這個對話有效。在訊息裡用 @ 點名一個模型，也會切換過去。
+- **換個模型再畫，或做成影片。** 畫好的圖滑鼠移上去點「再生成」：換個生圖模型照原本的提示重畫，或「做成影片」。影片卡片上有「換個影片模型重做」。
+- **畫廊改名「創作」。** 影片和圖片排在一起並標出長度；圖的生成歷程裡看得到它被做成了影片，詳細頁直接播放。
+- **開新對話時，每次自己選要不要工作樹。** 新對話的輸入框上，專案和分支後面有一個「工作樹」開關：打開後，這個對話會在儲存庫的一份副本裡工作，不動你自己的檢出。設定裡的開關現在只是預設值。這些對話在側邊欄裡歸在原專案底下——以前每開一個就多出一個和專案同名的群組；副本建在 `~/.lyra/worktrees`，你的儲存庫旁邊不會再多出一個資料夾。
+- **把工作樹合併回 main，或把 main 的新提交拿進來。** 工作樹對話的輸入框上方，那顆 chip 寫著工作樹的分支和它走出去多遠，例如 `↑2 ↓1`。點開有「合併到 main」「從 main 同步」。合併會衝突時立刻撤回，專案資料夾不會留下合併到一半的狀態，選單會列出是哪些檔案；同步卡在衝突上時，可以「交給這個對話解決」，也可以「放棄這次同步」。合併成功後，選單會提供「封存這個對話」。
+- **工作樹用完會收走。** 刪除或封存一個對話時，它的工作樹資料夾會一起收走；分支上的提交如果都已進了 main，分支也一併刪除。從封存裡拿回來時，會在原來的位置重新檢出。資料夾裡有未提交的改動時一律不收；刪除確認框會寫清楚留下了什麼：哪些檔案沒提交、哪些提交沒合併。
+- **對話可以建議另開一個對話。** 它做事時發現一件值得單獨處理的事，會給出一張「建議的新對話」卡片；按下「開始」才會開始，你留在目前的對話裡，不會被切走。卡片上可以選在新工作樹裡開始；開出來的對話沿用卡片的標題，卡片上會寫著它正在做什麼。對話也能在事情做完後封存自己——等它最後那段回覆說完再封存。
+
+### 最佳化與修復
+
+- **舊版本建的工作樹對話回到了原專案底下。** 以前它們各自成一個和專案同名的群組，儲存庫旁邊那個資料夾也不在 Lyra 碰得到的範圍內：檔案樹是空的，從裡面提交會被拒絕。現在啟動時會把它們歸回去，檔案列得出來，也能提交了。
+- **影片的進度列可以拖動了。** 以前拖進度列、點進度列、按 ← →，都會跳回第一格——產生的影片如此，檔案面板裡的音訊和影片也是。
+- **切到「創作」不再卡卡的。** 對話清單收起的那一下，圖片網格每一格畫面都重新排版一次；現在只排一次。獨立頁面第一次打開，也不再先掛三分之一秒的佔位畫面（355 毫秒 → 27 毫秒）。
+- **裝了某些 MCP 之後，經中轉用 Gemini 不再每次都被拒。** MCP 伺服器把陣列參數寫成沒說明元素是什麼時，每次請求都報「這次請求本身不被接受」，新舊對話都一樣。現在送出之前會先把這類參數補齊。
+- **工作樹沒建成，不再只提一次。** 以前是一則幾秒就消失的提示，對話接著改的卻是你自己的檢出。現在輸入框上分支後面會一直有一個琥珀色標記，點開就能看到原因。
+
+</details>
+
+<!-- lyra:notes ja -->
+
+<details>
+<summary>日本語</summary>
+
+### 新機能
+
+- **動画を作れるようになりました。** xAI、火山方舟（Volcengine Ark）、OpenAI、Veo、阿里雲百煉のいずれかの動画生成モデルを設定し、会話で動画を頼むだけです。動画のカードには、いまどの段階か、どれだけ待っているか、どこまで進んだかが出ます。届いたら Lyra 自身のプレーヤーで再生します。「ウィンドウ全体に表示」は Lyra のウィンドウいっぱいに広げ、動画は最初からやり直しになりません。画面全体を使う「全画面表示」は「その他」の中にあります。
+- **描くモデルを会話ごとに選べます。** 画像生成モデルか動画生成モデルを 2 つ以上設定すると、入力欄のモデルボタンの横に魔法の杖が出ます。メニューは「画像生成モデル」と「動画生成モデル」に分かれ、選んだものはこの会話にだけ効きます。メッセージの中で @ でモデルを名指ししても切り替わります。
+- **別のモデルで描き直す、動画にする。** 描いた画像にマウスを乗せて「もう一度」を押すと、同じプロンプトのまま別の画像生成モデルで描き直すか、「動画にする」を選べます。動画のカードには「別のモデルで作り直す」があります。
+- **ギャラリーは「スタジオ」になりました。** 動画も画像と並び、長さが付きます。画像の生成履歴には動画にしたことも残り、詳細ページでそのまま再生できます。
+- **ワークツリーを使うかを、新しい会話ごとに選べます。** 新しい会話の入力欄で、プロジェクトとブランチの後ろに「ワークツリー」のスイッチがあります。オンにすると、その会話はリポジトリの専用コピーで作業し、あなたのチェックアウトには触れません。設定のスイッチは既定値になりました。こうした会話はサイドバーで元のプロジェクトの下に並びます——以前は一つ作るたびにプロジェクトと同じ名前のグループが増えていました。コピーは `~/.lyra/worktrees` に作られ、リポジトリの隣にフォルダーが増えることはもうありません。
+- **ワークツリーを main にマージする、main の新しいコミットを取り込む。** ワークツリーの会話では、入力欄の上のチップにワークツリーのブランチと、どれだけ離れたかが `↑2 ↓1` のように出ます。開くと「main にマージ」と「main から取り込む」があります。マージがコンフリクトする場合はすぐに取り消され、プロジェクトのフォルダーが途中までマージされた状態で残ることはありません。どのファイルかはメニューに出ます。取り込みがコンフリクトで止まったときは、「この会話に解決を任せる」か「この取り込みを取り消す」を選べます。マージに成功すると、メニューに「この会話をアーカイブ」が出ます。
+- **使い終わったワークツリーは片付きます。** 会話を削除またはアーカイブすると、そのワークツリーのフォルダーも片付けます。ブランチのコミットがすべて main に入っていれば、ブランチも一緒に消します。アーカイブから戻すと、同じ場所にもう一度チェックアウトします。未コミットの変更があるフォルダーは決して消しません。削除の確認には、何が残るか——コミットしていないファイル、マージしていないコミット——が書かれます。
+- **会話が別の会話を提案できます。** 作業中に別の会話で扱うべきことを見つけると、「新しい会話の提案」のカードを出します。「開始」を押すまで何も始まらず、いまの会話から移動させられることもありません。カードから新しいワークツリーで始めることもでき、始まった会話はカードのタイトルを使い、カードには何をしているかが出ます。会話は作業を終えたら自分をアーカイブすることもできます——最後の返答が終わってから。
+
+### 改善と修正
+
+- **以前のバージョンで作ったワークツリーの会話が、元のプロジェクトの下に戻りました。** これまではそれぞれがプロジェクトと同じ名前のグループになり、リポジトリの隣のフォルダーは Lyra の手が届きませんでした。ファイルツリーは空で、そこからのコミットは拒否されていました。起動時に元へ戻すようになり、ファイルも表示され、コミットもできます。
+- **動画のシークバーをドラッグできるようになりました。** ドラッグしても、クリックしても、← → を押しても最初のフレームに戻っていました。生成した動画も、ファイルパネルの音声・動画も同じでした。
+- **「スタジオ」に切り替えてもカクつかなくなりました。** 会話リストがたたまれるあいだ、画像のグリッドを 1 フレームごとに組み直していました。いまは 1 回だけです。全画面のビューを初めて開くときに、0.3 秒ほどプレースホルダーが出ることもなくなりました（355 ms → 27 ms）。
+- **一部の MCP を入れていると、中継経由の Gemini へのリクエストが毎回拒否されていた問題を直しました。** 配列の引数に要素の型を書いていない MCP サーバーがあると、新しい会話でも古い会話でも、毎回「リクエスト自体が受け付けられませんでした」になっていました。送る前にこうした引数を補うようにしました。
+- **ワークツリーを作れなかったことを、一度きりで済ませなくなりました。** 以前は数秒で消える通知だけで、会話はそのままあなた自身のチェックアウトを変更していました。いまは入力欄のブランチの後ろに琥珀色の印が残り、押すと理由が出ます。
+
+</details>
+
+<!-- lyra:notes ko -->
+
+<details>
+<summary>한국어</summary>
+
+### 새 기능
+
+- **이제 동영상을 만듭니다.** xAI, 화산방주(Volcengine Ark), OpenAI, Veo, 알리바바 클라우드 바이롄 가운데 동영상 생성 모델을 설정하고 대화에서 동영상을 부탁하면 됩니다. 동영상 카드에는 지금 어느 단계인지, 얼마나 기다렸는지, 어디까지 진행됐는지가 표시됩니다. 완성되면 Lyra 자체 플레이어로 재생합니다. '창 전체로 보기'는 Lyra 창을 가득 채우며 동영상이 처음부터 다시 시작되지 않습니다. 화면 전체를 쓰는 '전체 화면'은 '더 보기' 안에 있습니다.
+- **그리는 모델을 대화마다 고릅니다.** 이미지 생성 모델이나 동영상 생성 모델을 두 개 이상 설정하면 입력창의 모델 버튼 옆에 마법 지팡이가 나타납니다. 메뉴는 '이미지 생성 모델'과 '동영상 생성 모델'로 나뉘고, 고른 모델은 이 대화에만 적용됩니다. 메시지에서 @로 모델 이름을 부르면 그 모델로 바뀝니다.
+- **다른 모델로 다시 그리거나 동영상으로 만듭니다.** 그린 이미지에 마우스를 올리고 '다시 만들기'를 누르면 같은 프롬프트로 다른 이미지 생성 모델에게 다시 그리게 하거나 '동영상으로 만들기'를 고를 수 있습니다. 동영상 카드에는 '다른 모델로 다시 만들기'가 있습니다.
+- **갤러리가 '스튜디오'가 되었습니다.** 동영상도 이미지 옆에 길이와 함께 놓이고, 이미지의 생성 기록에는 동영상으로 만든 단계도 남으며, 상세 페이지에서 바로 재생됩니다.
+- **새 대화마다 워크트리를 쓸지 고릅니다.** 새 대화의 입력창에서 프로젝트와 브랜치 뒤에 '워크트리' 스위치가 있습니다. 켜면 이 대화는 저장소의 전용 사본에서 작업하고 원래 체크아웃은 건드리지 않습니다. 설정의 스위치는 이제 기본값일 뿐입니다. 이런 대화는 사이드바에서 원래 프로젝트 아래에 놓입니다. 예전에는 하나 만들 때마다 프로젝트와 같은 이름의 그룹이 하나씩 늘었습니다. 사본은 `~/.lyra/worktrees`에 만들어지고, 저장소 옆에 폴더가 더 생기지 않습니다.
+- **워크트리를 main에 병합하거나 main의 새 커밋을 가져옵니다.** 워크트리 대화에서는 입력창 위의 칩에 워크트리 브랜치와 얼마나 앞서고 뒤처졌는지가 `↑2 ↓1`처럼 표시됩니다. 열면 'main에 병합'과 'main에서 동기화'가 있습니다. 병합하다 충돌이 나면 바로 되돌리므로 프로젝트 폴더에 병합하다 만 상태가 남지 않고, 메뉴에 어떤 파일인지 나옵니다. 동기화가 충돌에서 멈추면 '이 대화에 해결 맡기기'나 '이번 동기화 취소'를 고를 수 있습니다. 병합에 성공하면 메뉴에 '이 대화 보관'이 나타납니다.
+- **다 쓴 워크트리는 정리됩니다.** 대화를 지우거나 보관하면 그 워크트리 폴더도 정리하고, 브랜치의 커밋이 모두 main에 들어가 있으면 브랜치도 함께 지웁니다. 보관에서 되돌리면 같은 자리에 다시 체크아웃합니다. 커밋하지 않은 변경이 있는 폴더는 절대 지우지 않으며, 삭제 확인 창에 무엇이 남는지, 즉 커밋하지 않은 파일과 병합하지 않은 커밋이 적힙니다.
+- **대화가 다른 대화를 제안할 수 있습니다.** 작업하다가 따로 다룰 만한 일을 찾으면 '새 대화 제안' 카드를 띄웁니다. '시작'을 누르기 전에는 아무것도 시작되지 않고, 지금 대화에서 다른 곳으로 옮겨지지도 않습니다. 카드에서 새 워크트리로 시작할 수도 있으며, 시작된 대화는 카드의 제목을 쓰고 카드에는 그 대화가 무엇을 하고 있는지 나옵니다. 대화는 일을 마친 뒤 스스로를 보관할 수도 있습니다. 마지막 답변이 끝난 다음에요.
+
+### 개선 및 수정
+
+- **이전 버전에서 만든 워크트리 대화가 원래 프로젝트 아래로 돌아왔습니다.** 예전에는 각각 프로젝트와 같은 이름의 그룹이 되었고, 저장소 옆의 폴더는 Lyra가 닿지 못하는 곳이었습니다. 파일 트리는 비어 있었고, 거기서 커밋하면 거부됐습니다. 이제 시작할 때 원래 자리로 돌려놓아 파일도 보이고 커밋도 됩니다.
+- **동영상 진행 막대를 끌 수 있습니다.** 끌어도, 클릭해도, ← →를 눌러도 첫 프레임으로 돌아갔습니다. 생성한 동영상도, 파일 패널의 오디오와 동영상도 마찬가지였습니다.
+- **'스튜디오'로 바꿀 때 더 이상 끊기지 않습니다.** 대화 목록이 접히는 동안 이미지 그리드를 프레임마다 다시 배치했는데, 이제 한 번만 배치합니다. 전체 페이지 화면을 처음 열 때 0.3초쯤 자리 표시가 먼저 뜨던 것도 없어졌습니다(355ms → 27ms).
+- **일부 MCP를 설치하면 중계를 거친 Gemini 요청이 매번 거부되던 문제를 고쳤습니다.** 배열 매개변수에 원소 형식을 적지 않은 MCP 서버가 있으면 새 대화든 옛 대화든 매번 '요청 자체가 거부됐습니다'가 떴습니다. 이제 보내기 전에 그런 매개변수를 채워 넣습니다.
+- **워크트리를 만들지 못한 일을 한 번만 알리고 끝내지 않습니다.** 예전에는 몇 초 만에 사라지는 알림뿐이었고, 대화는 그대로 원래 체크아웃을 고치고 있었습니다. 이제 입력창의 브랜치 뒤에 호박색 표시가 계속 남아 있고, 누르면 이유가 나옵니다.
+
+</details>
+
+<!-- lyra:notes fr -->
+
+<details>
+<summary>Français</summary>
+
+### Nouveautés
+
+- **Lyra fait des vidéos.** Configurez un modèle de vidéo — xAI, Volcengine Ark, OpenAI, Veo ou Alibaba Cloud Bailian — puis demandez une vidéo dans une discussion. Sa carte indique l’étape en cours, depuis combien de temps elle attend et où elle en est ; une fois arrivée, elle se lit dans le lecteur de Lyra. « Plein cadre » remplit la fenêtre de Lyra sans relancer la vidéo depuis le début ; le vrai « Plein écran » se trouve dans « Plus ».
+- **Le modèle qui dessine se choisit par discussion.** Dès que deux modèles d’image ou de vidéo sont configurés, une baguette apparaît à côté du bouton de modèle dans la zone de saisie, avec les modèles d’image d’un côté et ceux de vidéo de l’autre. Le choix ne vaut que pour cette discussion. Citer un modèle avec @ dans un message fait aussi basculer dessus.
+- **Redessiner, ou en faire une vidéo.** Survolez une image et choisissez « Refaire » : un autre modèle d’image la redessine à partir du même prompt, ou « En faire une vidéo » la confie à un modèle de vidéo. Une carte de vidéo propose « Refaire avec ».
+- **La galerie devient le Studio.** Les vidéos s’y rangent à côté des images, avec leur durée ; l’historique d’une image montre quand elle est devenue une vidéo, et la page de détail la lit directement.
+- **Un worktree, discussion par discussion.** Dans la zone de saisie d’une nouvelle discussion, un interrupteur « Worktree » suit le projet et la branche. Activé, la discussion travaille dans sa propre copie du dépôt et laisse votre copie de travail tranquille ; le réglage n’est plus qu’une valeur par défaut. Ces discussions restent sous leur projet dans la barre latérale — chacune ouvrait jusqu’ici un groupe à part au nom du projet — et la copie est créée dans `~/.lyra/worktrees`, plus dans un nouveau dossier à côté de votre dépôt.
+- **Fusionner un worktree, ou récupérer main.** Dans une discussion en worktree, la pastille au-dessus de la zone de saisie affiche la branche du worktree et son écart, par exemple `↑2 ↓1`. Son menu propose « Fusionner dans main » et « Mettre à jour depuis main ». Une fusion qui entrerait en conflit est annulée aussitôt : votre dossier de projet ne reste jamais à moitié fusionné, et le menu nomme les fichiers. Une mise à jour arrêtée sur des conflits propose « Confier la résolution à cette discussion » ou « Abandonner cette mise à jour ». Après une fusion, le menu propose « Archiver cette discussion ».
+- **Les worktrees sont rangés une fois le travail fini.** Supprimer ou archiver une discussion retire le dossier de son worktree, et sa branche aussi quand tous ses commits sont déjà dans main. Désarchiver la discussion la ré-extrait au même endroit. Un dossier qui contient des modifications non validées n’est jamais retiré, et la confirmation de suppression dit ce qui reste : les fichiers non validés, les commits non fusionnés.
+- **Une discussion peut en suggérer une autre.** Quand elle tombe sur quelque chose qui mérite sa propre discussion, elle affiche une carte « Discussion suggérée ». Rien ne démarre avant que vous cliquiez sur « Lancer », et vous restez où vous êtes. La carte peut la lancer dans un nouveau worktree ; la nouvelle discussion reprend le titre de la carte, qui montre ce qu’elle est en train de faire. Une discussion peut aussi s’archiver elle-même une fois son travail terminé — après la fin de sa dernière réponse.
+
+### Améliorations et corrections
+
+- **Les discussions en worktree des versions précédentes retrouvent leur projet.** Chacune formait un groupe à part au nom du projet, et son dossier à côté du dépôt échappait à Lyra : l’arborescence était vide et les commits depuis ce dossier étaient refusés. Elles sont reclassées au démarrage ; leurs fichiers s’affichent et les commits passent.
+- **La barre de progression d’une vidéo se déplace enfin.** La faire glisser, cliquer dessus ou appuyer sur ← → ramenait à la première image — pour les vidéos générées comme pour les fichiers audio et vidéo du panneau de fichiers.
+- **Passer au Studio ne saccade plus.** Pendant que la liste des discussions se repliait, la grille d’images était recalculée à chaque image ; elle l’est désormais une seule fois. Une vue pleine page ouverte pour la première fois n’affiche plus d’abord un écran d’attente pendant un tiers de seconde (355 ms → 27 ms).
+- **Certains outils MCP ne font plus refuser chaque requête Gemini passée par un relais.** Un serveur MCP qui déclare un paramètre de type tableau sans préciser ce qu’il contient faisait échouer chaque requête avec « La requête elle-même a été refusée », dans les anciennes discussions comme dans les nouvelles. Ces paramètres sont complétés avant l’envoi.
+- **Un worktree qui n’a pas pu être créé n’est plus signalé qu’une fois.** C’était une notification disparue en quelques secondes, pendant que la discussion continuait de modifier votre propre copie de travail. Une marque ambre reste désormais après la branche dans la zone de saisie ; cliquez dessus pour en voir la raison.
+
+</details>
+
+<!-- lyra:notes ru -->
+
+<details>
+<summary>Русский</summary>
+
+### Новое
+
+- **Lyra делает видео.** Настройте модель видео — xAI, Volcengine Ark, OpenAI, Veo или Alibaba Cloud Bailian — и попросите видео в беседе. Карточка показывает, на каком оно этапе, сколько уже ждёт и насколько продвинулось; готовое видео играет во встроенном плеере Lyra. «На всё окно» растягивает его по окну Lyra, не начиная заново; настоящий «Во весь экран» — в меню «Ещё».
+- **Какая модель рисует — выбирается для каждой беседы.** Когда настроено две и больше моделей изображений или видео, рядом с кнопкой модели в поле ввода появляется волшебная палочка: в её меню отдельно модели изображений и модели видео. Выбор действует только в этой беседе. Назовите модель через @ в сообщении — переключится и так.
+- **Перерисовать или сделать видео.** Наведите курсор на картинку и нажмите «Ещё раз»: другая модель изображений перерисует её по тому же запросу, а «Сделать видео» отдаст её модели видео. На карточке видео есть «Переделать моделью».
+- **Галерея теперь называется «Студия».** Видео лежат рядом с картинками, с длительностью; в истории картинки видно, что из неё сделали видео, а страница подробностей сразу его играет.
+- **Рабочее дерево — по выбору для каждой новой беседы.** В поле ввода новой беседы после проекта и ветки есть переключатель «Рабочее дерево». Включите — и беседа работает в собственной копии репозитория, не трогая вашу основную копию; переключатель в настройках теперь лишь значение по умолчанию. Такие беседы остаются под своим проектом на боковой панели — раньше каждая открывала отдельную группу с именем проекта, — а копия создаётся в `~/.lyra/worktrees`, а не новой папкой рядом с репозиторием.
+- **Слить рабочее дерево в main или забрать новое из main.** В беседе с рабочим деревом значок над полем ввода показывает ветку и насколько она разошлась с main, например `↑2 ↓1`. В его меню — «Слить в main» и «Обновить из main». Слияние, которое дало бы конфликт, сразу откатывается, так что папка проекта не остаётся слитой наполовину, а меню называет файлы. Если обновление остановилось на конфликтах, можно «Поручить разрешение этой беседе» или «Отменить это обновление». После слияния меню предлагает «Архивировать эту беседу».
+- **Рабочие деревья убираются, когда работа закончена.** При удалении или архивации беседы её папка рабочего дерева удаляется, а если все коммиты ветки уже в main — и сама ветка. Если вернуть беседу из архива, дерево снова извлекается на прежнее место. Папку с незакоммиченными изменениями Lyra не удаляет никогда, а подтверждение удаления говорит, что останется: какие файлы не закоммичены и какие коммиты не слиты.
+- **Беседа может предложить начать другую.** Наткнувшись на дело для отдельной беседы, она показывает карточку «Предлагаемая беседа». Ничего не начинается, пока вы не нажмёте «Начать», и вас никуда не уводят. С карточки можно начать её в новом рабочем дереве; новая беседа получает заголовок карточки, а карточка показывает, чем она занята. Ещё беседа может сама уйти в архив, когда закончит работу, — после того как допишет последний ответ.
+
+### Улучшения и исправления
+
+- **Беседы с рабочими деревьями из прошлых версий вернулись под свой проект.** Каждая была отдельной группой с именем проекта, а её папка рядом с репозиторием была Lyra недоступна: дерево файлов пустое, коммит оттуда отклонялся. Теперь при запуске они возвращаются на место: файлы видны, коммиты проходят.
+- **Полосу прокрутки видео можно тянуть.** Перетаскивание, щелчок по ней и ← → возвращали к первому кадру — и в созданных видео, и в аудио и видео из панели файлов.
+- **Переход в «Студию» больше не дёргается.** Пока список бесед сворачивался, сетка картинок перестраивалась на каждом кадре; теперь — один раз. Полностраничный вид, открытый впервые, больше не показывает заглушку треть секунды (355 мс → 27 мс).
+- **Некоторые MCP больше не делают каждый запрос к Gemini через ретранслятор отклонённым.** Если MCP-сервер объявлял параметр-массив без типа элементов, каждый запрос, в старых и новых беседах, заканчивался ошибкой «Отклонён сам запрос». Теперь такие параметры дополняются перед отправкой.
+- **О рабочем дереве, которое не удалось создать, сообщается не один раз.** Раньше это было уведомление, исчезавшее через пару секунд, а беседа тем временем меняла вашу основную копию. Теперь после ветки в поле ввода остаётся янтарная отметка; нажмите на неё, чтобы увидеть причину.
+
+</details>
+
 ## [0.9.27](https://github.com/kittors/Lyra/releases/tag/v0.9.27) - 2026-10-13
 <!-- lyra:notes en -->
 
