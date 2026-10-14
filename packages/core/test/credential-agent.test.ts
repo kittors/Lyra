@@ -15,15 +15,14 @@ import { connect } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import ssh2 from "ssh2";
 import type { ParsedKey } from "ssh2";
 import { AgentFramer, RSA_SHA2_256, RSA_SHA2_512, sshString } from "../src/credentials/agent-protocol.ts";
 import { socketPathIn } from "../src/credentials/askpass-server.ts";
 import { agentSignature, readPrivateKey, serveAgent } from "../src/credentials/ssh-agent.ts";
+import { keyPair } from "./ssh-keys.ts";
 
 function keyOf(type: "ed25519" | "rsa" | "ecdsa", passphrase?: string): { text: string; key: ParsedKey } {
-	const options = type === "rsa" ? { bits: 2048 } : type === "ecdsa" ? { bits: 256 } : {};
-	const pair = ssh2.utils.generateKeyPairSync(type as "ed25519", { ...options, ...(passphrase ? { passphrase, cipher: "aes256-ctr" } : {}) } as never);
+	const pair = keyPair(type, { bits: type === "rsa" ? 2048 : type === "ecdsa" ? 256 : undefined, passphrase });
 	const read = readPrivateKey(pair.private, passphrase);
 	assert.ok("key" in read, `${type} parses`);
 	return { text: pair.private, key: read.key };
@@ -85,7 +84,7 @@ test("贴进来的私钥有问题时说得出是哪种问题", () => {
 	assert.deepEqual(readPrivateKey(locked.text, "wrong"), { problem: "wrong-passphrase" });
 	assert.ok("key" in readPrivateKey(locked.text, "pass-1"));
 	assert.deepEqual(readPrivateKey("hello"), { problem: "not-a-key" });
-	const pub = ssh2.utils.generateKeyPairSync("ed25519").public;
+	const pub = keyPair("ed25519").public;
 	assert.deepEqual(readPrivateKey(pub), { problem: "public-key" });
 });
 

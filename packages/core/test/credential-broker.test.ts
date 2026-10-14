@@ -12,11 +12,11 @@ import { access } from "node:fs/promises";
 import { connect } from "node:net";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
-import ssh2 from "ssh2";
 import { CredentialBroker, CredentialUnavailable } from "../src/credentials/broker.ts";
 import { type CredentialRecord, memoryStore } from "../src/credentials/store.ts";
 import type { CredentialAsk, CredentialSpec, CredentialSubmission } from "../src/credentials/types.ts";
 import type { ApprovalRequest } from "../src/types.ts";
+import { keyPair } from "./ssh-keys.ts";
 
 const KZHY: CredentialSpec = { name: "kzhy-root", title: "kzhy 的 root 密码", purpose: "改 Tailscale 配置", kind: "password", target: "ssh://root@100.64.0.5" };
 const PASSWORD = "Tr0ub4dor&3-kzhy";
@@ -140,7 +140,7 @@ test("令牌总在环境变量里；登录名带一个 _USERNAME", async () => {
 
 test("SSH 私钥：口令错了卡片不关、改对再交；命令只拿到一个 agent socket", async () => {
 	const credentials = broker();
-	const pair = ssh2.utils.generateKeyPairSync("ed25519", { passphrase: "right", cipher: "aes256-ctr" } as never);
+	const pair = keyPair("ed25519", { passphrase: "right" });
 	const spec: CredentialSpec = { name: "deploy-key", title: "部署密钥", purpose: "拉代码", kind: "ssh_key", target: "ssh://git@git.example" };
 	let attempts = 0;
 	const ask: CredentialAsk = async (request) => {
@@ -255,7 +255,7 @@ test("保险箱页面手动添加：名字不重、字段要齐、私钥要打�
 	assert.deepEqual(await credentials.addSaved({ name: "nas", kind: "password", title: "again", values: { password: "x" } }), { ok: false, problem: "exists" });
 	assert.deepEqual(await credentials.addSaved({ name: "token", kind: "token", title: "t", values: {} }), { ok: false, problem: "missing" });
 	assert.equal((await credentials.addSaved({ name: "Bad Name", kind: "token", title: "t", values: { token: "x" } })).ok, false);
-	const locked = ssh2.utils.generateKeyPairSync("ed25519", { passphrase: "right", cipher: "aes256-ctr" } as never).private;
+	const locked = keyPair("ed25519", { passphrase: "right" }).private;
 	assert.deepEqual(await credentials.addSaved({ name: "key", kind: "ssh_key", title: "k", values: { private_key: locked } }), { ok: false, problem: "needs-passphrase" });
 	assert.equal((await credentials.addSaved({ name: "key", kind: "ssh_key", title: "k", values: { private_key: locked, passphrase: "right" } })).ok, true);
 });
@@ -292,7 +292,7 @@ test("发消息兜底也认得这个对话里卡片填过、没存的值", async
 });
 
 test("复制：密码与令牌给值本身；钥匙只给公钥那一行", async () => {
-	const pair = ssh2.utils.generateKeyPairSync("ed25519", { comment: "me@laptop" } as never);
+	const pair = keyPair("ed25519", { comment: "me@laptop" });
 	const credentials = broker([
 		{ name: "nas", kind: "login", title: "NAS", username: "admin", createdAt: 1, approval: "per-conversation", values: { password: "nas-pass-123" } },
 		{ name: "gh", kind: "token", title: "GitHub", createdAt: 1, approval: "per-conversation", values: { token: "ghp_abcdefghijkl" } },
