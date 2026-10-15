@@ -1,6 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { dismissHoverLayers } from "./hover-layers.ts";
 import { portal } from "./portal.ts";
+import { holdScrim } from "./scrims.ts";
+
+/**
+ * The scrim's black, as `.ly-scrim-in` draws it in `overlay.css` — the two must agree, because this
+ * is what the window's own buttons are dimmed by while the scrim is up (see `scrims.ts`).
+ */
+export const SCRIM_ALPHA = 0.22;
 
 export const OverlayDepth = createContext(0);
 /** Play the exit, then run `after` — or `onClose` when there is nothing else to do. */
@@ -75,6 +82,11 @@ export function Overlay({ children, onClose, align = "center", width = 460, labe
 	 * came to sit over a confirmation asking whether to delete the conversation it described.
 	 */
 	useLayoutEffect(() => dismissHoverLayers(), []);
+	/*
+	 * The system's own buttons in the title strip dim with the scrim, and brighten as it starts to
+	 * leave rather than after it has gone — the same moment the page starts to.
+	 */
+	useEffect(() => (leaving ? undefined : holdScrim("#000000", SCRIM_ALPHA)), [leaving]);
 	useLayoutEffect(() => {
 		const previous = returnFocus ?? document.activeElement;
 		const element = card.current;
@@ -108,8 +120,14 @@ export function Overlay({ children, onClose, align = "center", width = 460, labe
 		 * whether a press landed outside itself. A menu that raised this dialog must not read a
 		 * click on it — or on the scrim it put over everything — as a click elsewhere. See the
 		 * press-outside test in `Popover`.
+		 *
+		 * `no-drag` over the whole scrim, as the image viewer has it: the window's top strip is a drag
+		 * region, and a drag region takes the press before the page sees it, whatever is drawn on top.
+		 * On Windows 11 a click on the scrim there did not dismiss the dialog — the system had it as a
+		 * click on the title bar — and a double-click maximised the window behind the question. While
+		 * a modal is up there is nothing behind it to drag the window by anyway.
 		 */}
-		<div ref={scrim} data-ly-overlay={depth} className={`fixed inset-0 flex justify-center p-4 sm:p-8 ${align === "center" ? "items-center" : "items-end pb-[120px]"} ${leaving ? "ly-scrim-out" : "ly-scrim-in"}`}
+		<div ref={scrim} data-ly-overlay={depth} className={`no-drag fixed inset-0 flex justify-center p-4 sm:p-8 ${align === "center" ? "items-center" : "items-end pb-[120px]"} ${leaving ? "ly-scrim-out" : "ly-scrim-in"}`}
 			style={{ zIndex: 60 + depth * 20, ...exitFrom.scrim }} onMouseDown={(event) => { if (event.target === event.currentTarget) dismiss(); }}>
 			<div ref={card} data-ly-modal role="dialog" aria-modal="true" aria-label={label} tabIndex={-1}
 				style={{ width, maxWidth: "100%", ...exitFrom.card }}

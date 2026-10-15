@@ -14,9 +14,9 @@
 import type { AppearanceSettings } from "@lyra/core";
 import { sharedHighlightStyle } from "../../lib/code/highlight.ts";
 import { withHanFallback } from "../../lib/code/font-stack.ts";
+import { sendWindowColors } from "./window-tint.ts";
 import { findCodeTheme } from "../../lib/code/themes.ts";
 import { CONTENT_AUTO, contentMeasure } from "../../lib/content-width.ts";
-import { bridge } from "../../services/index.ts";
 
 interface Rgb {
 	r: number;
@@ -339,7 +339,7 @@ export function applyAppearance(input: AppearanceSettings): void {
 	 * 那层底是 `--color-shell`。一个值服务两处的时候，Windows 的右上角就是一块比 header 浅一档的
 	 * 补丁——取的是这里算好的那个 token，而不是再算一遍，公式只此一处。
 	 */
-	bridge.setWindowTheme?.({
+	sendWindowColors({
 		color: toHex(background),
 		headerColor: tokens["--color-sidebar"],
 		symbolColor: text(0.6),
