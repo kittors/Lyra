@@ -1,16 +1,20 @@
 /**
- * 一摞脸：派出去不止一个时，叠在一起说「有好几个」。
+ * A pile of faces: more than one sent off, stacked to say "there are several".
  *
- * 和 `AvatarStack` 是两件事。那一排并排摆开，每张脸都看得清表情，适合「这一批都是谁」的场合；
- * 这一摞叠着放，占地方小，说的是「这里有好几个，点开看」——输入框上方那条、面板顶上那个切换器
- * 用它。表情仍然在：在跑的还在颠，只是被邻居盖住半张脸。
+ * Not the same thing as `AvatarStack`. That one lays faces side by side, each expression readable —
+ * for "who is in this batch". This one stacks them in less room and says "there are a few here, open
+ * it" — the bar above the composer, the switcher at the top of the panel and the "results are back"
+ * row in the transcript use it. Expressions stay: a running one still bobs, half its face under a
+ * neighbour.
  *
- * 叠放有先后：后一张压在前一张上面，像一张一张往右放下去的牌，最后放下的那张完整露出来，「+N」
- * 是最后一张。反过来（前一张压后一张）时，「+2」的加号被它左边那张盖住，读出来像「-2」，一摞
- * 牌也像是从右往左倒着放的。
+ * Order matters: each coin lies on the one before it, like cards dealt left to right, so the last one
+ * dealt is whole and "+N" is the last of all. The other way round, the plus of "+2" sat under its
+ * left neighbour and read as "-2", and the pile looked dealt backwards.
  *
- * 每张脸垫一枚圆底、外面一圈底色，叠起来才分得清谁是谁：形状各不相同的脸直接叠，三角压着云朵，
- * 读起来是一团色块。指针进来的时候这一摞往右松开一点，像一叠牌被拨开。
+ * Every face sits on a round coin: differently shaped faces stacked bare, a triangle on a cloud, read
+ * as one blot. Under a coin, the one before it is cut away rather than painted over, so nothing of a
+ * covered face shows through whatever the pile sits on (`styles/avatar.css`). Under the pointer the
+ * pile fans out a little, like a hand of cards being spread.
  */
 
 import type { Avatar } from "../../lib/agent-avatar.ts";

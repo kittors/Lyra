@@ -271,45 +271,102 @@
 }
 
 /*
- * 一摞脸（`AvatarPile`）：每张垫一枚圆底，后一枚压住前一枚的三成。外圈那道底色把它们剥开，
- * 颜色由所在的面说——`--ly-avatar-ring`，默认窗口底色。
+ * A pile of faces (`AvatarPile`): each face sits on a round coin, and each coin covers a third of the
+ * one before it.
  *
- * 指针进来时往右松开一点：挂在最近的 `.group/pile` 上，谁拿它当触发器谁就是那个 group。
- */
-/*
- * 右边那一截留白要算上「松开」挪出去的距离。
+ * Under a coin, the one before it is cut away — the coin's whole disc plus a sliver all round. The cut
+ * is a real hole, so the sliver is whatever the pile sits on. It used to be a 2px ring painted in the
+ * surface's colour, with the coin's fill doing the covering, and neither held: the fill is
+ * `--color-elevated`, a 10% veil of the foreground, so the face beneath showed straight through it;
+ * and the ring had to be told the surface's colour, which was wrong wherever that surface was
+ * translucent (`bg-card/60`), changed on hover, or was the window's vibrancy — there it drew a line
+ * across the face beneath. A hole has no colour to get wrong.
  *
- * 指针进来时每张往右挪一点（见下面 `:hover` 那条），最后一张挪得最远。从前留白只够抵掉最后一张的
- * 负边距，挪出去的那几像素就压到了旁边的字上——「2 个子 Agent 运行中」的「2」被一张脸盖住半个。
- * 留白一直留着而不是悬停时才加：字跟着指针左右晃，比那几像素的空白难看得多。
+ * Under the pointer the pile fans out a little, hanging off the nearest `.group/pile`. Each coin moves
+ * `--ly-pile-spread` per step and the hole is placed from the same variable, so it travels with the
+ * coin above it instead of jumping to where that coin will end up; registering the variable is what
+ * lets it transition at all.
  */
-.ly-avatar-pile {
-	display: inline-flex;
-	flex-shrink: 0;
-	align-items: center;
-	padding-right: calc(var(--ly-pile-size) * 0.32 + (var(--ly-pile-n, 1) - 1) * 2px);
+@property --ly-pile-spread {
+	syntax: "<length>";
+	inherits: true;
+	initial-value: 0;
 }
 
+/*
+ * Every coin sits in the same grid cell and is moved into place by `transform`, a whole number of
+ * pixels apart, rather than laid out side by side.
+ *
+ * Side by side, each coin landed on its own fractional x (0.68 of 22px is 14.96px) and the browser
+ * snapped each one's disc to the pixel grid on its own, so a disc could sit most of a pixel from the
+ * hole cut for it: at 1× one sliver measured 1.3px and the next 2.7px. In one cell the coins snap once,
+ * together, and a whole-pixel step leaves them all on the same grid.
+ *
+ * The width counts the fan-out too. The last coin moves furthest, and when only the resting pile was
+ * reserved, those pixels landed on the words beside it — the "2" of "2 sub-agents running" half under
+ * a face. It stays reserved rather than appearing on hover: text sliding sideways with the pointer
+ * looks far worse than a few pixels of space.
+ */
+.ly-avatar-pile {
+	--ly-pile-step: round(var(--ly-pile-size) * 0.68, 1px);
+	--ly-pile-fan: 2px;
+	--ly-pile-gap: 2px;
+	/* Half of every soft edge, disc and hole alike: one device pixel in all. */
+	--ly-pile-aa: 0.5px;
+	display: inline-grid;
+	flex-shrink: 0;
+	align-items: center;
+	width: calc(var(--ly-pile-size) + (var(--ly-pile-n, 1) - 1) * (var(--ly-pile-step) + var(--ly-pile-fan)));
+	transition: --ly-pile-spread var(--ly-t-base) var(--ly-e-out);
+}
+
+@media (min-resolution: 2dppx) {
+	.ly-avatar-pile {
+		--ly-pile-aa: 0.25px;
+	}
+}
+
+.group\/pile:hover .ly-avatar-pile,
+.group\/pile[aria-expanded="true"] .ly-avatar-pile {
+	--ly-pile-spread: var(--ly-pile-fan);
+}
+
+/*
+ * The disc is drawn by the mask, not by `border-radius`.
+ *
+ * A masked box draws its rounded edge about a third of a pixel thinner at 1× (measured: 16% coverage on
+ * the edge pixel where the unmasked coin had 45%), so the coins carrying a hole came out smaller than
+ * the one on top and the slivers beside them wider — 2.4px against 2.1px. Every coin, top one included,
+ * gets the same gradient disc and so the same edge.
+ */
 .ly-avatar-coin {
+	--ly-pile-disc: radial-gradient(circle closest-side, rgb(0 0 0) calc(100% - var(--ly-pile-aa)), transparent calc(100% + var(--ly-pile-aa)));
 	position: relative;
+	grid-area: 1 / 1;
 	display: inline-grid;
 	place-items: center;
 	width: var(--ly-pile-size);
 	height: var(--ly-pile-size);
-	margin-right: calc(var(--ly-pile-size) * -0.32);
-	border-radius: 9999px;
 	background: var(--color-elevated);
-	box-shadow: 0 0 0 2px var(--ly-avatar-ring, var(--color-shell));
-	transition: transform var(--ly-t-base) var(--ly-e-out);
+	transform: translateX(calc(var(--ly-pile-i) * (var(--ly-pile-step) + var(--ly-pile-spread))));
+	mask: var(--ly-pile-disc);
+}
+
+/* The next coin's centre is one step and one share of the fan-out away. */
+.ly-avatar-coin:not(:last-child) {
+	--ly-pile-hole: calc(var(--ly-pile-size) / 2 + var(--ly-pile-gap));
+	mask:
+		radial-gradient(
+			circle at calc(50% + var(--ly-pile-step) + var(--ly-pile-spread)) 50%,
+			transparent calc(var(--ly-pile-hole) - var(--ly-pile-aa)),
+			rgb(0 0 0) calc(var(--ly-pile-hole) + var(--ly-pile-aa))
+		),
+		var(--ly-pile-disc);
+	mask-composite: intersect;
 }
 
 .ly-avatar-coin-more {
 	font-size: var(--text-caption);
 	font-variant-numeric: tabular-nums;
 	color: var(--color-ink-muted);
-}
-
-.group\/pile:hover .ly-avatar-coin,
-.group\/pile[aria-expanded="true"] .ly-avatar-coin {
-	transform: translateX(calc(var(--ly-pile-i) * 2px));
 }

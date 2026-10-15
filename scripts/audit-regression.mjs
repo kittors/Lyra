@@ -310,6 +310,12 @@ const CHECKS = [
 		window: true,
 		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/session-ops-demo.ts", "/tmp/regression-session-ops"]],
 	},
+	{
+		id: "AVATAR-pile-window",
+		what: "跑起来的桌面端里：叠在一起的子智能体头像（输入框上方那条、面板顶上的切换器、对话里「结果已交回」那一行），上面那枚里透不出下面那张脸，缝是底色本身、宽 2px，悬停松开时缺口跟着走",
+		window: true,
+		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/avatar-pile-demo.ts", "/tmp/regression-avatar-pile"]],
+	},
 ];
 
 const pass = [];
