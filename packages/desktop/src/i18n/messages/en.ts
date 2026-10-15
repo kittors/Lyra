@@ -2755,6 +2755,8 @@ export const en = {
 	"credential.fieldPassphrase": "Key passphrase",
 	"credential.optional": "Leave empty if the key has none",
 	"credential.privateKeyHint": "Paste the whole private key, starting with -----BEGIN",
+	"credential.privateKeyPaste": "Paste the whole key",
+	"credential.optionalShort": "Optional",
 	"credential.approvalEveryUse": "Ask every time it is used",
 	"credential.approvalPerConversation": "Ask once per conversation",
 	"credential.approvalNever": "Don’t ask",

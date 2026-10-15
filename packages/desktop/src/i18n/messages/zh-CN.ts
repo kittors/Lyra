@@ -2944,6 +2944,8 @@ export const zhCN = {
 	"credential.fieldPassphrase": "私钥口令",
 	"credential.optional": "没有就留空",
 	"credential.privateKeyHint": "粘贴私钥全文，以 -----BEGIN 开头",
+	"credential.privateKeyPaste": "粘贴私钥全文",
+	"credential.optionalShort": "可选",
 	"credential.approvalEveryUse": "每次使用都问",
 	"credential.approvalPerConversation": "每个对话问一次",
 	"credential.approvalNever": "不问，直接用",

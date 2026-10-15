@@ -71,6 +71,7 @@ export function DialogFrame({
 	children,
 	actions,
 	height,
+	reserve,
 	bodyClassName,
 	className = "",
 	...rest
@@ -83,6 +84,16 @@ export function DialogFrame({
 	children?: ReactNode;
 	actions: ReactNode;
 	height?: number;
+	/**
+	 * Empty room under the body, in px, given up before the body itself starts to scroll.
+	 *
+	 * For a body that changes with a choice made inside it — the vault's four kinds of credential —
+	 * the caller keeps the difference to its tallest state here, and the card keeps one height. Not
+	 * inside the scroll area: room in there scrolls, and a short window would offer the empty space
+	 * as more form to read. A body that does this wants no cap of its own (`bodyClassName=""`): the
+	 * card's own limit then applies to every state alike, where a cap would cut only the tallest.
+	 */
+	reserve?: number;
 	/**
 	 * How tall the scrolling body may grow. Only for the dialogs that are a form rather than a
 	 * question — the default is sized for a paragraph and a list, and a settings form under it
@@ -139,6 +150,10 @@ export function DialogFrame({
 						</Scroller>
 					) : null}
 				</div>
+			) : null}
+			{reserve ? (
+				// flex-shrink is weighted by size, so the factor has to swamp the body's for the room to go first.
+				<div aria-hidden className="min-h-0 shrink-[100000]" style={{ height: reserve }} data-ly-dialog-reserve="" />
 			) : null}
 			<div className="flex shrink-0 items-center gap-2 px-5 pt-5 pb-5" data-ly-dialog-actions>
 				{actions}

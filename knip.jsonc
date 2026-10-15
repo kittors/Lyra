@@ -125,6 +125,7 @@
   // an e2e probe makes, `objdump` for the glibc check that runs after a Linux package is built,
   // `sips` (part of macOS) to crop an e2e probe's screenshots, `tasklist` (part of Windows) for the
   // relay test that weighs the relay process there, `pbpaste`/`pbcopy` (part of macOS) for the
-  // credentials probe, which checks what reached the clipboard and puts back what was there.
-  "ignoreBinaries": ["rg", "bwrap", "ffmpeg", "objdump", "sips", "tasklist", "pbpaste", "pbcopy"]
+  // credentials probe, which checks what reached the clipboard and puts back what was there, and
+  // `ssh-keygen` for the vault probe, which makes a throwaway key to paste into the dialog.
+  "ignoreBinaries": ["rg", "bwrap", "ffmpeg", "objdump", "sips", "tasklist", "pbpaste", "pbcopy", "ssh-keygen"]
 }

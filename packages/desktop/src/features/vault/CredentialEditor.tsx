@@ -9,7 +9,7 @@
 
 import type { CredentialApproval, CredentialKind, CredentialMeta } from "@lyra/core";
 import { CREDENTIAL_NAME, targetAllowed } from "@lyra/core/credential-fields";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useI18n } from "../../i18n/index.ts";
 import { bridge } from "../../services/index.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";
@@ -20,6 +20,8 @@ import { APPROVAL_LABEL, KIND_ICON, KIND_LABEL, KIND_ORDER, PROBLEM_LABEL } from
 import { suggestName } from "./naming.ts";
 
 const APPROVALS: readonly CredentialApproval[] = ["per-conversation", "every-use", "never"];
+const NO_VALUES: CredentialValues = {};
+const ignore = () => {};
 
 export function CredentialEditor({
 	item,
@@ -46,7 +48,11 @@ export function CredentialEditor({
 	const [reentering, setReentering] = useState(adding);
 	const [problem, setProblem] = useState("");
 	const [saving, setSaving] = useState(false);
+	// Each kind's boxes, measured; null until the ruler has been laid out.
+	const [heights, setHeights] = useState<Record<CredentialKind, number> | null>(null);
+	const [switched, setSwitched] = useState(false);
 	const name = typedName ?? suggestName(title, kind, taken);
+	const reserve = adding && heights ? Math.max(...Object.values(heights)) - heights[kind] : 0;
 
 	function localProblem(): string | null {
 		if (!title.trim()) return t("credential.problemTitle");
@@ -83,7 +89,8 @@ export function CredentialEditor({
 			label={adding ? t("vault.addTitle") : item.title}
 			title={adding ? t("vault.addTitle") : item.title}
 			icon={<GlyphMark glyph={KIND_ICON[kind]} name={t(KIND_LABEL[kind])} size={22} />}
-			bodyClassName="max-h-[min(560px,64dvh)]"
+			reserve={reserve}
+			bodyClassName=""
 			actions={(dismiss) => (
 				<>
 					<div className="flex-1" />
@@ -97,7 +104,7 @@ export function CredentialEditor({
 			{(dismiss) => (
 				<form
 					data-ly-vault-editor={adding ? "add" : "edit"}
-					className="flex flex-col gap-4 pb-1"
+					className="relative flex flex-col gap-4 pb-1"
 					onSubmit={(event) => {
 						event.preventDefault();
 						void save(dismiss);
@@ -111,6 +118,7 @@ export function CredentialEditor({
 								onChange={(next) => {
 									setKind(next);
 									setValues({});
+									setSwitched(true);
 								}}
 								options={KIND_ORDER.map((one) => ({ value: one, label: t(KIND_LABEL[one]) }))}
 							/>
@@ -123,7 +131,10 @@ export function CredentialEditor({
 						<Reference name={name} editable={adding} onChange={setTypedName} />
 					</div>
 					{reentering ? (
-						<CredentialFields kind={kind} values={values} onChange={setValues} autoFocus={!adding} />
+						// A switch fades the new kind's boxes in; opening the dialog already has its own entrance.
+						<div key={kind} className={switched ? "ly-swap-in" : undefined}>
+							<CredentialFields kind={kind} values={values} onChange={setValues} autoFocus={!adding} row />
+						</div>
 					) : (
 						// The saved value as a box that will not open: dots, never the value, and the way to replace it.
 						<Field label={t(KIND_LABEL[kind])}>
@@ -151,9 +162,53 @@ export function CredentialEditor({
 						</p>
 					)}
 					<button type="submit" className="hidden" tabIndex={-1} aria-hidden />
+					{adding && <KindRuler onMeasure={setHeights} />}
 				</form>
 			)}
 		</Dialog>
+	);
+}
+
+/**
+ * Every kind's boxes, laid out where nobody sees them, so the dialog keeps one height across kinds.
+ *
+ * The card sits centred in the window: a kind taller than the others moved both of its edges on every
+ * switch. `row` is what makes the kinds equal — one row each, so there is no gap to leave under the
+ * shorter ones. This catches what `row` cannot promise, a label that wraps in one language and not in
+ * the next, and keeps that difference under the form as `reserve`. Measured rather than assumed, for
+ * the same reason.
+ */
+function KindRuler({ onMeasure }: { onMeasure: (update: (previous: Record<CredentialKind, number> | null) => Record<CredentialKind, number>) => void }) {
+	const ruler = useRef<HTMLDivElement>(null);
+	useLayoutEffect(() => {
+		const element = ruler.current;
+		if (!element) return;
+		const boxes = [...element.children] as HTMLElement[];
+		/*
+		 * The used height, not offsetHeight or the rect: offsetHeight rounds a 232.5px box to 233 and the
+		 * card came out half a pixel taller on one kind; the rect is scaled while the dialog's entrance
+		 * is still playing, which is exactly when this first runs.
+		 */
+		const measure = () =>
+			onMeasure((previous) => {
+				const next = Object.fromEntries(boxes.map((box) => [box.dataset.kind, Number.parseFloat(getComputedStyle(box).height) || 0])) as Record<CredentialKind, number>;
+				return previous && KIND_ORDER.every((one) => previous[one] === next[one]) ? previous : next;
+			});
+		// Before the first paint, so the dialog opens at the height it will keep.
+		measure();
+		// Fonts arriving, the language changing, a window narrow enough to wrap a hint.
+		const observer = new ResizeObserver(measure);
+		for (const box of boxes) observer.observe(box);
+		return () => observer.disconnect();
+	}, [onMeasure]);
+	return (
+		<div ref={ruler} aria-hidden inert className="pointer-events-none invisible absolute inset-x-0 top-0 h-0 overflow-hidden" data-ly-vault-ruler="">
+			{KIND_ORDER.map((one) => (
+				<div key={one} data-kind={one}>
+					<CredentialFields kind={one} values={NO_VALUES} onChange={ignore} row />
+				</div>
+			))}
+		</div>
 	);
 }
 
