@@ -9,6 +9,8 @@ test("Windows shortcut labels name keys on its keyboard, preserving ordinary cop
 		["或 ⌥ 加方向键", "或 Alt 加方向键"], ["128K", "128K"],
 		// The commit dialog's hint: a PC keyboard's key says "Enter", not a Mac return arrow.
 		["⌘↩", "Ctrl+Enter"],
+		// A glyph on its own: the annotation toolbar's delete hint read 「删除选中 ⌫」 on Windows.
+		["删除选中 ⌫", "删除选中 Backspace"], ["发送 ↩", "发送 Enter"],
 	]) {
 		assert.equal(shortcutLabel(input, "Win32"), expected);
 		assert.equal(shortcutLabel(input, "MacIntel"), input);

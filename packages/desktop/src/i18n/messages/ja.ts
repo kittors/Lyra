@@ -108,7 +108,7 @@ export const ja = {
 	"appearance.inlineCodeBorderDetail": "背景色が本文に近いときに、細い枠線で囲みます",
 	"appearance.codeFont": "コードフォント (Code font)",
 	"appearance.codeFontDetail": "ファイルプレビュー、コードエディタ、ターミナルで使う等幅フォント",
-	"appearance.fontNotInstalled": "{name}（未インストール）",
+	"appearance.fontNotInstalled": "{name}（この環境では使えません）",
 	"appearance.custom": "カスタム…",
 	"appearance.customStack": "カスタムフォントスタック",
 	"appearance.weight": "ウェイト",

@@ -108,7 +108,7 @@ export const zhTW = {
 	"appearance.inlineCodeBorderDetail": "底色和內文接近時，幫它描一圈細邊",
 	"appearance.codeFont": "程式碼字型 (Code font)",
 	"appearance.codeFontDetail": "用於檔案預覽、程式碼編輯器與終端機的等寬字型",
-	"appearance.fontNotInstalled": "{name}（未安裝）",
+	"appearance.fontNotInstalled": "{name}（本機無法使用）",
 	"appearance.custom": "自訂…",
 	"appearance.customStack": "自訂字型堆疊",
 	"appearance.weight": "字重",

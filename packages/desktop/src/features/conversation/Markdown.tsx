@@ -11,7 +11,7 @@
 
 import { translate } from "../../i18n/translate.ts";
 import { FileText, ExternalLink, FolderOpen } from "lucide-react";
-import { createContext, type CSSProperties, Fragment, isValidElement, memo, type ReactNode, type SyntheticEvent, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, type CSSProperties, Fragment, isValidElement, memo, type ReactNode, type SyntheticEvent, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { CodeBlock } from "./CodeBlock.tsx";
 import { isMermaid, MermaidBlock } from "./MermaidBlock.tsx";
 import { MarkdownTable } from "./MarkdownTable.tsx";
@@ -36,6 +36,7 @@ import { usePathMenu } from "./PathMenu.tsx";
 import { CredentialRef } from "../vault/index.ts";
 import { useSmoothText } from "./useSmoothText.ts";
 import { FadeText } from "./FadeText.tsx";
+import { OverlayScrollbar } from "../../ui/scroll/OverlayScrollbar.tsx";
 
 /**
  * What this text is, beyond the characters in it.
@@ -315,11 +316,18 @@ function Details({ summary, blocks, fade }: { summary: string; blocks: Block[]; 
 }
 
 function MathBlock({ tex }: { tex: string }) {
+	// A wide formula scrolls rather than wraps; its thumb is the code block's (see `CodeBlock`).
+	const viewport = useRef<HTMLDivElement>(null);
 	const html = renderMath(tex, true);
 	// TeX that does not parse is shown as it was written; a red error box helps nobody read it.
 	if (!html) return <pre className="ly-math-raw">{tex}</pre>;
-	// noDangerouslySetInnerHtml 在这里不适用（本仓库用 oxlint，不认 biome 的抑制注释，所以这只是一句说明）: KaTeX's own output, built from a parse tree it escapes.
-	return <div className="ly-math-block" dangerouslySetInnerHTML={{ __html: html }} />;
+	return (
+		<div className="ly-math-frame ly-hscroll-own">
+			{/* noDangerouslySetInnerHtml 在这里不适用（本仓库用 oxlint，不认 biome 的抑制注释，所以这只是一句说明）: KaTeX's own output, built from a parse tree it escapes. */}
+			<div ref={viewport} className="ly-math-block" dangerouslySetInnerHTML={{ __html: html }} />
+			<OverlayScrollbar viewport={viewport} orientation="horizontal" />
+		</div>
+	);
 }
 
 function inline(text: string, fade = false): ReactNode[] {

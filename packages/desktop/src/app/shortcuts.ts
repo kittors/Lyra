@@ -84,7 +84,12 @@ export function useShortcuts(deps: ShortcutDeps): void {
 				panel("file", workspace);
 				return;
 			}
-			if (mod && event.altKey && !event.shiftKey && letter === "a") {
+			/*
+			 * ⌥⌘U, not ⌥⌘A. On Windows that is Ctrl+Alt+A, QQ's and TIM's screenshot hotkey — with
+			 * either running the system hands it to them, and the pane never opened. G was the next
+			 * thought and is the editor's go-to-line (Mod-Alt-g in CodeMirror); U is free everywhere.
+			 */
+			if (mod && event.altKey && !event.shiftKey && letter === "u") {
 				event.preventDefault();
 				panel("subagents", activeSessionId);
 				return;

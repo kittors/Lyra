@@ -42,8 +42,8 @@ test("Windows/Linux：有选区时 Ctrl+C 是复制，没选区时仍是 ^C", ()
 	assert.equal(terminalKey(key("с", "KeyC", { ctrlKey: true }), true, "Win32"), "copy");
 });
 
-test("Windows/Linux：Ctrl+Alt+S/P/A 归应用；readline 的 Ctrl+B/P/J/T/L 仍归 shell", () => {
-	for (const [letter, code] of [["s", "KeyS"], ["p", "KeyP"], ["a", "KeyA"]]) {
+test("Windows/Linux：Ctrl+Alt+S/P/U 归应用；readline 的 Ctrl+B/P/J/T/L 仍归 shell", () => {
+	for (const [letter, code] of [["s", "KeyS"], ["p", "KeyP"], ["u", "KeyU"]]) {
 		assert.equal(terminalKey(key(letter, code, { ctrlKey: true, altKey: true }), false, "Win32"), "app", letter);
 	}
 	for (const [letter, code] of [["b", "KeyB"], ["p", "KeyP"], ["j", "KeyJ"], ["t", "KeyT"], ["l", "KeyL"]]) {

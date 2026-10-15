@@ -94,22 +94,22 @@ Lyra does not ship a model, so the first launch cannot send a message. Open Sett
 ## What it does
 
 - **Your models.** Any number of providers, any number of models on each, over **Responses** (`/v1/responses`), **Anthropic Messages** (`/v1/messages`) or **Chat Completions** (`/v1/chat/completions`).
-- **21 built-in tools**, in the groups the code uses:
+- **24 built-in tools**, in the groups the code uses:
   - Files and code: `read` `write` `edit` `ls` `glob` `grep` `symbol` `lsp`
   - Commands: `bash` `bash_output`
-  - Session and memory: `todo_write` `task` `skill` `rule` `recall` `learn` `ask_user`
-  - Network, preview and pictures: `web_fetch` `web_search` `preview` `image_generate` (offered to the model only once an image model is configured)
+  - Session and memory: `todo_write` `task` `skill` `rule` `recall` `learn` `ask_user` `request_credential` `list_credentials` (the last two only where a credential card can be shown)
+  - Network, preview, pictures and video: `web_fetch` `web_search` `preview` `image_generate` `video_generate` (the last two offered to the model only once an image or video model is configured)
 
   On the desktop, five `browser_*` tools drive the browser pane as well.
 - **Skills.** `SKILL.md` plus YAML frontmatter. Only the name and description enter the system prompt. The body is injected when the model calls `skill`, so dozens of skills do not burn the context window.
 - **MCP.** stdio, Streamable HTTP, and SSE. Tools are named `mcp__<server>__<tool>`, so they never collide with built-ins.
 - **Sub-agents.** `task` hands work to an agent with its own context window and brings back the conclusion. Seven built-ins: `general` `explore` `review` `verify` `plan` `simple` `reason`. Add more in `.lyra/agents/*.md` or `~/.lyra/agents/*.md`, or from Settings → Subagents.
 - **Side chat.** A temporary conversation beside the current session. It can read the main chat. It writes nothing into it. Work that needs tools is queued on the main session.
-- **Window.** A toolbar runs across the top: back and forward (⌘[ and ⌘], Alt+← and Alt+→ on Windows and Linux, or the mouse's side buttons), the sidebar toggle, the open conversation's title with its … menu, and at the far end Terminal, Browser and Git buttons beside a ⋮ Panels menu that lists every panel. A rail of icons down the left goes to Conversations, Pull requests, Scheduled, Plugins and Settings; in a window narrow enough for the sidebar to become a drawer, they move into the drawer. The sidebar and the conversation share one rounded panel. On macOS the sidebar shows the window's frosted material; Settings → Appearance → Translucent sidebar turns it off.
+- **Window.** A toolbar runs across the top: back and forward (⌘[ and ⌘], Alt+← and Alt+→ on Windows and Linux, or the mouse's side buttons), the sidebar toggle, the open conversation's title with its … menu, and at the far end Terminal, Browser and Git buttons beside a ⋮ Panels menu that lists every panel. A rail of icons down the left goes to Conversations, Pull requests, Scheduled, Plugins, Studio, Vault and Settings; in a window narrow enough for the sidebar to become a drawer, they move into the drawer. The sidebar and the conversation share one rounded panel. On macOS the sidebar shows the window's frosted material; Settings → Appearance → Translucent sidebar turns it off.
 - **Panels.** Files, File contents, Terminal, Git, Side chat, Sub-agents, Tasks, Trace and Browser, as many open as you like. Each is a pane of its own beside the conversation, and you can drag it to any side; Settings → Appearance → Panels → Tabs puts them in one pane on the right instead. The file pane is a syntax-highlighted editor. The terminal is a real pty.
 - **Split view.** Up to four conversations side by side in one window, each with its own panels. A conversation is never drawn narrower than 420 px or a panel narrower than 300 px; when the window is too narrow, panels are squeezed instead of being moved out.
 - **Git.** Changes as a flat list or a tree (remembered), history, branches and CI pipelines. Commit opens a dialog: leave the message empty and the current model writes one into the field first; pick the branch to commit to, or name a new one, which is only created when you commit; Commit and push does both.
-- **Replies render what the model wrote.** Markdown in your messages and in replies; a `mermaid` fence becomes a diagram; a path to a local file becomes a chip with the file name and the full path on hover. Right-click a file — a link in a reply, a row in the edited-files card, a file's header in File changes — to open it in Lyra, in your editor or another app, show it in Finder or Explorer, or copy its full or relative path. A 12 MB message opens and scrolls without freezing the window.
+- **Replies render what the model wrote.** Markdown in your messages and in replies, formulas included (KaTeX); a `mermaid` fence becomes a diagram; a code block, formula or table wider than the column scrolls sideways, with a thin scrollbar that appears under the pointer; a path to a local file becomes a chip with the file name and the full path on hover. Right-click a file — a link in a reply, a row in the edited-files card, a file's header in File changes — to open it in Lyra, in your editor or another app, show it in Finder or Explorer, or copy its full or relative path. A 12 MB message opens and scrolls without freezing the window.
 - **Fork from a message.** Fork from here, on any message you sent, starts a new conversation with everything before it and puts that message — images, attachments and references included — back in the composer to edit. The original is left as it was. It works while a turn is still running.
 - **Pictures.** Add an image model — `gpt-image-*`, `dall-e-3`, `imagen-*`, Gemini's `*-image`, FLUX, Seedream and others are recognised by name — and ask for a picture in any conversation. The conversation model hands the job to `image_generate`, and the picture appears in place, up to four side by side. Paste a picture, or refer to one already in the conversation (`#1` is the newest), to have it changed. Hover a picture for Edit and Download. See [Generating images](docs/guide/image-generation.md) (in Chinese).
 - **Pull requests, schedules and plugins.** From the rail: review pull requests from the code hosts you connect in Settings → Code hosting; run a prompt in a project every N minutes or at a time each day; browse the plugin market and install plugins or MCP servers.
@@ -124,7 +124,7 @@ packages/
   core/              agent kernel: providers, loop, tools, skills, MCP, session store
   desktop/           Electron app (main process + preload + React renderer)
   mobile/            Expo / React Native app
-  contract/          the line between the two processes; 223 methods in one place
+  contract/          the line between the two processes; 236 methods in one place
   relay/             a relay you run on a public host, for when the phone and the computer cannot reach each other. one file, no dependencies; Lyra does not run one for you
   agent-cli/         the agent that reviews pull requests and triages issues in this repository's CI, on the same AgentSession
   registry-shared/   plugin catalog index format, shared by desktop and the catalog service
@@ -154,7 +154,7 @@ Contributing is in [CONTRIBUTING.md](CONTRIBUTING.md). An agent asked to change 
 | Path | Contents |
 | --- | --- |
 | `~/.lyra/settings.json` | providers, models, MCP, permission mode |
-| `~/.lyra/credentials.json` | API keys, encrypted. The key material is `~/.lyra/vault.key` |
+| `~/.lyra/credentials.json` | API keys and the Vault's passwords, SSH keys and tokens, encrypted. The key material is `~/.lyra/vault.key` |
 | `~/.lyra/sessions/sessions.db` | every conversation and what it spent (SQLite) |
 | `~/.lyra/skills/`, `agents/`, `commands/`, `rules/`, `plugins/` | user-level skills, sub-agents, slash commands, rules, plugins |
 | `~/.lyra/memory.json` | your personal memory, managed in Settings → Personalization |
@@ -187,7 +187,7 @@ Every control under Settings → Appearance takes effect as soon as you change i
 
 - Theme: system / light / dark, with a preview. Light is a full theme, not a fallback.
 - Three colors per theme (accent, background, foreground), plus presets. The rest of the scale is derived from the contrast slider, so any background still has readable text and visible borders.
-- Code: light and dark syntax themes, inline code colors, code font, size, weight, line height and letter spacing.
+- Code: light and dark syntax themes, inline code colors, code font, size, weight, line height and letter spacing. The font menu lists the faces installed on this machine, and every one falls back to YaHei or PingFang for Chinese.
 - UI font, size and weight; pointer cursor.
 - Conversation width: Auto (the default; follows the pane, up to 1120 px), Standard, Wide, Extra wide, Full, or a number.
 - Composer height, and whether a failed turn shows one line or the whole error.
@@ -231,16 +231,16 @@ What matters:
 
 ## Panes
 
-Panels open beside the conversation. Terminal, Browser and Git have their own buttons at the right end of the window's toolbar (with several conversations on screen, in each one's title bar); the ⋮ Panels menu lists every panel with its shortcut. By default each panel is a pane of its own that you arrange by dragging; Settings → Appearance → Panels → Tabs puts them in one pane on the right, one tab each. On Windows and Linux, ⌘ is Ctrl:
+Panels open beside the conversation. Terminal, Browser and Git have their own buttons at the right end of the window's toolbar (with several conversations on screen, in each one's title bar); the ⋮ Panels menu lists every panel with its shortcut. By default each panel is a pane of its own that you arrange by dragging; Settings → Appearance → Panels → Tabs puts them in one pane on the right, one tab each. On Windows and Linux, ⌘ is Ctrl and ⌥ is Alt (⌥⌘U is Ctrl+Alt+U):
 
 | Pane | Shortcut | What it is |
 | --- | --- | --- |
 | Files | ⌘P | File tree. Clicking a file opens File contents |
 | File contents | ⌥⌘P | Syntax-highlighted editor. The title is the file name, not "File contents" |
-| Terminal | ⌃` | A real pty, not echoed commands |
+| Terminal | ⌃` | A real pty, not echoed commands. Paste is Ctrl+V on Windows, Ctrl+Shift+V on Linux |
 | Git | ⌘⇧R | Workspace changes (flat or tree), history, branches, pipelines; commit and push from a dialog |
 | Side chat | ⌥⌘S | See above |
-| Sub-agents | ⌥⌘A | What each `task` worker is doing |
+| Sub-agents | ⌥⌘U | What each `task` worker is doing |
 | Tasks | ⌘J | The current todo list |
 | Trace | ⌘L | What this turn actually sent the model: tools, skills, injected context |
 | Browser | ⌘T | Built-in browser. Boundary in [Built-in capabilities](docs/guide/capabilities.md) |

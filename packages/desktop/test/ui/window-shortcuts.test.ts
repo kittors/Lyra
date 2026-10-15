@@ -50,7 +50,7 @@ test("every advertised panel shortcut opens its panel, including a home terminal
 		for (const [key, code, extra, kind] of [
 			["t", "KeyT", {}, "browser"],
 			["j", "KeyJ", {}, "tasks"],
-			["a", "KeyA", { altKey: true }, "subagents"],
+			["u", "KeyU", { altKey: true }, "subagents"],
 			["`", "Backquote", {}, "terminal"],
 		] as const) {
 			const event = new KeyboardEvent("keydown", { key, code, ctrlKey: true, bubbles: true, ...extra });
@@ -84,11 +84,11 @@ test("a letter shortcut is the key labelled with that letter, on any Latin layou
 		await fire(input, keydown("x", "KeyB"));
 		assert.equal(toggles, 1, "the key in QWERTY's B position is X on Dvorak, and is not Ctrl+B");
 
-		// AZERTY: A and Q trade places. Ctrl+Alt+A is the key labelled A, not the one labelled Q.
-		await fire(input, keydown("a", "KeyQ", { altKey: true }));
+		// Dvorak again: U is printed on QWERTY's F key, and QWERTY's U position carries G.
+		await fire(input, keydown("u", "KeyF", { altKey: true }));
 		assert.deepEqual(opened, ["subagents"]);
-		await fire(input, keydown("q", "KeyA", { altKey: true }));
-		assert.deepEqual(opened, ["subagents"], "the key labelled Q must not open the sub-agent pane");
+		await fire(input, keydown("g", "KeyU", { altKey: true }));
+		assert.deepEqual(opened, ["subagents"], "the key in QWERTY's U position is G on Dvorak, and must not open the sub-agent pane");
 	} finally {
 		restore();
 		await view.unmount();

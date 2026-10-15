@@ -181,7 +181,8 @@
 .ly-scroll-host:has(.ly-thumb-active),
 .ly-scroll-host:has(.ly-hthumb-active),
 .ly-diff-host:has(.ly-hthumb-active),
-.ly-table:has(.ly-hthumb-active) {
+.ly-table:has(.ly-hthumb-active),
+.ly-hscroll-own:has(.ly-hthumb-active) {
   user-select: none;
 }
 
@@ -214,7 +215,8 @@
 }
 
 /*
- * A table in a reply answers to itself, not to the transcript it sits in.
+ * A table in a reply answers to itself, not to the transcript it sits in — and so does every block
+ * that carries its own sideways thumb (`.ly-hscroll-own`: a code block, a display formula, a diagram).
  *
  * The rule above is a descendant selector, and the transcript is a `.ly-scroll-host` — so hovering
  * anything at all in a conversation lit up the bottom edge of every wide table on screen at once.
@@ -225,16 +227,20 @@
  * a drag continues once the pointer has left the table, and without it the thumb would vanish out
  * from under a hand that is still holding it.
  */
-.ly-table:not(:hover) .ly-hthumb {
+.ly-table:not(:hover) .ly-hthumb,
+.ly-hscroll-own:not(:hover) .ly-hthumb {
   opacity: 0;
 }
 
-.ly-table:hover .ly-hthumb {
+.ly-table:hover .ly-hthumb,
+.ly-hscroll-own:hover .ly-hthumb {
   opacity: 0.55;
 }
 
 .ly-table .ly-hthumb:hover,
-.ly-table .ly-hthumb.ly-hthumb-active {
+.ly-table .ly-hthumb.ly-hthumb-active,
+.ly-hscroll-own .ly-hthumb:hover,
+.ly-hscroll-own .ly-hthumb.ly-hthumb-active {
   opacity: 0.85;
 }
 

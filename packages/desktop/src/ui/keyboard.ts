@@ -9,14 +9,19 @@ const KEY_NAMES: Record<string, string> = { "⌫": "Backspace", "↩": "Enter" }
 /** Existing UI copy uses compact Mac notation; other keyboards need named modifiers. */
 export function shortcutLabel(text: string, platform = navigator.platform): string {
 	if (macKeyboard(platform)) return text;
-	return text.replace(/([⌘⌃⌥⇧]+)(\S?)/g, (_match: string, modifiers: string, key: string) => {
-		const parts: string[] = [];
-		if (/[⌘⌃]/.test(modifiers)) parts.push("Ctrl");
-		if (modifiers.includes("⌥")) parts.push("Alt");
-		if (modifiers.includes("⇧")) parts.push("Shift");
-		if (key) parts.push(KEY_NAMES[key] ?? key);
-		return parts.join("+");
-	});
+	return (
+		text
+			.replace(/([⌘⌃⌥⇧]+)(\S?)/g, (_match: string, modifiers: string, key: string) => {
+				const parts: string[] = [];
+				if (/[⌘⌃]/.test(modifiers)) parts.push("Ctrl");
+				if (modifiers.includes("⌥")) parts.push("Alt");
+				if (modifiers.includes("⇧")) parts.push("Shift");
+				if (key) parts.push(KEY_NAMES[key] ?? key);
+				return parts.join("+");
+			})
+			// A key glyph with no modifier — 「删除选中 ⌫」 — is as foreign on a PC keyboard as ⌘ is.
+			.replace(/[⌫↩]/g, (glyph) => KEY_NAMES[glyph] ?? glyph)
+	);
 }
 
 /**

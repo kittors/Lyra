@@ -297,7 +297,7 @@ export const zhCN = {
 	"appearance.inlineCodeBorderDetail": "底色和正文接近时，给它描一圈细边",
 	"appearance.codeFont": "代码字体 (Code font)",
 	"appearance.codeFontDetail": "用于文件预览、代码编辑器与终端的等宽字体",
-	"appearance.fontNotInstalled": "{name}（未安装）",
+	"appearance.fontNotInstalled": "{name}（本机不可用）",
 	"appearance.custom": "自定义…",
 	"appearance.customStack": "自定义字体栈",
 	"appearance.weight": "字重",
