@@ -108,7 +108,7 @@ export const ru = {
 	"appearance.inlineCodeBorderDetail": "Тонкая рамка вокруг, когда фон близок к цвету страницы",
 	"appearance.codeFont": "Шрифт кода",
 	"appearance.codeFontDetail": "Моноширинный шрифт для предпросмотра файлов, редактора кода и терминала",
-	"appearance.fontNotInstalled": "{name} (не установлен)",
+	"appearance.fontNotInstalled": "{name} (здесь недоступен)",
 	"appearance.custom": "Свой…",
 	"appearance.customStack": "Свой список шрифтов",
 	"appearance.weight": "Насыщенность",

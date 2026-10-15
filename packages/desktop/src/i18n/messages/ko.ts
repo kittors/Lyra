@@ -108,7 +108,7 @@ export const ko = {
 	"appearance.inlineCodeBorderDetail": "배경색이 본문과 비슷할 때 가는 테두리를 둘러 줍니다",
 	"appearance.codeFont": "코드 글꼴 (Code font)",
 	"appearance.codeFontDetail": "파일 미리보기, 코드 편집기, 터미널에 쓰는 고정폭 글꼴",
-	"appearance.fontNotInstalled": "{name}(설치되지 않음)",
+	"appearance.fontNotInstalled": "{name}(이 기기에서 사용 불가)",
 	"appearance.custom": "사용자 지정…",
 	"appearance.customStack": "사용자 지정 글꼴 스택",
 	"appearance.weight": "굵기",

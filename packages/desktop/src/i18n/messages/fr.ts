@@ -108,7 +108,7 @@ export const fr = {
 	"appearance.inlineCodeBorderDetail": "Un filet autour, lorsque le fond est proche de celui de la page",
 	"appearance.codeFont": "Police du code",
 	"appearance.codeFontDetail": "La police à chasse fixe des aperçus, de l'éditeur de code et du terminal",
-	"appearance.fontNotInstalled": "{name} (non installée)",
+	"appearance.fontNotInstalled": "{name} (indisponible ici)",
 	"appearance.custom": "Personnalisée…",
 	"appearance.customStack": "Pile de polices personnalisée",
 	"appearance.weight": "Graisse",

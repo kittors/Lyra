@@ -100,6 +100,10 @@ export const CODE_FONTS: CodeFontOption[] = [
  * and the menu offered fonts that would render as Consolas. A face that is present changes the width
  * of a sample against at least one of three generics; a missing one falls through to the generic
  * every time and changes nothing. A generic keyword like `ui-monospace` always resolves to something.
+ *
+ * SF Mono is hidden on macOS too, and that is not a mistake: Chromium cannot reach it by name, nor
+ * as `SFMono-Regular` or `ui-monospace` (CDP `CSS.getPlatformFontsForNode` on Electron 43), so the
+ * entry has always rendered Menlo there.
  */
 export function fontAvailable(option: CodeFontOption, measure: (font: string) => number = measureWidth): boolean {
 	// Bundled faces are present by definition; see the note on `bundled`.

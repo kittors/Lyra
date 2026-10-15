@@ -108,7 +108,7 @@ export const en = {
 	"appearance.inlineCodeBorderDetail": "A hairline around it, for when the background sits close to the page",
 	"appearance.codeFont": "Code font",
 	"appearance.codeFontDetail": "The monospaced face used by file previews, the code editor and the terminal",
-	"appearance.fontNotInstalled": "{name} (not installed)",
+	"appearance.fontNotInstalled": "{name} (not available here)",
 	"appearance.custom": "Custom…",
 	"appearance.customStack": "Custom font stack",
 	"appearance.weight": "Weight",
