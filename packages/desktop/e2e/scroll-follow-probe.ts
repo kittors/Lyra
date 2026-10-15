@@ -523,19 +523,19 @@ async function panelsMount(): Promise<void> {
 	/*
 	 * By keyboard, not by clicking a menu.
 	 *
-	 * ⌥⌘S and ⌥⌘A are what the panel definitions register (`panels/builtin.tsx`), and driving the
+	 * ⌥⌘S and ⌥⌘U are what the panel definitions register (`panels/builtin.tsx`), and driving the
 	 * shortcut is both shorter and less brittle than walking an overflow menu whose markup is not
 	 * this probe's business.
 	 */
-	for (const code of ["KeyS", "KeyA"]) {
+	for (const code of ["KeyS", "KeyU"]) {
 		await app.send("Input.dispatchKeyEvent", {
 			type: "keyDown",
 			modifiers: 1 | 4, // Alt(1) + Meta(4) — Shift is 8, which is not what ⌥⌘ means
 			code,
-			key: code === "KeyS" ? "s" : "a",
-			windowsVirtualKeyCode: code === "KeyS" ? 83 : 65,
+			key: code === "KeyS" ? "s" : "u",
+			windowsVirtualKeyCode: code === "KeyS" ? 83 : 85,
 		});
-		await app.send("Input.dispatchKeyEvent", { type: "keyUp", modifiers: 1 | 4, code, key: code === "KeyS" ? "s" : "a" });
+		await app.send("Input.dispatchKeyEvent", { type: "keyUp", modifiers: 1 | 4, code, key: code === "KeyS" ? "s" : "u" });
 		await settle(600);
 	}
 
