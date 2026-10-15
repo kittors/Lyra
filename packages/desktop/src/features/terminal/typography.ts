@@ -13,6 +13,8 @@
  * programs that draw boxes and progress bars in it are designed for exactly that.
  */
 
+import { withHanFallback } from "../../lib/code/font-stack.ts";
+
 /** Where terminals sit: enough for descenders and box-drawing to join, no more. */
 export const TERMINAL_LINE_HEIGHT = 1.2;
 
@@ -37,7 +39,8 @@ export function terminalTypography(
 	fallback: { font: string; size: number; weight: number },
 ): TerminalTypography {
 	return {
-		fontFamily: appearance?.codeFont || fallback.font,
+		// The terminal reads the stored stack, not the CSS variable, so it needs the same fallback.
+		fontFamily: withHanFallback(appearance?.codeFont || fallback.font),
 		fontSize: appearance?.codeFontSize ?? fallback.size,
 		fontWeight: appearance?.codeFontWeight ?? fallback.weight,
 		lineHeight: TERMINAL_LINE_HEIGHT,

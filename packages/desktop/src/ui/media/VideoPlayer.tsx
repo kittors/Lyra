@@ -28,6 +28,7 @@ import { useI18n } from "../../i18n/index.ts";
 import { formatClock } from "../../lib/clock.ts";
 import { ActionSpinner } from "../motion/loaders.tsx";
 import { dismissHoverLayers } from "../overlay/hover-layers.ts";
+import { holdScrim } from "../overlay/scrims.ts";
 
 /** How long the pointer has to rest before the bar steps aside for the picture. */
 const IDLE_MS = 2200;
@@ -84,6 +85,8 @@ export function VideoPlayer({ src, label, className = "", style }: { src: string
 	const [ended, setEnded] = useState(false);
 	const [failed, setFailed] = useState(false);
 	const [size, setSize] = useState<Size>("inline");
+	// Filling the window in black: the system's buttons in the title strip go dark with it. See `scrims.ts`.
+	useEffect(() => (size === "window" ? holdScrim("#000000", 1) : undefined), [size]);
 	// Read by handlers that outlive the render they were made in.
 	const sizeNow = useRef<Size>("inline");
 	sizeNow.current = size;

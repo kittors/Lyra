@@ -33,6 +33,11 @@ test("Windows/Linux：有选区时 Ctrl+C 是复制，没选区时仍是 ^C", ()
 	assert.equal(terminalKey(ctrlC, false, "Win32"), "shell", "没有选区，Ctrl+C 还是中断");
 	assert.equal(terminalKey(key("C", "KeyC", { ctrlKey: true, shiftKey: true }), false, "Linux x86_64"), "copy");
 	assert.equal(terminalKey(key("V", "KeyV", { ctrlKey: true, shiftKey: true }), false, "Win32"), "paste");
+	// Windows：普通 Ctrl+V 也是粘贴。从前它是发给 shell 的 ^V——PowerShell 的 PSReadLine 碰巧会读
+	// 剪贴板，默认终端看着没事；切到 cmd、Git Bash、WSL 或任何 REPL，按下去只出来一个 ^V。
+	assert.equal(terminalKey(key("v", "KeyV", { ctrlKey: true }), false, "Win32"), "paste");
+	// Linux 的终端惯例不同：Ctrl+V 是 readline 的 quoted-insert，粘贴是 Ctrl+Shift+V。
+	assert.equal(terminalKey(key("v", "KeyV", { ctrlKey: true }), false, "Linux x86_64"), "shell");
 	// Russian layout: the C key types Cyrillic "с" and is still Ctrl+C.
 	assert.equal(terminalKey(key("с", "KeyC", { ctrlKey: true }), true, "Win32"), "copy");
 });
@@ -144,6 +149,7 @@ test("终端面板把这些接上：windowsPty、按键处理、右键菜单", a
 			assert.equal(handle(key("c", "KeyC", { ctrlKey: true })), true);
 			assert.equal(handle(key("s", "KeyS", { ctrlKey: true, altKey: true })), false, "Ctrl+Alt+S 应交给应用");
 			assert.equal(handle(key("l", "KeyL", { ctrlKey: true })), true, "Ctrl+L 仍是清屏");
+			assert.equal(handle(key("v", "KeyV", { ctrlKey: true })), false, "Ctrl+V 不再作为 ^V 发给 shell，留给粘贴");
 
 			// Right-click: copy and paste, and the paste goes through xterm's own `paste`.
 			selection = "error: port in use";
@@ -152,7 +158,8 @@ test("终端面板把这些接上：windowsPty、按键处理、右键菜单", a
 			const copy = items.find((item) => item.textContent?.startsWith("复制"));
 			const paste = items.find((item) => item.textContent?.startsWith("粘贴"));
 			assert.ok(copy && paste, items.map((item) => item.textContent).join(" | "));
-			assert.ok(paste.textContent?.includes("Ctrl+Shift+V"), paste.textContent ?? "");
+			// On Windows the hint is the key people press there: plain Ctrl+V, which now always pastes.
+			assert.ok(paste.textContent?.includes("Ctrl+V") && !paste.textContent.includes("Shift"), paste.textContent ?? "");
 			await click(copy);
 			assert.deepEqual(written, ["http://localhost:5173", "error: port in use"]);
 

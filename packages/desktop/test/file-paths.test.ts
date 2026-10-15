@@ -11,10 +11,12 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
 	baseName,
+	canonicalPath,
 	dirName,
 	isDescendantPath,
 	joinPath,
 	relativeTo,
+	samePath,
 	splitExtension,
 	tildeHome,
 } from "../src/lib/paths.ts";
@@ -71,4 +73,26 @@ test("a home folder is written as ~ wherever the system keeps one", () => {
 	// Only a whole segment: these are not anybody's home.
 	assert.equal(tildeHome("/homework/me/x"), "/homework/me/x");
 	assert.equal(tildeHome("/opt/lyra/plugins/x"), "/opt/lyra/plugins/x");
+});
+
+test("on Windows one file is one path, whatever slashes or drive case it was written with", () => {
+	// Measured on Windows 11: a model's `C:/…`, `c:/…` and the tree's `C:\…` opened three tabs on one README.
+	assert.equal(canonicalPath("C:/lyra/app/README.md"), "C:\\lyra\\app\\README.md");
+	assert.equal(canonicalPath("c:\\lyra\\app\\"), "C:\\lyra\\app");
+	assert.equal(canonicalPath("C:\\"), "C:\\", "the drive's root keeps its separator");
+	assert.equal(canonicalPath("\\\\nas\\share//docs/a.md"), "\\\\nas\\share\\docs\\a.md");
+	assert.ok(samePath("C:\\lyra\\app\\README.md", "c:/LYRA/app/readme.md"), "NTFS reads both as one file");
+	// Elsewhere spelling is identity.
+	assert.equal(canonicalPath("/work/app/README.md"), "/work/app/README.md");
+	assert.ok(!samePath("/work/App/a.md", "/work/app/a.md"), "case matters on Linux");
+});
+
+test("inside the project on Windows, however the path is spelled", () => {
+	// 复制相对路径 vanished from a link written with forward slashes: it read as outside the project.
+	assert.equal(relativeTo("C:\\work\\app", "C:/work/app/src/main.ts"), "src\\main.ts");
+	assert.equal(relativeTo("C:\\work\\app", "c:\\Work\\App\\src\\main.ts"), "src\\main.ts");
+	assert.equal(relativeTo("C:\\work\\app", "c:/work/app"), "app");
+	assert.ok(isDescendantPath("C:\\work\\app", "c:/work/app/src"));
+	assert.ok(!isDescendantPath("C:\\work\\app", "C:\\work\\apple\\x"), "the separator still separates");
+	assert.ok(!isDescendantPath("C:\\work\\app", "c:/work/app/"), "nor is a folder inside itself");
 });

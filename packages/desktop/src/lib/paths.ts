@@ -45,6 +45,48 @@ export function joinPath(dir: string, name: string): string {
 	return dir.endsWith("/") || dir.endsWith("\\") ? `${dir}${name}` : `${dir}${separator}${name}`;
 }
 
+/** `C:\…`, `c:/…` or a `\\server\share` path: one NTFS reads without regard to case or slash. */
+function windowsPath(path: string): boolean {
+	return /^[a-zA-Z]:[/\\]/.test(path) || path.startsWith("\\\\");
+}
+
+/**
+ * A Windows path in the one spelling the system hands out: backslashes, the drive in capitals.
+ *
+ * The same file reaches the renderer spelled several ways. The main process writes `C:\a\b.md`;
+ * a model writes `C:/a/b.md` or `c:/a/b.md` in a reply; and every comparison here was `===`.
+ * Measured on Windows 11, three links to one README opened three tabs. Any other path comes back
+ * as it is — on macOS and Linux the spelling is the identity.
+ */
+export function canonicalPath(path: string): string {
+	if (/^[a-zA-Z]:[/\\]/.test(path)) {
+		const rest = path.slice(2).replace(/[/\\]+/g, "\\");
+		return `${path[0]!.toUpperCase()}:${rest.length > 1 ? rest.replace(/\\$/, "") : rest}`;
+	}
+	if (path.startsWith("\\\\")) return `\\\\${path.slice(2).replace(/[/\\]+/g, "\\").replace(/\\$/, "")}`;
+	return path;
+}
+
+/** Whether two paths name the same file — on Windows whatever their slashes and case, as NTFS reads them. */
+export function samePath(a: string, b: string): boolean {
+	if (a === b) return true;
+	return windowsPath(a) && windowsPath(b) && canonicalPath(a).toLowerCase() === canonicalPath(b).toLowerCase();
+}
+
+/**
+ * `root` with a separator on the end, and `path`, spelled so that one can be tested as a prefix of
+ * the other — canonical and case-folded when both are Windows paths, untouched otherwise.
+ */
+function comparable(root: string, path: string): { prefix: string; path: string; fold: (text: string) => string } {
+	const windows = windowsPath(root) && windowsPath(path);
+	const base = windows ? canonicalPath(root) : root;
+	return {
+		prefix: base.endsWith("/") || base.endsWith("\\") ? base : base + separatorOf(base),
+		path: windows ? canonicalPath(path) : path,
+		fold: windows ? (text) => text.toLowerCase() : (text) => text,
+	};
+}
+
 /**
  * A path as written from the project root — what "复制相对路径" copies.
  *
@@ -52,9 +94,9 @@ export function joinPath(dir: string, name: string): string {
  * something, and "" would read as a bug.
  */
 export function relativeTo(root: string, path: string): string {
-	if (path === root) return baseName(root);
-	const prefix = root.endsWith("/") || root.endsWith("\\") ? root : root + separatorOf(root);
-	return path.startsWith(prefix) ? path.slice(prefix.length) : path;
+	if (samePath(path, root)) return baseName(root);
+	const at = comparable(root, path);
+	return at.fold(at.path).startsWith(at.fold(at.prefix)) ? at.path.slice(at.prefix.length) : path;
 }
 
 /**
@@ -64,9 +106,9 @@ export function relativeTo(root: string, path: string): string {
  * `/a/bc` reads as being inside `/a/b`.
  */
 export function isDescendantPath(parent: string, child: string): boolean {
-	if (child === parent) return false;
-	const prefix = parent.endsWith("/") || parent.endsWith("\\") ? parent : parent + separatorOf(parent);
-	return child.startsWith(prefix);
+	if (samePath(child, parent)) return false;
+	const at = comparable(parent, child);
+	return at.fold(at.path).startsWith(at.fold(at.prefix));
 }
 
 /**

@@ -10,6 +10,8 @@
  */
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { test } from "node:test";
 import { DEFAULT_APPEARANCE, type AppearanceSettings } from "@lyra/core";
 import { applyAppearance } from "../../src/features/settings/theme.ts";
@@ -82,4 +84,17 @@ test("on Windows every weight is drawn a step lighter, never below 400; elsewher
 		greys(undefined, DEFAULT_APPEARANCE.theme);
 		Reflect.deleteProperty(window, "lyra");
 	}
+});
+
+test("on Windows `**bold**` in a reply steps up to a weight YaHei draws as Bold", () => {
+	/*
+	 * `strong` is `--font-weight-medium`, one step above the body. With the body at 400 on Windows that
+	 * is 500, which YaHei answers with its Regular — measured on Windows 11, `<strong>一、现象</strong>`
+	 * came out in MicrosoftYaHeiUI, the face of the sentence around it. Semibold (600) is the first step
+	 * that reaches YaHei's Bold.
+	 */
+	const css = readFileSync(join(import.meta.dirname, "../../src/styles/markdown.css"), "utf8");
+	assert.match(css, /html\[data-ly-platform="win32"\]\s+\.prose-dw strong\s*\{[^}]*font-weight:\s*var\(--font-weight-(semibold|bold)\)/);
+	const tokens = readFileSync(join(import.meta.dirname, "../../src/styles/tokens.css"), "utf8");
+	assert.match(tokens, /--font-weight-semibold:\s*clamp\(100,\s*calc\(var\(--ly-ui-weight,\s*400\)\s*\+\s*200\)/, "semibold is two steps above the body");
 });

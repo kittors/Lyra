@@ -13,6 +13,7 @@
  */
 
 import { Folder, MoreHorizontal, X } from "lucide-react";
+import { useLayout } from "../../app/layout.tsx";
 import { PanelMenu } from "../../app/window/WindowToolbar.tsx";
 import { ToolbarButton } from "../../app/window/WindowControls.tsx";
 import { WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
@@ -40,6 +41,9 @@ export function SplitChrome({
 	inset: number;
 	insetEnd: number;
 }) {
+	// Under a header bar this sits mid-window, where moving the window would bring Windows' title
+	// bar along with it — the system menu on a right-click, maximise on a double-click. See `PaneHeader`.
+	const { headerBar } = useLayout();
 	return (
 		<header
 			// One screen answers to the old single-screen selector; several each answer to their own.
@@ -50,7 +54,7 @@ export function SplitChrome({
 				paddingLeft: inset + 10,
 				paddingRight: insetEnd + 6,
 			}}
-			className="drag-region flex shrink-0 items-center gap-1.5"
+			className={`${headerBar ? "" : "drag-region "}flex shrink-0 items-center gap-1.5`}
 		>
 			<ScreenTitle sessionId={sessionId} screen={screen} />
 			<ScreenTools sessionId={sessionId} screen={screen} />

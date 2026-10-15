@@ -15,6 +15,12 @@
  * title bar normally is. Losing this is what made the window undraggable for a while — the dock
  * reaches the top edge now, so if these bars do not move the window, nothing up there does.
  *
+ * Except under a header bar (Windows and Linux, see `hasHeaderBar`). There the window has a strip
+ * of its own across the top that moves it, and these bars sit below it, in the middle of the
+ * window — where being the window's title bar meant Windows' title bar behaviour: a right-click
+ * opened the system menu (Restore, Move, Size, Minimise…) over the pane, a double-click maximised
+ * the whole window, and a drag towards the screen edge snapped it. `movesWindow` is false there.
+ *
  * `drag-region` on the bar, `no-drag` on everything you can press. Electron composites the two by
  * walking the document in order, so the holes have to come after the region they are cut out of —
  * which is the order they appear in below.
@@ -47,6 +53,7 @@ export function PaneHeader({
 	onToggleMaximized,
 	onPopOut,
 	onClose,
+	movesWindow = true,
 }: {
 	kind: PaneKind;
 	label: string;
@@ -108,6 +115,8 @@ export function PaneHeader({
 	onPopOut?: () => void;
 	/** Absent for the conversation, which is not a pane you can put away. */
 	onClose?: () => void;
+	/** Whether the bar outside its controls drags the window; false under a header bar, see above. */
+	movesWindow?: boolean;
 }) {
 	return (
 		<div
@@ -123,7 +132,7 @@ export function PaneHeader({
 			 * underneath. Without it the browser claims the gesture before the first pointermove
 			 * arrives, and the pane simply never picks up.
 			 */
-			className="drag-region group/header relative flex shrink-0 items-center gap-1.5"
+			className={`${movesWindow ? "drag-region " : ""}group/header relative flex shrink-0 items-center gap-1.5`}
 		>
 			{/*
 			 * A panel may put a control here instead of its name — the terminal's tab strip does,

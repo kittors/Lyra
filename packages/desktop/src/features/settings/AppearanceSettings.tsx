@@ -6,6 +6,7 @@ import { useApp } from "../../store/index.ts";
 import { bridge } from "../../services/index.ts";
 import { Card, InlineSelect, Row, SectionTitle, Segmented, TextInput, Toggle } from "./controls.tsx";
 import { DialogAction } from "../../ui/overlay/Dialog.tsx";
+import { withHanFallback } from "../../lib/code/font-stack.ts";
 import { findCodeTheme, LIGHT_CODE_THEMES, DARK_CODE_THEMES } from "../../lib/code/themes.ts";
 import { CodeAppearancePreview } from "./CodeAppearancePreview.tsx";
 import { InlineCodeSpecimen } from "./InlineCodeSpecimen.tsx";
@@ -325,7 +326,8 @@ export function AppearanceSettings() {
 						lightTheme={findCodeTheme(appearance.codeLightTheme, "light")}
 						darkTheme={findCodeTheme(appearance.codeDarkTheme, "dark")}
 						type={{
-							fontFamily: appearance.codeFont,
+							// What the editor and the terminal draw, Chinese fallback included — see `font-stack.ts`.
+							fontFamily: withHanFallback(appearance.codeFont),
 							fontSize: appearance.codeFontSize,
 							fontWeight: appearance.codeFontWeight,
 							lineHeight: appearance.codeLineHeight,

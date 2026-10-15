@@ -8,13 +8,15 @@
  * menus never both open.
  *
  * The hints name the keys that always work: ⌘ on a Mac, Ctrl+Shift elsewhere — plain Ctrl+C there
- * copies only while something is selected, and is the shell's interrupt otherwise.
+ * copies only while something is selected, and is the shell's interrupt otherwise. Paste on Windows
+ * is plain Ctrl+V, which always pastes there (see `terminalKey`).
  */
 
 import { ClipboardPaste, Copy } from "lucide-react";
 
 import { translate } from "../../i18n/translate.ts";
 import { macKeyboard } from "../../ui/keyboard.ts";
+import { windowsKeyboard } from "./terminal-keys.ts";
 import { ContextMenu } from "../../ui/overlay/ContextMenu.tsx";
 import { MenuItem } from "../../ui/overlay/Menu.tsx";
 
@@ -40,7 +42,7 @@ export function TerminalMenu({
 			<MenuItem icon={<Copy {...ICON} />} hint={mac ? "⌘C" : "Ctrl+Shift+C"} disabled={!canCopy} onClick={onCopy}>
 				{translate("common.copy")}
 			</MenuItem>
-			<MenuItem icon={<ClipboardPaste {...ICON} />} hint={mac ? "⌘V" : "Ctrl+Shift+V"} onClick={onPaste}>
+			<MenuItem icon={<ClipboardPaste {...ICON} />} hint={mac ? "⌘V" : windowsKeyboard() ? "Ctrl+V" : "Ctrl+Shift+V"} onClick={onPaste}>
 				{translate("common.paste")}
 			</MenuItem>
 		</ContextMenu>

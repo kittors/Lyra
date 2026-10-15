@@ -52,6 +52,7 @@ import { awaitingSubAgents } from "../../store/subAgents.ts";
 import { carryOnPrompt } from "../../store/derive.ts";
 import { bridge, onPhone } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
+import { acceleratorLabel } from "../../ui/keyboard.ts";
 
 /** 输入框里挂着的一份附件——和侧边聊天、子智能体那两个框是同一个形状，见 `attachments/read.ts`。 */
 type Attachment = DraftAttachment;
@@ -803,7 +804,8 @@ export function Composer({ centered = false }: {
 								<IconButton
 									size="composer"
 									emphasis
-									label={`${t("composer.screenshot")} ${settings?.screenshot?.shortcut ? `(${settings.screenshot.shortcut.replace("CommandOrControl", "⌘").replace("Shift", "⇧").replace("Alt", "⌥").replace(/\+/g, "")})` : ""}`}
+									// Through `acceleratorLabel`: a hand-rolled replace chain printed a recorded Win+Shift+S as "SuperShift+S".
+									label={`${t("composer.screenshot")} ${settings?.screenshot?.shortcut ? `(${acceleratorLabel(settings.screenshot.shortcut).replace(/ /g, "")})` : ""}`}
 									ariaLabel={t("composer.screenshot")}
 									onClick={() => void takeScreenshot()}
 									icon={<Camera size={15} strokeWidth={1.9} />}

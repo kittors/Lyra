@@ -14,6 +14,7 @@ import { lyraHome, type Settings } from "@lyra/core";
 import { app, BrowserWindow, ipcMain, nativeTheme, screen } from "electron";
 import { MAC_MAIN_TRAFFIC_LIGHT_POSITION, MAC_TRAFFIC_LIGHT_POSITION, NATIVE_HEADER_HEIGHT } from "../shared/window-chrome.ts";
 import { appIconCandidates } from "./app-icon-path.ts";
+import { reopenMaximized, stateToSave, type Opened, type WindowState } from "./window-state.ts";
 
 /**
  * Where the icon file is, packaged or not.
@@ -61,6 +62,8 @@ export function appIconPath(): string | undefined {
  */
 let readSettings: () => Settings | undefined = () => undefined;
 let mainWindow: BrowserWindow | null = null;
+/** What the main window was asked to open at and what it opened at; see `window-state.ts`. */
+let mainOpened: Opened | null = null;
 const appWindows = new Set<BrowserWindow>();
 type AppWindowRole = "primary" | "aux" | "panel";
 
@@ -137,14 +140,6 @@ export function eachAppWindow(fn: (win: BrowserWindow) => void): void {
 		if (win.webContents.isDestroyed()) continue;
 		fn(win);
 	}
-}
-
-interface WindowState {
-	x?: number;
-	y?: number;
-	width: number;
-	height: number;
-	maximized?: boolean;
 }
 
 /**
@@ -352,6 +347,12 @@ function sessionWindowBounds(origin: { x: number; y: number; width: number; heig
 	};
 }
 
+/**
+ * The main window's size on a first launch. Matches the reference screenshots: a 272px sidebar plus
+ * a main column wide enough for the four suggestion cards to sit on one row.
+ */
+const MAIN_DEFAULT = { width: 980, height: 680 };
+
 function buildAppWindow(options: {
 	role: AppWindowRole;
 	sessionId?: string;
@@ -373,10 +374,8 @@ function buildAppWindow(options: {
 		 * thing an application icon must never be.
 		 */
 		icon: appIconPath(),
-		// Matches the reference screenshots: a 272px sidebar plus a main column wide enough
-		// for the four suggestion cards to sit on one row.
-		width: sessionBox?.width ?? saved?.width ?? 980,
-		height: sessionBox?.height ?? saved?.height ?? 680,
+		width: sessionBox?.width ?? saved?.width ?? MAIN_DEFAULT.width,
+		height: sessionBox?.height ?? saved?.height ?? MAIN_DEFAULT.height,
 		...(sessionBox
 			? { x: sessionBox.x, y: sessionBox.y }
 			: saved && saved.x !== undefined && saved.y !== undefined
@@ -481,11 +480,29 @@ function buildAppWindow(options: {
 	});
 	win.on("closed", () => {
 		appWindows.delete(win);
-		if (options.role === "primary") mainWindow = null;
+		if (options.role === "primary") {
+			mainWindow = null;
+			mainOpened = null;
+		}
 		if (options.role === "aux" || options.role === "panel") broadcastSessionWindows();
 	});
 
+	/*
+	 * Where the main window actually came out, next to where it was asked to be — read at once, and
+	 * again just before it shows, since the system may still settle it while hidden. Nobody can move
+	 * a window that is not on screen yet, so anything up to here is the system's doing.
+	 */
+	const noteOpened = () => {
+		if (options.role !== "primary") return;
+		const got = win.getNormalBounds();
+		mainOpened = { asked: { x: saved?.x ?? got.x, y: saved?.y ?? got.y, width: saved?.width ?? MAIN_DEFAULT.width, height: saved?.height ?? MAIN_DEFAULT.height }, got };
+	};
+	noteOpened();
+
 	win.once("ready-to-show", () => {
+		noteOpened();
+		// Maximising shows the window as well; `show` after it is what gives it focus.
+		if (options.role === "primary" && reopenMaximized(saved, process.platform)) win.maximize();
 		win.show();
 		if (options.role === "aux" || options.role === "panel") broadcastSessionWindows();
 	});
@@ -579,13 +596,6 @@ function hideWindow(): void {
 	win.hide();
 }
 
-interface WindowState {
-	width: number;
-	height: number;
-	x?: number;
-	y?: number;
-}
-
 function windowStatePath(): string {
 	return join(lyraHome(), "window.json");
 }
@@ -602,7 +612,7 @@ function readWindowState(): WindowState | null {
 	try {
 		const raw = JSON.parse(readFileSync(windowStatePath(), "utf8")) as Partial<WindowState>;
 		if (typeof raw.width !== "number" || typeof raw.height !== "number") return null;
-		const state: WindowState = { width: Math.max(380, raw.width), height: Math.max(440, raw.height) };
+		const state: WindowState = { width: Math.max(380, raw.width), height: Math.max(440, raw.height), ...(raw.maximized === true ? { maximized: true } : {}) };
 		if (typeof raw.x === "number" && typeof raw.y === "number") {
 			const visible = screen.getAllDisplays().some((display) => {
 				const b = display.workArea;
@@ -621,11 +631,20 @@ function readWindowState(): WindowState | null {
 
 function writeWindowState(): void {
 	if (!mainWindow || mainWindow.isDestroyed()) return;
-	// Fullscreen and maximised bounds are the screen's, not the user's choice of window size.
-	if (mainWindow.isFullScreen() || mainWindow.isMaximized() || mainWindow.isMinimized()) return;
-	const { width, height, x, y } = mainWindow.getBounds();
+	/*
+	 * Fullscreen and maximised bounds are the screen's, not the user's choice of window size — so the
+	 * normal bounds are what is kept, and being maximised is kept beside them rather than dropped.
+	 */
+	const state = stateToSave({
+		normal: mainWindow.getNormalBounds(),
+		maximized: mainWindow.isMaximized(),
+		fullScreen: mainWindow.isFullScreen(),
+		minimized: mainWindow.isMinimized(),
+		opened: mainOpened,
+	});
+	if (!state) return;
 	try {
-		writeFileSync(windowStatePath(), JSON.stringify({ width, height, x, y }));
+		writeFileSync(windowStatePath(), JSON.stringify(state));
 	} catch {
 		// A window that cannot remember its size is not worth failing a launch over.
 	}

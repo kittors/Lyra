@@ -105,7 +105,7 @@ export function DockPane({
 	 * note on the card below); a pane in the air is still a card. `edges` are the sides that border a
 	 * neighbour, where the hairline goes.
 	 */
-	const { framed } = useLayout();
+	const { framed, headerBar } = useLayout();
 	const flat = framed && !carried;
 	const edges = { left: box.left > 0.001, top: box.top > 0.001 };
 	/** Where the card's inside starts within the pane's box: its inset and its border. */
@@ -247,6 +247,7 @@ export function DockPane({
 					onToggleMaximized={onToggleMaximized}
 					onPopOut={onPopOut}
 					onClose={onClose}
+					movesWindow={!headerBar}
 				/>}
 			</div> : null}
 		>

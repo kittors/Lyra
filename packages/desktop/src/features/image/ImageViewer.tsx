@@ -37,6 +37,7 @@ import { useApp } from "../../store/index.ts";
 import { EASING } from "../../ui/motion/tokens.ts";
 import { closeViewer, stepViewer, useViewer, type ViewerImage } from "./viewer-store.ts";
 import { portal } from "../../ui/overlay/portal.ts";
+import { holdScrim } from "../../ui/overlay/scrims.ts";
 import { useMovableBar } from "./useMovableBar.ts";
 
 /**
@@ -66,6 +67,8 @@ const FLIGHT = `transform ${DURATION}ms ${EASE}`;
 
 /** The backdrop and the controls: on the flight's clock, and faded in from nothing on arrival. */
 const FADE = `opacity ${DURATION}ms ${EASE}`;
+/** The backdrop's black, as `bg-black/72` draws it; the window's own buttons are dimmed by the same. */
+const BACKDROP_ALPHA = 0.72;
 
 const CENTRED: Point = { x: 0, y: 0 };
 
@@ -435,6 +438,12 @@ export function ImageViewer() {
 			window.removeEventListener("blur", release);
 		};
 	}, [shown, editing, dismiss, annotator, step]);
+
+	/*
+	 * Windows draws minimise/maximise/close over this, outside the page; the backdrop cannot reach
+	 * them, so they are dimmed with it — and brighten as it starts to fade. See `scrims.ts`.
+	 */
+	useEffect(() => (shown && !leaving ? holdScrim("#000000", BACKDROP_ALPHA) : undefined), [shown, leaving]);
 
 	if (!shown || !image) return null;
 

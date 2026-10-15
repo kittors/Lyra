@@ -72,6 +72,17 @@
     font-weight: var(--font-weight-medium);
   }
 
+  /*
+   * Windows has no medium Chinese face: YaHei is Regular and Bold, and the interface's base weight
+   * is a step lighter there so 500 lands on Regular (`--ly-ui-weight` in `theme.ts`). Labels can
+   * take that — size and colour still rank them. `**bold**` cannot: it is the author's emphasis and
+   * has nothing else, and it was drawn in the very Regular face of the sentence around it. One step
+   * up is Bold.
+   */
+  html[data-ly-platform="win32"] .prose-dw strong {
+    font-weight: var(--font-weight-semibold);
+  }
+
   .prose-dw ul,
   .prose-dw ol {
     padding-left: 1.35em;
