@@ -43,7 +43,14 @@ export function applicationMenuTemplate(options: { platform: string; packaged: b
 	}
 	return [
 		{ role: "editMenu" },
-		// `close` is Ctrl+W, which the default menu already bound; keeping it is not a new shortcut.
-		{ role: "windowMenu", submenu: [{ role: "minimize" }, { role: "togglefullscreen" }, { role: "close" }] },
+		/*
+		 * `close` is Ctrl+W, which the default menu already bound; keeping it is not a new shortcut.
+		 *
+		 * No `minimize`. The menu bar is hidden here, so a role is nothing but its accelerator, and
+		 * minimise's is Ctrl+M — macOS's ⌘M carried over to a keyboard where no Windows program uses
+		 * it. Pressed while typing, the window vanished to the taskbar. The title bar's own button
+		 * and Win+↓ are how a window is minimised on Windows.
+		 */
+		{ role: "windowMenu", submenu: [{ role: "togglefullscreen" }, { role: "close" }] },
 	];
 }

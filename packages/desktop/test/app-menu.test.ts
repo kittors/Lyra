@@ -55,6 +55,18 @@ test("macOS keeps its application menu — Quit, Hide and About live there", () 
 	assert.ok(present.includes("togglefullscreen"));
 });
 
+for (const platform of ["win32", "linux"]) {
+	test(`Ctrl+M does not minimise the window on ${platform}`, () => {
+		// The role's accelerator is CmdOrCtrl+M: ⌘M on a Mac, a key that hid the window mid-sentence here.
+		const present = roles(applicationMenuTemplate({ platform, packaged: true }) as Item[]);
+		assert.ok(!present.includes("minimize"), `minimize (Ctrl+M) is still in the ${platform} menu`);
+	});
+}
+
+test("⌘M still minimises on macOS, where it is the system's own shortcut", () => {
+	assert.ok(roles(applicationMenuTemplate({ platform: "darwin", packaged: true }) as Item[]).includes("minimize"));
+});
+
 test("a development run keeps Electron's default menu, reload and DevTools included", () => {
 	assert.equal(applicationMenuTemplate({ platform: "darwin", packaged: false }), null);
 	assert.equal(applicationMenuTemplate({ platform: "win32", packaged: false }), null);
