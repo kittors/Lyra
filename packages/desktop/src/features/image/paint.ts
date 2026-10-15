@@ -13,30 +13,37 @@
 
 import { mosaicCells, stepNumber, wrapText, type Shape } from "./annotate.ts";
 
-/** Scaled with the image, so a mark on a 3000px screenshot is not a hairline. */
-const STROKE_BASE = 3;
-/** Type size relative to the stroke, which is itself relative to the image. */
 /**
- * Type size relative to the stroke.
+ * A caption's type size for a mark that carries none of its own, relative to its stroke.
  *
- * Was 7, which put the middle setting at roughly 21 points on screen — half again the size of the
- * text being annotated, so every caption shouted. A caption is a note *about* a screenshot and
- * should sit at about the size of the interface underneath it; 5 lands the middle setting near 15,
- * which is that, and leaves the large setting for when it genuinely has to carry.
+ * Only a fallback now: every caption is written with the size the toolbar gave it (`typeAt`).
  */
-export const TEXT_SCALE = 5;
+const TEXT_SCALE = 5;
 /** Line spacing and padding, shared by the field and the paint so the two agree exactly. */
 export const LINE = 1.35;
 export const PAD = 0.28;
 
 const FONT = `-apple-system, system-ui, "PingFang SC", sans-serif`;
-/** One string, so the field and the canvas cannot drift apart. */
-export const fontOf = (size: number) => `${Math.max(12, size)}px ${FONT}`;
+/**
+ * One string, so the field and the canvas cannot drift apart.
+ *
+ * No floor. There was one, `max(12, size)`, applied to two different units: image pixels on the
+ * canvas and screen pixels in the field. A caption sized 15 image pixels on a picture shown at 0.78
+ * was typed at 12 points and painted at 11.7, so it shrank the moment it was committed. Sizes come
+ * from the screen now and are never that small to begin with.
+ */
+export const fontOf = (size: number) => `${size}px ${FONT}`;
 
-/** The stroke width for an image this wide — a constant fraction of it, floored so it stays visible. */
-export const strokeFor = (width: number) => Math.max(STROKE_BASE, Math.round(width / 500));
-
-/** Blit one averaged pixel per covered cell, at block size, with smoothing off. */
+/**
+ * Every covered cell at once: the averaged copy blown up by the block size, through a clip of the
+ * cells.
+ *
+ * It used to be one blit per cell, each a `block`-sized square. On a canvas at the picture's own
+ * resolution those squares sit on whole pixels; on one drawn at the screen's resolution, 1.56 device
+ * pixels per image pixel here, their edges land between pixels and every one of them is antialiased
+ * on its own — a hairline of the picture showing through between each block and the next, a grid
+ * drawn over the redaction. One image through one clip has no edges inside it.
+ */
 function paintMosaic(
 	ctx: CanvasRenderingContext2D,
 	shape: Shape,
@@ -45,13 +52,17 @@ function paintMosaic(
 	brush: number,
 ) {
 	if (!source) return;
+	const cells = mosaicCells(shape.points, brush, block);
+	if (cells.length === 0) return;
+	ctx.beginPath();
+	for (const cell of cells) {
+		const [x, y] = cell.split(",").map(Number) as [number, number];
+		ctx.rect(x, y, block, block);
+	}
+	ctx.clip();
 	const smoothing = ctx.imageSmoothingEnabled;
 	ctx.imageSmoothingEnabled = false;
-	for (const cell of mosaicCells(shape.points, brush, block)) {
-		const [x, y] = cell.split(",").map(Number) as [number, number];
-		if (x < 0 || y < 0) continue;
-		ctx.drawImage(source, x / block, y / block, 1, 1, x, y, block, block);
-	}
+	ctx.drawImage(source, 0, 0, source.width, source.height, 0, 0, source.width * block, source.height * block);
 	ctx.imageSmoothingEnabled = smoothing;
 }
 
@@ -115,9 +126,9 @@ function paint(ctx: CanvasRenderingContext2D, shape: Shape, stroke: number, step
 	}
 
 	if (shape.tool === "step") {
-		// A filled disc with the number in it, sized off the stroke like everything else. Centred on
-		// the click rather than starting there: a badge marks a spot, it does not begin at one.
-		const radius = Math.max(12, stroke * 4.5);
+		// A filled disc with the number in it, at the size it was placed with. Centred on the click
+		// rather than starting there: a badge marks a spot, it does not begin at one.
+		const radius = shape.size ?? Math.max(12, stroke * 4.5);
 		ctx.beginPath();
 		ctx.arc(first.x, first.y, radius, 0, Math.PI * 2);
 		ctx.fill();
@@ -136,7 +147,9 @@ function paint(ctx: CanvasRenderingContext2D, shape: Shape, stroke: number, step
 	}
 
 	if (shape.tool === "arrow") {
-		const head = Math.max(10, stroke * 4);
+		// In proportion to the shaft and nothing else: a floor in image pixels was a different size on
+		// every picture, and on a large one it was the thing that made a thin arrow's head look tiny.
+		const head = stroke * 4.5;
 		const angle = Math.atan2(last.y - first.y, last.x - first.x);
 		// The shaft stops short of the tip, so the line does not show through the notch of the head.
 		const shaft = Math.max(0, Math.hypot(last.x - first.x, last.y - first.y) - head * 0.72);
@@ -158,10 +171,24 @@ function paint(ctx: CanvasRenderingContext2D, shape: Shape, stroke: number, step
 
 	ctx.beginPath();
 	if (shape.tool === "pen") {
+		const points = shape.points;
 		ctx.moveTo(first.x, first.y);
-		for (const point of shape.points.slice(1)) ctx.lineTo(point.x, point.y);
-		// A single click leaves a dot rather than nothing.
-		if (shape.points.length === 1) ctx.lineTo(first.x + 0.01, first.y);
+		if (points.length === 1) {
+			// A single click leaves a dot rather than nothing.
+			ctx.lineTo(first.x + 0.01, first.y);
+		} else {
+			/*
+			 * Through the midpoints, each sampled point a control: the curve the hand drew, not the
+			 * polygon of wherever the pointer happened to be sampled. Joined with straight lines, a
+			 * quick circle came out as a heptagon at a few events a frame.
+			 */
+			for (let i = 1; i < points.length - 1; i++) {
+				const here = points[i]!;
+				const next = points[i + 1]!;
+				ctx.quadraticCurveTo(here.x, here.y, (here.x + next.x) / 2, (here.y + next.y) / 2);
+			}
+			ctx.lineTo(last.x, last.y);
+		}
 	} else if (shape.tool === "line") {
 		ctx.moveTo(first.x, first.y);
 		ctx.lineTo(last.x, last.y);

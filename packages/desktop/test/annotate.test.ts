@@ -11,8 +11,10 @@ import { test } from "node:test";
 import {
 	canRedo,
 	canUndo,
+	badgeAt,
 	clampZoom,
 	commit,
+	constrainEnd,
 	current,
 	emptyHistory,
 	handlesOf,
@@ -28,6 +30,8 @@ import {
 	resizeShape,
 	shapeBounds,
 	stepNumber,
+	strokeAt,
+	typeAt,
 	wrapText,
 	undo,
 	ZOOM_MAX,
@@ -154,11 +158,18 @@ test("a longer stroke covers more, and its cells are the union of its points", (
 	for (const cell of a) assert.ok(long.includes(cell), `${cell} was dropped by the longer stroke`);
 });
 
-test("block and brush scale with the image, and never collapse on a small one", () => {
-	assert.ok(mosaicBlock(3000) > mosaicBlock(600), "a big screenshot gets bigger blocks");
-	assert.ok(mosaicBlock(100) >= 4, "and a tiny one still gets blocks you can see");
-	assert.ok(mosaicBrush(3000) > mosaicBrush(600));
-	assert.ok(mosaicBrush(50) >= 12);
+test("block and brush are the same size on screen whatever the picture's resolution", () => {
+	/*
+	 * `unit` is image pixels per screen point. A screenshot on a Retina screen is 2, a 1408px drawing
+	 * fitted into 1100 points is 1.28: the same squares on screen are twice and 1.28 times as many
+	 * image pixels. The old rule took a fraction of the image's width, which made the drawing's blocks
+	 * 4pt across.
+	 */
+	assert.equal(mosaicBlock(2), 2 * mosaicBlock(1), "twice the image pixels per point, twice the block");
+	assert.ok(Math.abs(mosaicBlock(1408 / 1100) / (1408 / 1100) - mosaicBlock(1)) <= 1, "the drawing's blocks are the screenshot's on screen");
+	assert.ok(Math.abs(mosaicBrush(2) - 2 * mosaicBrush(1)) < 1e-9);
+	assert.ok(Number.isInteger(mosaicBlock(1.28)), "whole pixels: the averaged copy holds one pixel per block");
+	assert.ok(mosaicBlock(0.01) >= 2, "and never so fine on a tiny picture that it stops hiding anything");
 });
 
 test("the grain follows the size control, so a mosaic can be coarse or fine", () => {
@@ -166,10 +177,24 @@ test("the grain follows the size control, so a mosaic can be coarse or fine", ()
 	 * Redacting a line of text and redacting a whole window want visibly different squares, and the
 	 * grain used to be fixed — the size control moved the brush and left the blocks alone.
 	 */
-	assert.ok(mosaicBlock(2000, 2) > mosaicBlock(2000, 1), "a larger setting gives coarser blocks");
-	assert.ok(mosaicBlock(2000, 0.5) < mosaicBlock(2000, 1), "and a smaller one finer");
-	assert.ok(mosaicBlock(2000, 0.01) >= 4, "never so fine that it stops hiding anything");
-	assert.equal(mosaicBlock(2000), mosaicBlock(2000, 1), "left off, it is the middle setting");
+	assert.ok(mosaicBlock(2, 1.8) > mosaicBlock(2, 1), "a larger setting gives coarser blocks");
+	assert.ok(mosaicBlock(2, 0.6) < mosaicBlock(2, 1), "and a smaller one finer");
+	assert.ok(mosaicBlock(2, 0.01) >= 2, "never so fine that it stops hiding anything");
+	assert.equal(mosaicBlock(2), mosaicBlock(2, 1), "left off, it is the middle setting");
+	assert.ok(mosaicBrush(2, 1.8) > mosaicBrush(2, 1));
+});
+
+test("the toolbar's sizes are screen sizes: legible on any picture, and the same mark at any zoom", () => {
+	// What the middle setting draws on screen, whatever the picture: a 4pt line, 22pt type, a 28pt badge.
+	for (const unit of [0.5, 1, 1.28, 2, 3]) {
+		assert.ok(Math.abs(strokeAt(unit, 1) / unit - 4) < 1e-9, `stroke at unit ${unit}`);
+		assert.ok(Math.abs(typeAt(unit, 1) / unit - 22) < 1e-9, `type at unit ${unit}`);
+		assert.ok(Math.abs(badgeAt(unit, 1) / unit - 14) < 1e-9, `badge at unit ${unit}`);
+	}
+	// The three settings of type: the smallest stays above the interface's 14pt, the largest is a headline.
+	const sizes = [0.6, 1, 1.8].map((weight) => Math.round(typeAt(1, weight)));
+	assert.deepEqual(sizes, [16, 22, 32]);
+	assert.ok(strokeAt(1, 0.01) >= 1, "a line never thinner than a point");
 });
 
 // ---------------------------------------------------------------------------
@@ -285,26 +310,44 @@ test("picking is forgiving by a constant number of screen pixels, however far in
 	assert.ok(pickTolerance(12, 8) >= 12, "never tighter than the mark's own width");
 });
 
-test("a mark drawn as a drag gets a grip at each end, and dragging one moves only that end", () => {
+test("a box gets a grip at every corner, and dragging one moves only that corner", () => {
 	const rect: Shape = { tool: "rect", colour: "#000", points: [{ x: 10, y: 10 }, { x: 110, y: 60 }] };
 	const grips = handlesOf(rect);
-	assert.equal(grips.length, 2);
-	assert.deepEqual(grips.map((g) => g.at), [{ x: 10, y: 10 }, { x: 110, y: 60 }]);
+	// The two it was drawn between, then the two they imply: top-right and bottom-left.
+	assert.deepEqual(grips.map((g) => g.at), [{ x: 10, y: 10 }, { x: 110, y: 60 }, { x: 110, y: 10 }, { x: 10, y: 60 }]);
 
 	const pulled = resizeShape(rect, 1, { x: 200, y: 200 });
-	assert.deepEqual(pulled.points[0], { x: 10, y: 10 }, "the other end stays put");
+	assert.deepEqual(pulled.points[0], { x: 10, y: 10 }, "the opposite corner stays put");
 	assert.deepEqual(pulled.points[1], { x: 200, y: 200 });
 
 	const other = resizeShape(rect, 0, { x: 0, y: 0 });
 	assert.deepEqual(other.points, [{ x: 0, y: 0 }, { x: 110, y: 60 }]);
+
+	// The top-right corner: its x is the far side's, its y the near side's. The bottom-left stays.
+	assert.deepEqual(resizeShape(rect, 2, { x: 150, y: 0 }).points, [{ x: 10, y: 0 }, { x: 150, y: 60 }]);
+	// The bottom-left corner: the top-right stays.
+	assert.deepEqual(resizeShape(rect, 3, { x: 0, y: 90 }).points, [{ x: 0, y: 10 }, { x: 110, y: 90 }]);
 });
 
-test("lines and arrows resize the same way; ellipses too", () => {
-	for (const tool of ["line", "arrow", "ellipse"] as const) {
+test("an ellipse has the corners of its box; lines and arrows only their two ends", () => {
+	const ellipse: Shape = { tool: "ellipse", colour: "#000", points: [{ x: 0, y: 0 }, { x: 50, y: 50 }] };
+	assert.equal(handlesOf(ellipse).length, 4);
+	for (const tool of ["line", "arrow"] as const) {
 		const shape: Shape = { tool, colour: "#000", points: [{ x: 0, y: 0 }, { x: 50, y: 50 }] };
 		assert.equal(handlesOf(shape).length, 2, tool);
 		assert.deepEqual(resizeShape(shape, 1, { x: 80, y: 20 }).points[1], { x: 80, y: 20 }, tool);
 	}
+});
+
+test("Shift makes a box square, an ellipse round, and a line snap to the nearest 15°", () => {
+	const from = { x: 10, y: 10 };
+	assert.deepEqual(constrainEnd("rect", from, { x: 110, y: 40 }), { x: 110, y: 110 }, "the longer side on both");
+	assert.deepEqual(constrainEnd("ellipse", from, { x: -30, y: 60 }), { x: -40, y: 60 }, "towards wherever the drag went");
+	const flat = constrainEnd("line", from, { x: 110, y: 14 });
+	assert.ok(Math.abs(flat.y - 10) < 1e-9, `nearly flat becomes flat, got ${flat.y}`);
+	const diagonal = constrainEnd("arrow", from, { x: 60, y: 62 });
+	assert.ok(Math.abs(diagonal.x - 10 - (diagonal.y - 10)) < 1e-9, "nearly 45° becomes 45°");
+	assert.deepEqual(constrainEnd("pen", from, { x: 3, y: 4 }), { x: 3, y: 4 }, "a free stroke is left free");
 });
 
 test("marks with no two points that stand for them offer no grips", () => {
@@ -326,6 +369,7 @@ test("a caption's grip is its column edge, and dragging it sets the width", () =
 	assert.deepEqual(grips[0]?.at, { x: 180, y: 70 }, "right edge, vertically centred");
 
 	assert.equal(resizeShape(label, WIDTH_HANDLE, { x: 300, y: 0 }).width, 280, "measured from its left edge");
+	assert.equal(resizeShape(label, WIDTH_HANDLE, { x: 300, y: 0 }).fixed, true, "a width set by hand is kept when the caption is reopened");
 	// And never so narrow that nothing can be laid out in it.
 	assert.ok((resizeShape(label, WIDTH_HANDLE, { x: 21, y: 0 }).width ?? 0) >= 40);
 });
@@ -367,10 +411,22 @@ test("latin breaks at spaces rather than mid-word", () => {
 	assert.equal(lines.join(" ").replace(/\s+/g, " ").trim(), "hello wonderful world");
 });
 
-test("a run longer than the column still gets its own line rather than looping forever", () => {
+test("a run longer than the whole column is broken between its characters, as the field breaks it", () => {
 	const lines = wrapText(evenly, "supercalifragilistic", 5);
-	assert.ok(lines.length >= 1);
-	assert.equal(lines.join(""), "supercalifragilistic");
+	assert.deepEqual(lines, ["super", "calif", "ragil", "istic"]);
+	// After a short word, the long one starts a line of its own and is broken from there.
+	assert.deepEqual(wrapText(evenly, "go https://lyra.app/x", 8), ["go ", "https://", "lyra.app", "/x"]);
+});
+
+test("a line never starts with a comma or a closing bracket, nor ends with an opening one", () => {
+	// The case that was reported: the field kept 「明，」 together, the canvas started a line with 「，」.
+	assert.deepEqual(wrapText(evenly, "长的说明，会在图片边上换行", 4), ["长的说", "明，会在", "图片边上", "换行"]);
+	// The opening bracket goes down with the character after it; the closing one stays with the one before.
+	for (const line of wrapText(evenly, "标注一（重点）在这", 4)) {
+		assert.ok(!line.endsWith("（"), `line "${line}" ends with an opening bracket`);
+		assert.ok(!line.startsWith("）"), `line "${line}" starts with a closing bracket`);
+	}
+	for (const line of wrapText(evenly, "一，二。三、四！五？六）七」八", 2)) assert.ok(!/^[，。、！？）」]/.test(line), `line "${line}" starts with punctuation`);
 });
 
 test("text that fits is left alone", () => {

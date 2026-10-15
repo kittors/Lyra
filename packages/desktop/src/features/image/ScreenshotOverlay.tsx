@@ -22,7 +22,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ScreenshotSettings } from "@lyra/core";
 import { useAnnotator } from "./Annotator.tsx";
 import { AnnotateCanvas } from "./AnnotateCanvas.tsx";
-import { AnnotateToolbar } from "./AnnotateToolbar.tsx";
+import { AnnotateToolbar, BAR_SURFACE } from "./AnnotateToolbar.tsx";
 import { ScreenshotLoupe } from "./ScreenshotLoupe.tsx";
 import { useToolbarPlacement } from "./useToolbarPlacement.ts";
 import { useSelectionGesture, EDGE_GRAB } from "./useSelectionGesture.ts";
@@ -606,8 +606,6 @@ export function ScreenshotOverlay() {
 	}
 
 	const { bounds } = initData;
-	// Snapshot pixels → screen pixels, which is the scale the annotator's hit tolerances are in.
-	const zoom = annotator.width > 0 ? bounds.width / annotator.width : 1;
 	/*
 	 * Placed against the bar's real width, not a guess at it.
 	 *
@@ -778,7 +776,9 @@ export function ScreenshotOverlay() {
 					<div className="absolute" style={{ left: -selection.x, top: -selection.y }}>
 						<AnnotateCanvas
 							annotator={annotator}
-							zoom={zoom}
+							// Nothing above it is zoomed. It used to pass the snapshot-to-screen ratio here, standing in
+							// for the canvas's own; the canvas measures that itself now.
+							zoom={1}
 							className="bg-transparent"
 							style={{ width: bounds.width, height: bounds.height }}
 						/>
@@ -926,7 +926,7 @@ export function ScreenshotOverlay() {
 						propertiesSide={toolbarAt?.side === "below" ? "below" : "above"}
 						// Position, background and shadow only: spacing comes from `size`, or the two
 						// would drift the first time either was changed. See `AnnotateToolbar`.
-						className="pointer-events-auto relative flex items-center border border-white/12 bg-[#1c1c1e]/92 shadow-[0_8px_32px_rgba(0,0,0,0.45)] backdrop-blur-xl transition-[opacity,transform] duration-[var(--ly-t-base)] ease-out"
+						className={BAR_SURFACE}
 					/>
 				</div>
 			)}

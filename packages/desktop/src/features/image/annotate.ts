@@ -35,10 +35,15 @@ export interface Shape {
 	/** Pen and mosaic keep every point; the rest are defined by where the drag started and ended. */
 	points: Point[];
 	text?: string;
-	/** Type size in natural pixels, so text scales with the image like every other mark. */
+	/**
+	 * In natural pixels, so it scales with the image like every other mark: the type size of a
+	 * caption, the radius of a step badge.
+	 */
 	size?: number;
 	/** Text only: the column width it wraps at, in natural pixels. */
 	width?: number;
+	/** Text only: that width was dragged by hand, so editing the caption keeps it rather than refitting. */
+	fixed?: boolean;
 	/** Text only: how tall it came out, measured from the field that typed it. */
 	height?: number;
 	/** Text only: a CSS colour behind the text, or undefined for none. */
@@ -72,14 +77,21 @@ export const WIDTH_HANDLE = -1;
 
 /** Marks defined by where the drag started and ended, and therefore resizable by either end. */
 const TWO_POINT = new Set<Tool>(["rect", "ellipse", "line", "arrow"]);
+/** Of those, the ones that enclose an area — and so have four corners, not two ends. */
+const BOXED = new Set<Tool>(["rect", "ellipse"]);
 
 /**
  * The grips on a selected mark, in natural pixels.
  *
- * Only where dragging means something: the two ends of a shape that was drawn as a drag, or the
- * column edge of a caption. A pen stroke has no two points that stand for it and a step badge is a
- * fixed size, so both are moved rather than resized — offering a grip that does nothing would be
- * worse than offering none.
+ * Only where dragging means something: the ends of a line or an arrow, the four corners of a box or
+ * an ellipse, the column edge of a caption. A pen stroke has no points that stand for it and a step
+ * badge is resized from the toolbar, so both are moved rather than resized — offering a grip that
+ * does nothing would be worse than offering none.
+ *
+ * A box has all four corners rather than the two it was drawn between. With two, a rectangle drawn
+ * from its top-left could only be resized from the top-left and the bottom-right: reach for the
+ * top-right corner, the one nearest the hand half the time, and there was nothing there to take.
+ * Indices 0 and 1 are still the two points; 2 and 3 are the corners those two imply.
  */
 export function handlesOf(shape: Shape): { at: Point; index: number }[] {
 	const first = shape.points[0];
@@ -94,10 +106,12 @@ export function handlesOf(shape: Shape): { at: Point; index: number }[] {
 	if (TWO_POINT.has(shape.tool)) {
 		const last = shape.points[shape.points.length - 1];
 		if (!last) return [];
-		return [
+		const ends = [
 			{ at: first, index: 0 },
 			{ at: last, index: 1 },
 		];
+		if (!BOXED.has(shape.tool)) return ends;
+		return [...ends, { at: { x: last.x, y: first.y }, index: 2 }, { at: { x: first.x, y: last.y }, index: 3 }];
 	}
 
 	return [];
@@ -111,13 +125,45 @@ export function resizeShape(shape: Shape, index: number, to: Point): Shape {
 	if (index === WIDTH_HANDLE) {
 		// A column narrower than a couple of characters cannot lay anything out.
 		const min = (shape.size ?? 16) * 2;
-		return { ...shape, width: Math.max(min, to.x - first.x) };
+		return { ...shape, width: Math.max(min, to.x - first.x), fixed: true };
 	}
 
 	const points = [...shape.points];
+	const last = points[points.length - 1] ?? first;
 	if (index === 0) points[0] = to;
-	else points[points.length - 1] = to;
+	else if (index === 1) points[points.length - 1] = to;
+	// The two implied corners each take one coordinate from either point.
+	else if (index === 2) {
+		points[0] = { x: first.x, y: to.y };
+		points[points.length - 1] = { x: to.x, y: last.y };
+	} else if (index === 3) {
+		points[0] = { x: to.x, y: first.y };
+		points[points.length - 1] = { x: last.x, y: to.y };
+	}
 	return { ...shape, points };
+}
+
+/**
+ * Where the end of a drag lands with Shift held: a square, a circle, or a line at a round angle.
+ *
+ * What every drawing program does with that key, and what anyone straightening a line reaches for
+ * first. A box keeps the longer of its two sides on both; a line snaps to the nearest 15°, which
+ * holds horizontal, vertical and the diagonals without making the in-between angles unreachable.
+ */
+export function constrainEnd(tool: Tool, from: Point, to: Point): Point {
+	const dx = to.x - from.x;
+	const dy = to.y - from.y;
+	if (BOXED.has(tool)) {
+		const side = Math.max(Math.abs(dx), Math.abs(dy));
+		return { x: from.x + Math.sign(dx || 1) * side, y: from.y + Math.sign(dy || 1) * side };
+	}
+	if (tool === "line" || tool === "arrow") {
+		const step = Math.PI / 12;
+		const angle = Math.round(Math.atan2(dy, dx) / step) * step;
+		const length = Math.hypot(dx, dy);
+		return { x: from.x + Math.cos(angle) * length, y: from.y + Math.sin(angle) * length };
+	}
+	return to;
 }
 
 /**
@@ -295,38 +341,61 @@ function toSegment(p: Point, a: Point, b: Point): number {
 /**
  * How wide a miss selecting forgives, in natural pixels.
  *
- * Scaled by the stroke — a mark drawn 12px wide is aimed at as 12px wide — and inversely by zoom, so
- * the forgiveness is a constant number of *screen* pixels however far in you are. A fixed tolerance
- * in image pixels would be impossible to aim at 25% and absurdly sticky at 800%.
+ * Scaled by the stroke — a mark drawn 12px wide is aimed at as 12px wide — and inversely by how many
+ * screen pixels one image pixel takes up, so the forgiveness is a constant number of *screen* pixels
+ * however the picture is shown. A fixed tolerance in image pixels would be impossible to aim at 25%
+ * and absurdly sticky at 800%.
+ *
+ * `scale` is the picture's fitted size times the zoom. It used to be the zoom alone, which assumed one
+ * image pixel was one screen pixel at 100%: a 3000px screenshot fitted into a window is shown at a
+ * third of that, and its 7-pixel allowance came out under three points wide.
  */
-export function pickTolerance(stroke: number, zoom: number): number {
-	return Math.max(stroke, 7 / Math.max(zoom, 0.01)) + stroke / 2;
+export function pickTolerance(stroke: number, scale: number): number {
+	return Math.max(stroke, 7 / Math.max(scale, 0.01)) + stroke / 2;
 }
 
 // ---------------------------------------------------------------------------
 // Text layout
 // ---------------------------------------------------------------------------
 
-/** The smallest run that will not be broken across lines. */
+/** May not begin a line: closing brackets, and the punctuation that ends a clause or a sentence. */
+const NO_START = /[、。，．,.;；:：!！?？)）\]］}｝」』】〕〉》〗〙〛…‥％%]/u;
+/** May not end a line: opening brackets. */
+const NO_END = /[(（[［{｛「『【〔〈《〖〘〚]/u;
+
+/**
+ * The smallest runs that will not be broken across lines.
+ *
+ * CJK breaks between any two characters and Latin at spaces — except that punctuation holds on to its
+ * neighbour: a line may not begin with a comma or a closing bracket, nor end with an opening one. The
+ * field the caption is typed in breaks lines by those rules, and the canvas used to ignore them, so a
+ * caption could be typed as 「长的说 / 明，会在」 and painted as 「长的说明 / ，会在图」 — a line starting
+ * with a comma, and every line after it one character off.
+ */
 function segments(text: string): string[] {
 	const out: string[] = [];
+	const push = (run: string) => {
+		const last = out[out.length - 1];
+		if (last !== undefined && (NO_START.test(run[0] ?? "") || NO_END.test(last.at(-1) ?? ""))) out[out.length - 1] = last + run;
+		else out.push(run);
+	};
 	let latin = "";
 	for (const ch of text) {
 		// CJK breaks anywhere, which is how CJK is set; Latin breaks at spaces, which is how it reads.
 		if (/[　-〿぀-ヿ一-鿿＀-￯]/.test(ch)) {
 			if (latin) {
-				out.push(latin);
+				push(latin);
 				latin = "";
 			}
-			out.push(ch);
+			push(ch);
 		} else if (ch === " ") {
-			out.push(`${latin} `);
+			push(`${latin} `);
 			latin = "";
 		} else {
 			latin += ch;
 		}
 	}
-	if (latin) out.push(latin);
+	if (latin) push(latin);
 	return out;
 }
 
@@ -337,19 +406,30 @@ function segments(text: string): string[] {
  * off the edge of the picture, which is what the caption did. Measurement is passed in rather than
  * taken from a context so the rule can be tested without a DOM, and so the same function serves both
  * the live field and the paint.
+ *
+ * A run wider than the whole column on its own — a link, a long number — is broken between its
+ * characters, as the field breaks it (`overflow-wrap`); left whole it ran past the column and off the
+ * caption's plate.
  */
 export function wrapText(measure: (line: string) => number, text: string, maxWidth: number): string[] {
 	const lines: string[] = [];
 	for (const paragraph of text.split("\n")) {
 		let line = "";
 		for (const run of segments(paragraph)) {
-			const next = line + run;
-			if (line !== "" && measure(next) > maxWidth) {
+			if (line !== "" && measure(line + run) > maxWidth) {
 				lines.push(line);
 				// The space that caused the break belongs to neither line.
 				line = run.trimStart() === "" ? "" : run.replace(/^ +/, "");
 			} else {
-				line = next;
+				line += run;
+			}
+			// A trailing space hangs past the column, as it does in the field.
+			while (measure(line.trimEnd()) > maxWidth && [...line.trimEnd()].length > 1) {
+				const chars = [...line];
+				let fit = 1;
+				while (fit < chars.length && measure(chars.slice(0, fit + 1).join("").trimEnd()) <= maxWidth) fit++;
+				lines.push(chars.slice(0, fit).join(""));
+				line = chars.slice(fit).join("");
 			}
 		}
 		lines.push(line);
@@ -427,28 +507,66 @@ export function stepNumber(shapes: Shape[], index: number): number {
 // ---------------------------------------------------------------------------
 
 /**
- * Mosaic block size for an image of this width — coarse enough to actually obscure a face or a token.
+ * Mosaic block size, in natural pixels — coarse enough to actually obscure a face or a token.
  *
- * `scale` is the size control, so the grain is adjustable rather than fixed: redacting a line of
- * text and redacting a whole window want visibly different squares, and one size does neither well.
- * The base is finer than it used to be because the scale multiplies it — the middle setting lands
- * where the old fixed value was.
+ * `unit` is how many image pixels one screen pixel covers at the picture's fitted size, so the grain
+ * is the same on screen whatever the picture's resolution. It used to be a fraction of the image's
+ * width, which is the right answer for a screenshot — shown at one image pixel per device pixel —
+ * and the wrong one for everything else: a 1408px drawing fitted into a window came out in 4pt
+ * squares, a mosaic that reads as noise rather than as redaction.
+ *
+ * `scale` is the size control, so the grain is adjustable: redacting a line of text and redacting a
+ * whole window want visibly different squares. Whole pixels, because the averaged copy it samples
+ * from holds one pixel per block and a fractional block would sample between them.
  */
-export function mosaicBlock(width: number, scale = 1): number {
-	return Math.max(4, Math.round((width / 170) * scale));
+export function mosaicBlock(unit: number, scale = 1): number {
+	return Math.max(2, Math.round(MOSAIC_BLOCK * unit * scale));
 }
 
 /**
- * How wide the mosaic brush paints, in natural pixels.
- *
- * Was `width / 28`, which on a Retina capture is a 52pt disc — wider than most of the things anyone
- * redacts, so covering a single line of text meant covering the two lines around it as well. A
- * brush should start about the height of a line and be widened when the job is bigger, which is
- * what the size control is for.
+ * How wide the mosaic brush paints, in natural pixels: about a line of text on screen, widened by the
+ * size control when the job is bigger.
  */
-export function mosaicBrush(width: number): number {
-	return Math.max(12, Math.round(width / 52));
+export function mosaicBrush(unit: number, scale = 1): number {
+	return Math.max(4, MOSAIC_BRUSH * unit * scale);
 }
+
+// ---------------------------------------------------------------------------
+// Sizes
+// ---------------------------------------------------------------------------
+
+/*
+ * What the middle setting draws, in screen points at the picture's fitted size.
+ *
+ * Measured off the screen rather than off the image, which is what they were before: a stroke was
+ * 1/500 of the image's width and type five strokes, a rule written for screenshots, which are shown
+ * at one image pixel per device pixel. A generated picture is not: 1408px wide, fitted into a window
+ * at 1100 points, its middle setting came out as a 2.3pt line and 11.7pt type — smaller than the
+ * interface around it, on a picture whose whole point was to be marked up legibly.
+ *
+ * Fixed at the fitted size, not at the current zoom: a mark drawn at 300% is the same mark as one
+ * drawn at 100%, it is only being looked at more closely.
+ */
+const STROKE = 4;
+const TYPE = 22;
+const BADGE = 14;
+const MOSAIC_BLOCK = 10;
+const MOSAIC_BRUSH = 32;
+
+/** A line's width, in natural pixels. The size control multiplies it straight. */
+export const strokeAt = (unit: number, weight: number): number => Math.max(1, STROKE * weight) * unit;
+
+/**
+ * A caption's type size, in natural pixels.
+ *
+ * It grows more slowly than a line does: 1.8× on a line is bold, 1.8× on a caption is a headline. The
+ * exponent puts the three settings at 16, 22 and 32 points — the smallest is still above the 14 the
+ * interface is set in, which is the floor below which a note on a picture stops being read.
+ */
+export const typeAt = (unit: number, weight: number): number => TYPE * weight ** 0.62 * unit;
+
+/** A step badge's radius, in natural pixels: 11, 14 and 19 points across the three settings. */
+export const badgeAt = (unit: number, weight: number): number => BADGE * weight ** 0.55 * unit;
 
 /**
  * Which grid cells a mosaic stroke covers, as `x,y` of each cell's top-left corner.

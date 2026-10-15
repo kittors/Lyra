@@ -6,9 +6,10 @@
  * 其余的会自己重新编号的原因，还是「正在拖的那个矩形」能实时显示的原因：预览和提交走的是同一段
  * 代码，清单加一个临时项而已。
  *
- * 画布按图片的**原始**像素定尺寸，再用 CSS 缩下去。指针坐标进来时经 `getBoundingClientRect`
- * 换算，那个方法已经把上层舞台的缩放算进去了——所以在 400% 下画，落点仍然在指针处，而缩放这件事
- * 在这个文件里一次都不出现。
+ * 标记存在图片的**原始**像素里；画布的像素数则按它在屏幕上的样子来（见 `backingScale`），不再
+ * 等于原图。指针坐标进来时经 `getBoundingClientRect` 换算，那个方法已经把上层舞台的缩放算进去了
+ * ——所以在 400% 下画，落点仍然在指针处。缩放在这里只用来定两件事：画布该有多少像素才清楚，以及
+ * 选中框、手柄这些「编辑用的东西」该缩回多少才不跟着图一起变大。
  *
  * 工具条为什么不在这里：`AnnotateToolbar.tsx` 的文件头写着。
  */
@@ -19,7 +20,9 @@ import { Textarea } from "../../ui/inputs/NativeField.tsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
+	badgeAt,
 	commit,
+	constrainEnd,
 	current,
 	handlesOf,
 	hitShape,
@@ -30,12 +33,14 @@ import {
 	pickTolerance,
 	resizeShape,
 	shapeBounds,
+	strokeAt,
+	typeAt,
 	WIDTH_HANDLE,
 	type Point,
 	type Shape,
 	type Tool,
 } from "./annotate.ts";
-import { fontOf, paintAll, strokeFor, LINE, PAD, TEXT_SCALE } from "./paint.ts";
+import { fontOf, paintAll, LINE, PAD } from "./paint.ts";
 import type { Annotator } from "./Annotator.tsx";
 
 /**
@@ -71,6 +76,13 @@ interface Typing {
 	 * written. It is hidden from the paint while it is being edited, so it is not drawn twice.
 	 */
 	replacing?: number;
+	/**
+	 * Where its left edge was asked to be. A caption begun near the picture's right edge grows to the
+	 * left as it is written, the way right-aligned text does, and moves back as words are deleted;
+	 * this is where it moves back to. It used to wrap instead, at whatever room was left — a sentence
+	 * begun at the edge came out four characters wide and six lines tall.
+	 */
+	anchor?: number;
 }
 
 /** A mark being dragged: which one, where the drag started, and where it has got to. */
@@ -109,6 +121,32 @@ const SELECT_ON_DRAW = new Set<Tool>(["rect", "ellipse", "line", "arrow", "step"
 /** Shared with the viewer's `<img>` so entering edit mode does not resize the picture by a pixel. */
 export const STAGE_FIT = "max-h-[86vh] max-w-[86vw]";
 
+/** A drag shorter than this, in screen points, was a click that wobbled — not a shape. */
+const MIN_DRAG = 4;
+
+/** The most pixels a canvas is given, whatever the zoom: 4096², 64MB. */
+const MAX_BACKING = 4096 * 4096;
+
+/**
+ * How many canvas pixels to give each image pixel, so the marks are as sharp as the screen.
+ *
+ * The canvas used to have exactly the picture's pixels and let CSS stretch it. A screenshot is shown
+ * at one image pixel per device pixel, so that was right for the capture overlay and nowhere else: a
+ * 1408px drawing fitted into a window at 1100 points is 2200 device pixels wide on a Retina screen,
+ * and every line, arrow and caption on it was a 1408px drawing blown up by 1.56 — soft edges on
+ * things that are meant to be crisp, and worse with every step of zoom.
+ *
+ * Never fewer than the picture's own pixels (that is what is saved, and shown smaller it is sharp
+ * already), never more than `MAX_BACKING`, and in eighths so a pinch does not reallocate the canvas
+ * on every event of the gesture. Below 1.05 it is 1: a capture is drawn at its own pixels exactly,
+ * because the overlay crops the saved picture straight out of this canvas.
+ */
+function backingScale(css: number, dpr: number, zoom: number, width: number, height: number): number {
+	if (css <= 0 || width <= 0 || height <= 0) return 1;
+	const wanted = Math.min((css * dpr * zoom) / width, Math.sqrt(MAX_BACKING / (width * height)));
+	return wanted < 1.05 ? 1 : Math.ceil(wanted * 8) / 8;
+}
+
 const CURSOR: Partial<Record<Tool, string>> = {
 	text: "cursor-text",
 	step: "cursor-copy",
@@ -141,7 +179,7 @@ export function AnnotateCanvas({
 	className?: string;
 	style?: React.CSSProperties;
 }) {
-	const { canvas, image, mosaicSourceFor, ready, width, tool, colour, backdrop, weight, shapes, setHistory, selected, setSelected, colorSpace } =
+	const { canvas, image, mosaicSourceFor, ready, width, tool, colour, backdrop, weight, shapes, setHistory, selected, setSelected, colorSpace, unit, setUnit } =
 		annotator;
 	const [drawing, setDrawing] = useState<Shape | null>(null);
 	const [typing, setTyping] = useState<Typing | null>(null);
@@ -153,18 +191,51 @@ export function AnnotateCanvas({
 	const sizing = useRef<{ x: number; from: number; scale: number } | null>(null);
 	const carrying = useRef<{ x: number; y: number; from: Point; scale: number } | null>(null);
 
-	const base = strokeFor(width);
-	const stroke = Math.max(1, base * weight);
-	const typeSize = stroke * TEXT_SCALE;
+	/** The canvas's laid-out width in CSS pixels, watched rather than read once. */
+	const [cssWidth, setCssWidth] = useState(0);
+	const observer = useRef<ResizeObserver | null>(null);
+	/** Device pixels per CSS pixel, which changes when the window moves to another screen. */
+	const [dpr, setDpr] = useState(() => window.devicePixelRatio || 1);
+	useEffect(() => {
+		let media: MediaQueryList | null = null;
+		const watch = () => {
+			setDpr(window.devicePixelRatio || 1);
+			media = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
+			media.addEventListener("change", watch, { once: true });
+		};
+		watch();
+		return () => media?.removeEventListener("change", watch);
+	}, []);
 
 	/*
-	 * Image pixels → display pixels, read during render rather than stored.
+	 * Image pixels → display pixels, at the picture's fitted size.
 	 *
 	 * Declared up here because `commitText` closes over it: a `useCallback` dependency array is
 	 * evaluated as the component renders, so a `const` defined further down is still in its temporal
-	 * dead zone by the time the array is built.
+	 * dead zone by the time the array is built. Against the picture's width, not the canvas's: the
+	 * canvas has as many pixels as the screen needs (`backingScale`), the picture has its own.
 	 */
-	const display = canvas.current && canvas.current.width > 0 ? canvas.current.clientWidth / canvas.current.width : 1;
+	const laidOut = cssWidth || canvas.current?.clientWidth || 0;
+	const display = laidOut > 0 && width > 0 ? laidOut / width : 1;
+	/** Screen points per image pixel as it is being looked at: what a press is aimed in. */
+	const scale = display * zoom;
+	/** Editing chrome — the frame, the grips — is drawn inside the zoomed stage and scaled back out. */
+	const chrome = 1 / Math.max(zoom, 0.01);
+	const height = image.current?.height ?? 0;
+	const backing = backingScale(laidOut, dpr, zoom, width, height);
+
+	// The sizes a mark drawn now gets, in image pixels: screen sizes through `unit`. See `strokeAt`.
+	const stroke = strokeAt(unit, weight);
+	const typeSize = typeAt(unit, weight);
+	const badge = badgeAt(unit, weight);
+	const brush = mosaicBrush(unit, weight);
+
+	// Tell the annotator how big the picture is on screen, so the toolbar's sizes land the same way.
+	useEffect(() => {
+		if (laidOut <= 0 || width <= 0) return;
+		const next = width / laidOut;
+		if (Math.abs(next - unit) / unit > 0.005) setUnit(next);
+	}, [laidOut, width, unit, setUnit]);
 
 	/*
 	 * Sized on attach as well as on load, which is what stops the flash.
@@ -178,14 +249,22 @@ export function AnnotateCanvas({
 	const attach = useCallback(
 		(el: HTMLCanvasElement | null) => {
 			canvas.current = el;
+			observer.current?.disconnect();
+			observer.current = null;
+			if (!el) return;
 			const img = image.current;
-			if (el && img && el.width !== img.width) {
+			if (img && el.width !== img.width) {
 				el.width = img.width;
 				el.height = img.height;
 			}
+			// Its size on screen decides how many pixels it needs and how big a point is in image pixels.
+			setCssWidth(el.clientWidth);
+			observer.current = new ResizeObserver(() => setCssWidth(el.clientWidth));
+			observer.current.observe(el);
 		},
 		[canvas, image],
 	);
+	useEffect(() => () => observer.current?.disconnect(), []);
 
 	/**
 	 * What is actually on screen: the committed marks, with the one being dragged shown where it is
@@ -207,10 +286,14 @@ export function AnnotateCanvas({
 	 * It used to be derived from the stroke and multiplied by 1.8, which on a Retina capture came out
 	 * around 25 image pixels for a dot drawn at 10. A target two and a half times its own size is a
 	 * mark you cannot reliably pick *up*: reach for the middle of a rectangle to move it and a corner
-	 * claims the press instead, and it resizes. Sized off `display` so the reach is the same few
-	 * points on screen whatever the picture's resolution or the zoom.
+	 * claims the press instead, and it resizes. Sized off `scale` so the reach is the same few points
+	 * on screen whatever the picture's resolution or the zoom — it was `display` alone, so at 400% a
+	 * grip reached 36 points out and a press meant to move a small box resized it instead.
 	 */
-	const gripReach = 9 / (display || 1);
+	const gripReach = 9 / (scale || 1);
+
+	/** The grip under a point on the selected mark, if any — the press and the cursor both ask. */
+	const gripAt = (point: Point) => grips.find((g) => Math.hypot(g.at.x - point.x, g.at.y - point.y) <= gripReach);
 
 	/*
 	 * The canvas carries only what will be saved.
@@ -224,6 +307,13 @@ export function AnnotateCanvas({
 		const el = canvas.current;
 		const img = image.current;
 		if (!el || !img || !ready) return;
+		// As many pixels as the screen shows it at; the marks are drawn in image pixels through a scale.
+		const w = Math.max(1, Math.round(img.width * backing));
+		const h = Math.max(1, Math.round(img.height * backing));
+		if (el.width !== w || el.height !== h) {
+			el.width = w;
+			el.height = h;
+		}
 		/*
 		 * 画布的色彩空间跟图片的一致，否则 `drawImage` 会替我们转一道。
 		 *
@@ -233,7 +323,10 @@ export function AnnotateCanvas({
 		const ctx = el.getContext("2d", { colorSpace });
 		if (!ctx) return;
 
+		ctx.setTransform(1, 0, 0, 1, 0, 0);
 		ctx.clearRect(0, 0, el.width, el.height);
+		ctx.setTransform(w / img.width, 0, 0, h / img.height, 0, 0);
+		ctx.imageSmoothingQuality = "high";
 		ctx.drawImage(img.source, 0, 0);
 
 		/*
@@ -245,9 +338,9 @@ export function AnnotateCanvas({
 			stroke,
 			mosaicSourceFor,
 			block: annotator.block,
-			brush: mosaicBrush(width) * weight,
+			brush,
 		});
-	}, [live, ready, width, stroke, weight, canvas, image, mosaicSourceFor, annotator.block, colorSpace]);
+	}, [live, ready, stroke, brush, backing, canvas, image, mosaicSourceFor, annotator.block, colorSpace]);
 
 	/**
 	 * The column that just fits this text, in image pixels.
@@ -294,6 +387,26 @@ export function AnnotateCanvas({
 		[canvas, typeSize, width, colorSpace],
 	);
 
+	/**
+	 * An unsized caption, fitted to its text: as wide as its longest line, moved left from its anchor
+	 * when the picture's right edge would cut it, and only then wrapped.
+	 */
+	const fitTyping = useCallback(
+		(entry: Typing, value: string): Typing => {
+			if (entry.manual) return { ...entry, value };
+			const wanted = fitWidth(value);
+			const pad = typeSize * PAD;
+			const left = Math.max(-pad, Math.min(entry.anchor ?? entry.at.x, width - wanted));
+			return { ...entry, value, at: { ...entry.at, x: left }, width: Math.min(wanted, width - left) };
+		},
+		[fitWidth, typeSize, width],
+	);
+
+	// A size picked while writing applies to the caption at once, and its box follows the new size.
+	useEffect(() => {
+		setTyping((entry) => (entry && !entry.manual ? fitTyping(entry, entry.value) : entry));
+	}, [fitTyping]);
+
 	/** Whether the field has been focused for the caption currently open in it. */
 	const entered = useRef(false);
 
@@ -332,17 +445,21 @@ export function AnnotateCanvas({
 	const at = useCallback(
 		(event: { clientX: number; clientY: number }): Point => {
 			const el = canvas.current;
-			if (!el) return { x: 0, y: 0 };
-			// The rect already includes the stage's zoom transform, so this is correct at any zoom.
+			const img = image.current;
+			if (!el || !img) return { x: 0, y: 0 };
+			// The rect already includes the stage's zoom transform, so this is correct at any zoom. The
+			// picture's pixels, not the canvas's: the canvas has as many as the screen needs.
 			const box = el.getBoundingClientRect();
 			return {
-				x: ((event.clientX - box.left) / box.width) * el.width,
-				y: ((event.clientY - box.top) / box.height) * el.height,
+				x: ((event.clientX - box.left) / box.width) * img.width,
+				y: ((event.clientY - box.top) / box.height) * img.height,
 			};
 		},
-		[canvas],
+		[canvas, image],
 	);
 
+	/** The caption last committed, so a second call for the same one — a blur after a press — does nothing. */
+	const committed = useRef<Typing | null>(null);
 	/*
 	 * Two plain calls, not one nested inside a state updater.
 	 *
@@ -352,8 +469,9 @@ export function AnnotateCanvas({
 	 * StrictMode. The caption was therefore committed twice, landing two identical shapes on the
 	 * same spot. Nothing looked wrong; it took two presses of undo to remove one caption.
 	 */
-	const commitText = useCallback(() => {
-		if (!typing) return;
+	const commitText = useCallback((select = false) => {
+		if (!typing || committed.current === typing) return;
+		committed.current = typing;
 		const { at: where, value, width: column, replacing } = typing;
 		// Measured from the field that typed it, so the box that can be selected later is exactly the
 		// box that was seen. Falls back to one line if the element has already gone.
@@ -372,7 +490,7 @@ export function AnnotateCanvas({
 					h,
 					list.map((shape, i) =>
 						i === replacing
-							? { ...shape, colour, points: [where], text: value, size: typeSize, width: column, height, background: backdrop }
+							? { ...shape, colour, points: [where], text: value, size: typeSize, width: column, height, background: backdrop, fixed: typing.manual === true }
 							: shape,
 					),
 				);
@@ -381,11 +499,17 @@ export function AnnotateCanvas({
 			if (!written) return h;
 			return commit(h, [
 				...list,
-				{ tool: "text", colour, points: [where], text: value, size: typeSize, width: column, height, background: backdrop },
+				{ tool: "text", colour, points: [where], text: value, size: typeSize, width: column, height, background: backdrop, fixed: typing.manual === true },
 			]);
 		});
+		/*
+		 * Handed back selected when it was finished on purpose — Escape, ⌘↵, a click beside it — the way a
+		 * box is handed back the moment it is drawn: the frame says it is a thing that can now be moved,
+		 * resized and recoloured, and the toolbar's next press applies to it.
+		 */
+		if (select && value.trim()) setSelected(replacing ?? shapes.length);
 		setTyping(null);
-	}, [typing, setHistory, colour, typeSize, backdrop, display]);
+	}, [typing, setHistory, colour, typeSize, backdrop, display, setSelected, shapes.length]);
 
 	/*
 	 * Lend the caption to whoever is about to turn this drawing into a picture.
@@ -408,6 +532,20 @@ export function AnnotateCanvas({
 		};
 	}, [typing, commitText, pendingText]);
 
+	/*
+	 * Picking up another tool is being done with the caption.
+	 *
+	 * The toolbar never takes focus, so the field stayed open with the old caption in it while the new
+	 * tool was already in hand — and the next press on the picture committed it by blurring the field
+	 * *and* started a stroke, one gesture doing two things.
+	 */
+	const toolWas = useRef(tool);
+	useEffect(() => {
+		if (toolWas.current === tool) return;
+		toolWas.current = tool;
+		if (tool !== "text") commitText();
+	}, [tool, commitText]);
+
 	/** Put an existing caption back into the field it came from. */
 	const editText = useCallback(
 		(index: number) => {
@@ -420,8 +558,12 @@ export function AnnotateCanvas({
 				at: shape.points[0] ?? { x: 0, y: 0 },
 				value: shape.text ?? "",
 				width: shape.width ?? fitWidth(shape.text ?? ""),
-				// Its width is already a decision — either dragged, or fitted when it was written.
-				manual: shape.width !== undefined,
+				/*
+				 * Its width is a decision only if a hand made it. Fitted when it was written, it keeps
+				 * fitting: words added to a caption used to wrap at the width its first words had.
+				 */
+				manual: shape.fixed === true,
+				anchor: shape.points[0]?.x,
 				replacing: index,
 			});
 			return true;
@@ -433,7 +575,7 @@ export function AnnotateCanvas({
 		if (event.button !== 0) return;
 		const point = at(event);
 
-		const tolerance = pickTolerance(stroke, zoom);
+		const tolerance = pickTolerance(stroke, scale);
 
 		/*
 		 * The selected mark is grabbable under *every* tool, not only under the selecting one.
@@ -449,7 +591,7 @@ export function AnnotateCanvas({
 		 * would stop meaning what it says.
 		 */
 		if (chosen && selected !== null) {
-			const grip = grips.find((g) => Math.hypot(g.at.x - point.x, g.at.y - point.y) <= gripReach);
+			const grip = gripAt(point);
 			if (grip) {
 				event.currentTarget.setPointerCapture(event.pointerId);
 				setDragging({ index: selected, from: point, moving: chosen, handle: grip.index, moved: false, wasSelected: true });
@@ -529,17 +671,40 @@ export function AnnotateCanvas({
 			 * one frame — indistinguishable from the tool doing nothing, which is how it was reported.
 			 */
 			event.preventDefault();
-			// Commit what is open and start a new one where the click landed, rather than making the
-			// second click of two do nothing but put the first one away.
-			if (typing) commitText();
-			setTyping({ at: point, value: "", width: fitWidth("") });
+			/*
+			 * A press beside the caption being written finishes it, and does only that.
+			 *
+			 * It used to finish it and open the next one where the press landed — a dashed box and a
+			 * blinking caret at wherever the hand happened to click to say "done", which was almost
+			 * never where a second caption was wanted. Clicking where it *was* wanted then threw the
+			 * empty one away and opened another, so the box seemed to hop about the picture. Every
+			 * annotator treats the first click away as the end of the caption; the next click starts
+			 * the next one.
+			 */
+			if (typing) {
+				commitText(true);
+				return;
+			}
+			/*
+			 * The caret where the press landed: the box is moved up and left by its padding and half a
+			 * line, so the first line sits centred on the point and the text starts at it. Placed by
+			 * its corner instead, every caption landed a line below and a little to the right of where
+			 * it was asked for.
+			 */
+			const pad = typeSize * PAD;
+			const line = typeSize * LINE;
+			const imageHeight = image.current?.height ?? Number.POSITIVE_INFINITY;
+			// Near the bottom edge the box moves up rather than hanging off the picture; near the right
+			// edge `fitTyping` moves it left.
+			const y = Math.max(-pad, Math.min(point.y - pad - line / 2, imageHeight - line - pad * 2));
+			setTyping(fitTyping({ at: { x: point.x - pad, y }, anchor: point.x - pad, value: "", width: 0 }, ""));
 			return;
 		}
 
 		// A badge is placed, not dragged; there is nothing to preview between press and release.
 		if (tool === "step") {
-			// Carries its own size too: the badge's radius is derived from the stroke.
-			setHistory((h) => commit(h, [...current(h), { tool: "step", colour, points: [point], stroke }]));
+			// Carries its own size too, the radius the toolbar is set to, like a caption's type size.
+			setHistory((h) => commit(h, [...current(h), { tool: "step", colour, points: [point], stroke, size: badge }]));
 			setSelected(shapes.length);
 			return;
 		}
@@ -557,7 +722,7 @@ export function AnnotateCanvas({
 			colour,
 			points: [point],
 			stroke,
-			...(tool === "mosaic" ? { block: annotator.block, brush: mosaicBrush(width) * weight } : {}),
+			...(tool === "mosaic" ? { block: annotator.block, brush } : {}),
 		});
 	};
 
@@ -576,10 +741,10 @@ export function AnnotateCanvas({
 		 * space does not re-render on every pointer event.
 		 */
 		if (!dragging) {
-			const tol = pickTolerance(stroke, zoom);
+			const tol = pickTolerance(stroke, scale);
 			let over: "move" | "point" | "width" | null = null;
 			if (chosen && selected !== null) {
-				const grip = grips.find((g) => Math.hypot(g.at.x - point.x, g.at.y - point.y) <= gripReach);
+				const grip = gripAt(point);
 				if (grip) over = grip.index === WIDTH_HANDLE ? "width" : "point";
 				else if (hitShape([chosen], point, tol) === 0) over = "move";
 			}
@@ -603,12 +768,21 @@ export function AnnotateCanvas({
 		}
 
 		if (!drawing) return;
+		/*
+		 * Every position the pointer passed through since the last frame, not just where it ended up.
+		 *
+		 * Pointer moves arrive once a frame, but the hand reports many more; the in-between ones come
+		 * as coalesced events. A quick stroke drawn from the frame-rate ones alone is a handful of
+		 * corners joined by straight lines.
+		 */
+		const passed = drawing.tool === "pen" || drawing.tool === "mosaic" ? event.nativeEvent.getCoalescedEvents?.().map(at) : undefined;
+		const shift = event.shiftKey;
 		setDrawing((live) => {
 			if (!live) return live;
 			// Pen and mosaic accumulate; everything else is defined by its two ends.
-			return live.tool === "pen" || live.tool === "mosaic"
-				? { ...live, points: [...live.points, point] }
-				: { ...live, points: [live.points[0]!, point] };
+			if (live.tool === "pen" || live.tool === "mosaic") return { ...live, points: [...live.points, ...(passed?.length ? passed : [point])] };
+			const from = live.points[0]!;
+			return { ...live, points: [from, shift ? constrainEnd(live.tool, from, point) : point] };
 		});
 	};
 
@@ -649,7 +823,7 @@ export function AnnotateCanvas({
 					 * the words", which is the more common thing to want from one.
 					 */
 					// `from` is where the press landed, and it did not move, so it is still the point.
-					const stack = hitShapes(shapes, dragging.from, pickTolerance(stroke, zoom));
+					const stack = hitShapes(shapes, dragging.from, pickTolerance(stroke, scale));
 					if (stack.length > 1) {
 						const here = stack.indexOf(index);
 						setSelected(stack[(here + 1) % stack.length] ?? index);
@@ -661,10 +835,18 @@ export function AnnotateCanvas({
 		}
 
 		if (!drawing) return;
-		// A click with no drag leaves a one-point shape, which paints as nothing — drop it, except
-		// for the pen and the mosaic, where a single dab is a legitimate mark.
+		/*
+		 * A click with no drag leaves a one-point shape, which paints as nothing — drop it, except for
+		 * the pen and the mosaic, where a single dab is a legitimate mark.
+		 *
+		 * And a drag of a point or two is a click whose hand moved: it used to commit a box a pixel
+		 * across, select it, and leave a frame around nothing that the next press then grabbed.
+		 */
 		const keeps = drawing.tool === "pen" || drawing.tool === "mosaic";
-		if (drawing.points.length > 1 || keeps) {
+		const first = drawing.points[0]!;
+		const last = drawing.points[drawing.points.length - 1]!;
+		const travelled = Math.hypot(last.x - first.x, last.y - first.y) * scale;
+		if (keeps || (drawing.points.length > 1 && travelled >= MIN_DRAG)) {
 			setHistory((h) => commit(h, [...current(h), drawing]));
 			// Handed back with its grips on, so the next thing you do to it is the adjustment rather
 			// than the hunt for the tool that allows the adjustment.
@@ -716,7 +898,15 @@ export function AnnotateCanvas({
 					event.stopPropagation();
 				}}
 				className={`${className ?? `${STAGE_FIT} rounded-xl bg-white`} block ${cursor}`}
-				style={{ touchAction: "none", ...style }}
+				/*
+				 * `font-variant-numeric: normal`, because a canvas in the document draws its text with the
+				 * element's numeric variant — and the app sets `tabular-nums` on the body for its counters.
+				 * Every digit in a caption came out at the width of a 0: "123123123123" was 12% wider on
+				 * the picture than in the field it was typed in, so it visibly spread out the moment it
+				 * was committed, and the saved copy (drawn on a canvas outside the document) was narrower
+				 * again. The field's `font` shorthand already resets it; this is the canvas's half.
+				 */
+				style={{ touchAction: "none", fontVariantNumeric: "normal", ...style }}
 			/>
 
 			{/*
@@ -731,10 +921,10 @@ export function AnnotateCanvas({
 				<span
 					className="pointer-events-none absolute rounded-full border border-white/80 bg-white/15 shadow-[0_0_0_1px_rgba(0,0,0,0.35)]"
 					style={{
-						left: (brushAt.x - mosaicBrush(width) * weight / 2) * display,
-						top: (brushAt.y - mosaicBrush(width) * weight / 2) * display,
-						width: mosaicBrush(width) * weight * display,
-						height: mosaicBrush(width) * weight * display,
+						left: (brushAt.x - brush / 2) * display,
+						top: (brushAt.y - brush / 2) * display,
+						width: brush * display,
+						height: brush * display,
 					}}
 				/>
 			)}
@@ -754,12 +944,16 @@ export function AnnotateCanvas({
 				 * press would make the thing it points at the one thing you cannot grab.
 				 */
 				<span
-					className="pointer-events-none absolute rounded-[3px] border border-sky-400 border-dashed bg-sky-400/10"
+					className="pointer-events-none absolute border-sky-400 border-dashed bg-sky-400/10"
 					style={{
 						left: box.x * display,
 						top: box.y * display,
 						width: box.w * display,
 						height: box.h * display,
+						// The stage is zoomed and this is inside it; a frame that grew with the picture was a
+						// 4pt dashed band at 400%. Its line and corner stay screen-sized.
+						borderWidth: chrome,
+						borderRadius: 3 * chrome,
 					}}
 				/>
 			)}
@@ -775,10 +969,14 @@ export function AnnotateCanvas({
 				grips.map((grip) => (
 					<span
 						key={grip.index}
-						className="pointer-events-none absolute h-2.5 w-2.5 rounded-full border-2 border-white bg-sky-500 shadow-sm"
+						className="pointer-events-none absolute rounded-full border-white bg-sky-500 shadow-sm"
 						style={{
-							left: grip.at.x * display - 5,
-							top: grip.at.y * display - 5,
+							// Screen-sized at any zoom, like the frame: at 400% a 10pt grip was a 40pt disc.
+							left: grip.at.x * display - 5 * chrome,
+							top: grip.at.y * display - 5 * chrome,
+							width: 10 * chrome,
+							height: 10 * chrome,
+							borderWidth: 2 * chrome,
 						}}
 					/>
 				))}
@@ -813,22 +1011,18 @@ export function AnnotateCanvas({
 							event.preventDefault();
 							event.stopPropagation();
 							event.currentTarget.setPointerCapture(event.pointerId);
-							carrying.current = { x: event.clientX, y: event.clientY, from: typing.at, scale: display || 1 };
+							// Screen points to image pixels at the zoom it is being looked at, or it trails the pointer.
+							carrying.current = { x: event.clientX, y: event.clientY, from: typing.at, scale: scale || 1 };
 						}}
 						onPointerMove={(event) => {
 							const held = carrying.current;
 							if (!held) return;
-							setTyping((entry) =>
-								entry
-									? {
-											...entry,
-											at: {
-												x: held.from.x + (event.clientX - held.x) / held.scale,
-												y: held.from.y + (event.clientY - held.y) / held.scale,
-											},
-										}
-									: entry,
-							);
+							setTyping((entry) => {
+								if (!entry) return entry;
+								const x = held.from.x + (event.clientX - held.x) / held.scale;
+								// Put down somewhere else, that is where it now grows from.
+								return { ...entry, anchor: x, at: { x, y: held.from.y + (event.clientY - held.y) / held.scale } };
+							});
 						}}
 						onPointerUp={() => {
 							carrying.current = null;
@@ -838,21 +1032,14 @@ export function AnnotateCanvas({
 					<Textarea
 						ref={field}
 						value={typing.value}
-						onChange={(event) =>
-							setTyping((entry) =>
-								entry
-									? {
-											...entry,
-											value: event.target.value,
-											width: entry.manual ? entry.width : fitWidth(event.target.value),
-										}
-									: entry,
-							)
-						}
-						onBlur={commitText}
+						onChange={(event) => {
+							const value = event.target.value;
+							setTyping((entry) => (entry ? fitTyping(entry, value) : entry));
+						}}
+						onBlur={() => commitText()}
 						onKeyDown={(event) => {
 							// Stopped here so the viewer's Escape does not close the whole overlay when all
-							// that was wanted was to abandon a caption.
+							// that was wanted was to finish a caption.
 							event.stopPropagation();
 							/*
 							 * Enter breaks the line. It used to commit the caption.
@@ -860,9 +1047,17 @@ export function AnnotateCanvas({
 							 * Typing a second line is an ordinary thing to want and `shift`+`enter` is a
 							 * convention for sending, not for writing — every other place text is written
 							 * puts the line break on the plain key. A caption is finished by clicking away
-							 * from it, which is also how you start the next one.
+							 * from it, by ⌘↵, or by Escape.
+							 *
+							 * Escape keeps what was written. It used to throw it away, which is what it does
+							 * nowhere else text is typed in this app or on this platform: the words were on
+							 * screen, Escape was pressed to be done with them, and they were gone. A caption
+							 * not wanted is one press of undo away; one typed and lost is not.
 							 */
-							if (event.key === "Escape") setTyping(null);
+							if (event.key === "Escape" || (event.key === "Enter" && (event.metaKey || event.ctrlKey))) {
+								event.preventDefault();
+								commitText(true);
+							}
 						}}
 						placeholder={translate(PLACEHOLDER)}
 						rows={1}
@@ -896,8 +1091,8 @@ export function AnnotateCanvas({
 							paintOrder: "stroke fill",
 						}}
 					/>
-					{/* A dotted outline that is not part of the caption, only of editing it. */}
-					<span className="pointer-events-none absolute inset-0 rounded-md border border-sky-400/70 border-dashed" />
+					{/* A dotted outline that is not part of the caption, only of editing it — screen-sized, like the frame. */}
+					<span className="pointer-events-none absolute inset-0 border-sky-400/70 border-dashed" style={{ borderWidth: chrome, borderRadius: 6 * chrome }} />
 					<button
 						type="button"
 						aria-label={translate("annotate.textWidth")}
@@ -907,20 +1102,21 @@ export function AnnotateCanvas({
 							event.preventDefault();
 							event.stopPropagation();
 							event.currentTarget.setPointerCapture(event.pointerId);
-							sizing.current = { x: event.clientX, from: typing.width, scale: display || 1 };
+							sizing.current = { x: event.clientX, from: typing.width, scale: scale || 1 };
 						}}
 						onPointerMove={(event) => {
 							const held = sizing.current;
 							if (!held) return;
 							const next = held.from + (event.clientX - held.x) / held.scale;
 							setTyping((entry) =>
-								entry ? { ...entry, manual: true, width: Math.max(typeSize * 2, Math.min(next, width)) } : entry,
+								entry ? { ...entry, manual: true, width: Math.max(typeSize * 2, Math.min(next, width - entry.at.x)) } : entry,
 							);
 						}}
 						onPointerUp={() => {
 							sizing.current = null;
 						}}
-						className="-right-1.5 -bottom-1.5 absolute h-3.5 w-3.5 cursor-ew-resize rounded-full border border-white bg-sky-400 shadow-sm transition-transform duration-[var(--ly-t-quick)] hover:scale-125"
+						className="absolute cursor-ew-resize rounded-full border-white bg-sky-400 shadow-sm transition-transform duration-[var(--ly-t-quick)] hover:scale-125"
+						style={{ right: -6 * chrome, bottom: -6 * chrome, width: 14 * chrome, height: 14 * chrome, borderWidth: chrome }}
 					/>
 				</div>
 			)}

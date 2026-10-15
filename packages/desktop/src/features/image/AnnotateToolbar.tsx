@@ -187,6 +187,15 @@ const HOLD_SLOP = 4;
 export const FLOATING_BAR =
 	"pointer-events-auto fixed bottom-6 left-1/2 z-[120] flex items-center border border-white/12 bg-[#1c1c1e]/92 shadow-[0_8px_32px_rgba(0,0,0,0.45)] backdrop-blur-xl transition-[opacity,transform] duration-[var(--ly-t-base)] ease-out";
 
+/**
+ * The bar's own look, for a caller that holds it in a box of its own and places that.
+ *
+ * Both callers do now — the capture overlay beside its selection, the image viewer wherever it has
+ * been dragged — and the two used to carry this string separately. Position is the holder's.
+ */
+export const BAR_SURFACE =
+	"pointer-events-auto relative flex items-center border border-white/12 bg-[#1c1c1e]/92 shadow-[0_8px_32px_rgba(0,0,0,0.45)] backdrop-blur-xl transition-[opacity,transform] duration-[var(--ly-t-base)] ease-out";
+
 export function AnnotateToolbar({
 	annotator,
 	onCancel,
@@ -327,6 +336,15 @@ export function AnnotateToolbar({
 				// Backspace is the browser's "go back" on some setups; taking it is the point.
 				event.preventDefault();
 				annotator.removeSelected();
+			}
+
+			// The arrow keys move the selected mark a point at a time, ten with Shift: the last few points
+			// of a placement are the ones a hand on a mouse cannot make.
+			const nudge = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
+			if (nudge && annotator.selected !== null && !event.metaKey && !event.ctrlKey && !event.altKey) {
+				event.preventDefault();
+				const step = event.shiftKey ? 10 : 1;
+				annotator.nudge(nudge[0]! * step, nudge[1]! * step);
 			}
 		};
 		window.addEventListener("keydown", onKey);
@@ -585,6 +603,30 @@ function ToolProperties({
 		setAnchor(button.offsetLeft + button.offsetWidth / 2);
 	}, [index, metrics, annotator.selected]);
 
+	/*
+	 * Kept inside the window, the tail still pointing at its button.
+	 *
+	 * Centred on the first tool, the bubble already hung past the bar's left end; once the bar could be
+	 * dragged to the window's edge, half of it hung past the window's, colours and all. Measured after
+	 * every render rather than on a dependency list, because what moves it is the bar being carried,
+	 * which this component is not told about — it is only re-rendered.
+	 */
+	const [shift, setShift] = useState(0);
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- measured after every render on purpose (the bar is moved without this being told); it only sets a shift that differs by more than half a point, so it settles in one pass
+	useLayoutEffect(() => {
+		const el = box.current;
+		const bar = el?.offsetParent;
+		if (!el || !bar) return;
+		const width = el.getBoundingClientRect().width;
+		if (!width) return;
+		// Where it would sit unshifted, from the bar and the anchor — not from its own rect, which already
+		// carries the shift and would feed it back into itself.
+		const left = bar.getBoundingClientRect().left + anchor - width / 2;
+		const margin = 8;
+		const next = left < margin ? margin - left : left + width > window.innerWidth - margin ? window.innerWidth - margin - (left + width) : 0;
+		if (Math.abs(next - shift) > 0.5) setShift(next);
+	});
+
 	return (
 		<div
 			/*
@@ -615,7 +657,7 @@ function ToolProperties({
 			 * its tail pointing at the wrong button, then jumped back when the animation ended. The
 			 * separate property composes with the animated one instead of being replaced by it.
 			 */
-			style={{ left: anchor, translate: "-50% 0" }}
+			style={{ left: anchor + shift, translate: "-50% 0" }}
 		>
 			{/*
 			 * 「细中粗」三个字换成三个大小不同的点。
@@ -697,9 +739,10 @@ function ToolProperties({
 			 * two decides which way it faces.
 			 */}
 			<span
-				className={`absolute left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 border-white/12 bg-[#1c1c1e]/95 ${
+				className={`absolute h-2 w-2 -translate-x-1/2 rotate-45 border-white/12 bg-[#1c1c1e]/95 ${
 					side === "below" ? "-top-1 border-t border-l" : "-bottom-1 border-r border-b"
 				}`}
+				style={{ left: `calc(50% - ${shift}px)` }}
 			/>
 		</div>
 	);
