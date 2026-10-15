@@ -23,7 +23,7 @@ export type TerminalKey = "copy" | "paste" | "app" | "shell";
  * The shortcuts that have to work with the terminal focused, as the letter pressed with Ctrl+Alt:
  * the conversation beside it, the open file, and the sub-agents (see `app/shortcuts.ts`).
  */
-const APP_WITH_CTRL_ALT = new Set(["s", "p", "a"]);
+const APP_WITH_CTRL_ALT = new Set(["s", "p", "u"]);
 
 /**
  * Decide a key, for a keyboard where Ctrl is both the shell's key and the app's.
@@ -43,7 +43,7 @@ const APP_WITH_CTRL_ALT = new Set(["s", "p", "a"]);
  *     there. It used to be the shell's ^V: PowerShell's PSReadLine happens to read the clipboard on
  *     it, so the default shell looked fine, and cmd, Git Bash, WSL, ssh and every REPL printed ^V.
  *     Linux keeps ^V for the shell — readline's quoted-insert — and Ctrl+Shift+V for paste.
- *   - Ctrl+Alt+S/P/A are the app's. The shell has no use for them, and xterm sent them as
+ *   - Ctrl+Alt+S/P/U are the app's. The shell has no use for them, and xterm sent them as
  *     ESC-prefixed control characters, so the panels could not be reached from a focused terminal.
  *     AltGr arrives as Ctrl+Alt on Windows and types letters on many layouts (Polish ś is AltGr+S),
  *     so a composing key stays the shell's.
