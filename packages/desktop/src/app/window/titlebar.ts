@@ -44,6 +44,14 @@ export const TOOLBAR_EDGE = 12;
  */
 export const OVERLAY_FALLBACK = 138;
 
+/**
+ * How long a `geometrychange` waits for the `resize` that normally follows it before being read.
+ *
+ * Measured at about 150ms on Windows 11 between the two on maximise and restore; past that, a
+ * change with no resize behind it is the system's own metrics moving, and is read as it stands.
+ */
+export const OVERLAY_SETTLE_MS = 300;
+
 export interface TitlebarInsets {
 	start: number;
 	end: number;

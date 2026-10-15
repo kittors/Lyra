@@ -19,7 +19,7 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 import { SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN, storedWidth } from "./layout-widths.ts";
 import { freezeMotion } from "../ui/motion/freeze.ts";
 import { useDrawerGesture, useKeyboardInset } from "../mobile/useMobileShell.ts";
-import { hasHeaderBar, overlayReserved, titlebarInsets, type TitlebarInsets } from "./window/titlebar.ts";
+import { hasHeaderBar, OVERLAY_SETTLE_MS, overlayReserved, titlebarInsets, type TitlebarInsets } from "./window/titlebar.ts";
 import { bridge, onPhone } from "../services/index.ts";
 import { useApp } from "../store/index.ts";
 import { MAIN_TOOLBAR_HEIGHT, NATIVE_HEADER_HEIGHT } from "../../shared/window-chrome.ts";
@@ -336,6 +336,15 @@ export function useLayout(): LayoutValue {
  * This half is the subscription. `geometrychange` fires when the overlay is resized or hidden,
  * which happens on maximise and on any change to the system's own title bar metrics; reading it
  * once at mount was enough to be wrong after the first double-click on the title bar.
+ *
+ * Reading it on `geometrychange` alone was wrong too, the other way. Chromium reports the overlay's
+ * new rectangle before the page learns its new width — on Windows `geometrychange` lands about
+ * 150ms ahead of `resize` on every maximise and restore — so the rect belongs to the new window and
+ * `innerWidth` to the old one. Maximising a 1202px window measured 1202 − 1399, clamped to nothing
+ * reserved, and the close button sat on the panel controls; restoring reserved 472px for buttons
+ * 137px wide and pushed them to the middle of the row. The buttons keep their width whatever the
+ * window does, so the last reading stays right until `resize` brings both halves up to date; a
+ * geometry change no resize follows (the system's title bar metrics) is read once things settle.
  */
 function useTitlebar(nativeFullScreen: boolean): TitlebarInsets {
 	const overlay = typeof navigator === "undefined" ? undefined : navigator.windowControlsOverlay;
@@ -349,9 +358,23 @@ function useTitlebar(nativeFullScreen: boolean): TitlebarInsets {
 			const next = overlayReserved(overlay, window.innerWidth);
 			setReserved((prev) => (prev.start === next.start && prev.end === next.end ? prev : next));
 		};
+		let settle: ReturnType<typeof setTimeout> | undefined;
+		const onGeometry = () => {
+			clearTimeout(settle);
+			settle = setTimeout(update, OVERLAY_SETTLE_MS);
+		};
+		const onResize = () => {
+			clearTimeout(settle);
+			update();
+		};
 		update();
-		overlay.addEventListener("geometrychange", update);
-		return () => overlay.removeEventListener("geometrychange", update);
+		overlay.addEventListener("geometrychange", onGeometry);
+		window.addEventListener("resize", onResize);
+		return () => {
+			clearTimeout(settle);
+			overlay.removeEventListener("geometrychange", onGeometry);
+			window.removeEventListener("resize", onResize);
+		};
 	}, [overlay]);
 
 	return useMemo(
