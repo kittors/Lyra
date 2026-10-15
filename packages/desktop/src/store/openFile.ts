@@ -15,7 +15,7 @@
 import { translate } from "../i18n/translate.ts";
 import { create } from "zustand";
 import type { FileContents, FileEntry } from "../../electron/ipc-types.ts";
-import { baseName, isDescendantPath } from "../lib/paths.ts";
+import { baseName, canonicalPath, isDescendantPath, samePath } from "../lib/paths.ts";
 import { bridge } from "../services/index.ts";
 
 /** One file the pane has had open, as its tab strip lists it. */
@@ -131,7 +131,14 @@ export const useOpenFile = create<OpenFileState>((set, get) => ({
 	setWrap: (wrap) => set({ wrap }),
 	setShowSource: (showSource) => set({ showSource }),
 
-	async open(entry) {
+	async open(given) {
+		/*
+		 * One file, one tab, however its path was spelled. A link a model wrote as `C:/…` and the
+		 * tree's own `C:\…` are the same file on Windows (see `samePath`); opened as three spellings
+		 * it was three tabs, each with its own draft. The spelling already in the strip wins.
+		 */
+		const known = get().tabs.find((tab) => samePath(tab.path, given.path))?.path;
+		const entry = { ...given, path: known ?? canonicalPath(given.path) };
 		/*
 		 * The strip updates now; the content area updates when there is something to put in it.
 		 *
