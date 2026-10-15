@@ -228,6 +228,8 @@
    * shows them once, unlike file links, which repeat all over a page.
    */
   .prose-dw .ly-code-block {
+    /* The positioning box of its sideways thumb, see `CodeBlock`. */
+    position: relative;
     background: var(--ly-code-bg, var(--color-card));
     color: var(--ly-code-fg, var(--color-ink));
     border: 1px solid color-mix(in srgb, var(--ly-code-fg, var(--color-ink)) 12%, transparent);
@@ -551,6 +553,12 @@
   .prose-dw .ly-math-block {
     overflow: auto hidden;
     padding: 2px 0;
+  }
+
+  /* A display formula's and a diagram's frame: what their sideways thumb is placed in. */
+  .prose-dw .ly-math-frame,
+  .prose-dw .ly-mermaid-frame {
+    position: relative;
   }
 
   .prose-dw .ly-math-raw {

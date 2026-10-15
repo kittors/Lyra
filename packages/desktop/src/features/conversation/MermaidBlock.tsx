@@ -18,7 +18,8 @@
  *    一个画不出来就报红的组件，会在每次模型画图时先闪一串错误。画不出来就退回代码块，安静地。
  */
 
-import { type ReactNode, useEffect, useState, useSyncExternalStore } from "react";
+import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { OverlayScrollbar } from "../../ui/scroll/OverlayScrollbar.tsx";
 
 /** 围栏的语言标记里，哪些算 mermaid。 */
 export function isMermaid(lang: string): boolean {
@@ -77,6 +78,7 @@ export function MermaidBlock({
 	 * 合成一个的话，流式输出时每一帧不完整的语法都会先退成代码块再变回图，一路闪。
 	 */
 	const [failed, setFailed] = useState(false);
+	const viewport = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
 		let alive = true;
@@ -121,12 +123,21 @@ export function MermaidBlock({
 	 */
 	if (failed || svg === null) return <>{fallback}</>;
 
+	/*
+	 * A diagram wider than the column scrolls, with the code block's thumb (see `CodeBlock`).
+	 * `safe center`: plain centring of something wider than its box pushes the left half out past
+	 * the scroll origin, where no scrollbar can reach it.
+	 */
 	return (
-		<div
-			className="ly-mermaid my-3 flex justify-center overflow-x-auto"
-			role="img"
-			// 经过 strict 模式的 mermaid，标签已被当作文本处理；见文件头第 2 条。
-			dangerouslySetInnerHTML={{ __html: svg }}
-		/>
+		<div className="ly-mermaid-frame ly-hscroll-own my-3">
+			<div
+				ref={viewport}
+				className="ly-mermaid flex overflow-x-auto [justify-content:safe_center]"
+				role="img"
+				// 经过 strict 模式的 mermaid，标签已被当作文本处理；见文件头第 2 条。
+				dangerouslySetInnerHTML={{ __html: svg }}
+			/>
+			<OverlayScrollbar viewport={viewport} orientation="horizontal" />
+		</div>
 	);
 }
