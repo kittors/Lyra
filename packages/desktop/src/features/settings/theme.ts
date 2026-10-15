@@ -13,6 +13,7 @@
 
 import type { AppearanceSettings } from "@lyra/core";
 import { sharedHighlightStyle } from "../../lib/code/highlight.ts";
+import { withHanFallback } from "../../lib/code/font-stack.ts";
 import { findCodeTheme } from "../../lib/code/themes.ts";
 import { CONTENT_AUTO, contentMeasure } from "../../lib/content-width.ts";
 import { bridge } from "../../services/index.ts";
@@ -195,7 +196,8 @@ export function applyAppearance(input: AppearanceSettings): void {
 		"--color-accent": accent,
 		"--color-info": accent,
 		"--ly-ui-font": appearance.uiFont,
-		"--ly-code-font": appearance.codeFont,
+		// With Chinese faces ahead of `monospace`, whichever stack was chosen — see `font-stack.ts`.
+		"--ly-code-font": withHanFallback(appearance.codeFont),
 		"--ly-ui-size": `${appearance.uiFontSize}px`,
 		/*
 		 * The interface's base weight. The steps one and two heavier are derived from this number in
