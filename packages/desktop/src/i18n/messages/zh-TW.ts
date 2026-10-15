@@ -2755,6 +2755,8 @@ export const zhTW = {
 	"credential.fieldPassphrase": "金鑰密碼",
 	"credential.optional": "沒有就留空",
 	"credential.privateKeyHint": "貼上私密金鑰全文，以 -----BEGIN 開頭",
+	"credential.privateKeyPaste": "貼上私密金鑰全文",
+	"credential.optionalShort": "選填",
 	"credential.approvalEveryUse": "每次使用都詢問",
 	"credential.approvalPerConversation": "每個對話詢問一次",
 	"credential.approvalNever": "不詢問，直接使用",

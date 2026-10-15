@@ -2755,6 +2755,8 @@ export const ko = {
 	"credential.fieldPassphrase": "키 암호 문구",
 	"credential.optional": "없으면 비워 두세요",
 	"credential.privateKeyHint": "-----BEGIN으로 시작하는 개인 키 전체를 붙여넣으세요",
+	"credential.privateKeyPaste": "개인 키 전체 붙여넣기",
+	"credential.optionalShort": "선택 사항",
 	"credential.approvalEveryUse": "쓸 때마다 묻기",
 	"credential.approvalPerConversation": "대화마다 한 번 묻기",
 	"credential.approvalNever": "묻지 않기",

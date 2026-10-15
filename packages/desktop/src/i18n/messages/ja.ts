@@ -2755,6 +2755,8 @@ export const ja = {
 	"credential.fieldPassphrase": "パスフレーズ",
 	"credential.optional": "なければ空欄のまま",
 	"credential.privateKeyHint": "-----BEGIN から始まる秘密鍵を丸ごと貼り付けます",
+	"credential.privateKeyPaste": "秘密鍵を丸ごと貼り付け",
+	"credential.optionalShort": "任意",
 	"credential.approvalEveryUse": "使うたびに確認",
 	"credential.approvalPerConversation": "会話ごとに一度確認",
 	"credential.approvalNever": "確認しない",

@@ -107,6 +107,44 @@ test("空的时候说清楚是什么；添加时引用名跟着名称走，只�
 	}
 });
 
+test("SSH 密钥只占一行：整把私钥贴进去换行不丢；量高度的那一份够不着、也不是保存时读的那一份", async () => {
+	const previous = useApp.getState();
+	const calls = vault([]);
+	useApp.setState({ view: "vault" });
+	const view = await mount(h(LayoutProvider, { children: h(VaultView) }));
+	try {
+		await settle();
+		await click(view.find("[data-ly-vault-add]"));
+		const ruler = document.querySelector<HTMLElement>("[data-ly-vault-ruler]");
+		assert.ok(ruler !== null, "every kind is laid out once to be measured");
+		assert.ok(ruler.inert && ruler.getAttribute("aria-hidden") === "true", "the measured copies take no focus and say nothing to a screen reader");
+		assert.deepEqual(
+			[...ruler.querySelectorAll("[data-ly-credential-fields]")].map((fields) => fields.getAttribute("data-ly-credential-fields")),
+			["password", "login", "token", "ssh_key"],
+		);
+
+		const key = [...document.querySelectorAll<HTMLButtonElement>("[data-segment]")].find((button) => button.getAttribute("data-segment") === "ssh_key")!;
+		await click(key);
+		await type(document.querySelector<HTMLInputElement>("[data-ly-vault-title]")!, "Deploy");
+		const live = [...document.querySelectorAll("[data-ly-vault-editor] [data-ly-credential-fields]")].filter((fields) => !ruler.contains(fields));
+		assert.equal(live.length, 1, "one set of boxes to type into");
+		const box = live[0]!.querySelector<HTMLTextAreaElement>('[data-ly-credential-field="private_key"] textarea')!;
+		assert.equal(box.getAttribute("rows"), "1", "the private key box is one line, like the passphrase beside it");
+		const pem = "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXk\n-----END OPENSSH PRIVATE KEY-----";
+		Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(box, pem);
+		await fire(box, new Event("input", { bubbles: true }));
+		await click(document.querySelector("[data-ly-vault-save]")!);
+		await settle();
+		const sent = calls.find((call) => call.method === "add")?.args[0] as { kind: string; values: Record<string, string> } | undefined;
+		assert.equal(sent?.kind, "ssh_key");
+		assert.deepEqual(sent?.values, { private_key: pem }, "the line breaks reach the broker; the ruler's empty copies are not read");
+	} finally {
+		await view.unmount();
+		document.querySelectorAll("[data-ly-modal]").forEach((node) => node.remove());
+		useApp.setState(previous, true);
+	}
+});
+
 test("地址写错了在表单上说，不发出去", async () => {
 	const previous = useApp.getState();
 	const calls = vault([]);

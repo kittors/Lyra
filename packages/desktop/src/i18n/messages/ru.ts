@@ -2755,6 +2755,8 @@ export const ru = {
 	"credential.fieldPassphrase": "Парольная фраза ключа",
 	"credential.optional": "Оставьте пустым, если её нет",
 	"credential.privateKeyHint": "Вставьте закрытый ключ целиком, начиная с -----BEGIN",
+	"credential.privateKeyPaste": "Вставьте ключ целиком",
+	"credential.optionalShort": "Необязательно",
 	"credential.approvalEveryUse": "Спрашивать при каждом использовании",
 	"credential.approvalPerConversation": "Спрашивать раз за разговор",
 	"credential.approvalNever": "Не спрашивать",
