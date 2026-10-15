@@ -342,8 +342,10 @@ export function AppearanceSettings() {
 				 * The stored value is a CSS font stack either way — it has to be, because the first
 				 * choice may not be installed and something must catch that. What the menu removes is
 				 * having to write one by hand, quotes and fallbacks included, in order to change a
-				 * font. Faces that are not installed are marked rather than hidden, so the menu never
-				 * claims you are looking at something you are not.
+				 * font. Only faces this machine has are offered — a Windows menu listing SF Mono, Menlo
+				 * and Monaco offered three fonts that would all draw as Consolas. The one in use stays in
+				 * the list even when it is not installed, marked so, so the menu never claims you are
+				 * looking at something you are not.
 				 */}
 				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-line-soft pt-3">
 					<div className="flex-1 min-w-0">
@@ -361,7 +363,8 @@ export function AppearanceSettings() {
 							patch({ codeFont: next });
 						}}
 						options={[
-							...CODE_FONTS.map((font) => {
+							// Only faces this machine has, and the one in use even when it does not (marked so).
+							...CODE_FONTS.filter((font) => fontAvailable(font) || font.stack === matchCodeFont(appearance.codeFont)?.stack).map((font) => {
 								const name = font.labelKey ? t(font.labelKey) : font.label;
 								return { value: font.stack, label: fontAvailable(font) ? name : t("appearance.fontNotInstalled", { name }) };
 							}),

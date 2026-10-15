@@ -86,3 +86,29 @@ test("the bundled set is what the stylesheet actually ships", async () => {
 		);
 	}
 });
+
+/*
+ * A face counts as installed when it changes how a sample measures.
+ *
+ * `document.fonts.check` was the test, and it answers true for any name without an `@font-face`: on
+ * Windows the menu offered SF Mono, Menlo and Monaco as installed, three fonts that would all render
+ * as Consolas. Measured here with a fake ruler: a missing face falls through to the generic and
+ * measures exactly as the generic does against all three.
+ */
+test("a system face is installed when it measures differently from the generics, and missing when it never does", async () => {
+	const { CODE_FONTS: fonts, fontAvailable } = await import("../src/features/settings/code-fonts.ts");
+	const menlo = fonts.find((f) => f.family === "Menlo")!;
+	const consolas = fonts.find((f) => f.family === "Consolas")!;
+	const generic: Record<string, number> = { monospace: 100, serif: 120, "sans-serif": 110 };
+	// A machine with Consolas (a Windows one): it is the monospace generic there, so only serif and sans-serif tell.
+	const windows = (font: string) => {
+		const [, family, fallback] = /^72px (?:"([^"]+)", )?(.+)$/.exec(font)!;
+		if (family === "Consolas") return 100;
+		return generic[fallback!]!;
+	};
+	assert.equal(fontAvailable(consolas, windows), true, "Consolas is there, even though it is what monospace resolves to");
+	assert.equal(fontAvailable(menlo, windows), false, "Menlo is not on Windows; it measured as each generic would");
+	// The bundled and generic entries never reach the ruler.
+	assert.equal(fontAvailable(fonts.find((f) => f.bundled)!, () => { throw new Error("measured a bundled face"); }), true);
+	assert.equal(fontAvailable(fonts.find((f) => f.family === "ui-monospace")!, () => { throw new Error("measured a generic"); }), true);
+});

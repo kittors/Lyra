@@ -95,21 +95,39 @@ export const CODE_FONTS: CodeFontOption[] = [
 /**
  * Whether this face is actually installed.
  *
- * `document.fonts.check` needs a size in the shorthand or it answers for nothing. It reports true
- * for a generic family like `ui-monospace` because something always resolves it, which is the right
- * answer: that entry cannot be missing.
+ * Measured, not asked. `document.fonts.check` only knows the faces declared with `@font-face`; for
+ * any other name it reports true, so on Windows SF Mono, Menlo and Monaco all came back "installed"
+ * and the menu offered fonts that would render as Consolas. A face that is present changes the width
+ * of a sample against at least one of three generics; a missing one falls through to the generic
+ * every time and changes nothing. A generic keyword like `ui-monospace` always resolves to something.
  */
-export function fontAvailable(option: CodeFontOption): boolean {
+export function fontAvailable(option: CodeFontOption, measure: (font: string) => number = measureWidth): boolean {
 	// Bundled faces are present by definition; see the note on `bundled`.
 	if (option.bundled) return true;
-	// A generic keyword always resolves to something, and quoting it would break the check.
 	if (!option.family.includes(" ") && option.family.startsWith("ui-")) return true;
+	const cached = measure === measureWidth ? installed.get(option.family) : undefined;
+	if (cached !== undefined) return cached;
+	let present: boolean;
 	try {
-		return document.fonts.check(`12px "${option.family}"`);
+		present = ["monospace", "serif", "sans-serif"].some((generic) => measure(`72px ${generic}`) !== measure(`72px "${option.family}", ${generic}`));
 	} catch {
-		// Older engines, or a name the parser dislikes. Offering it is better than hiding it.
-		return true;
+		// No canvas to measure with. Offering a face is better than hiding one that is there.
+		present = true;
 	}
+	if (measure === measureWidth) installed.set(option.family, present);
+	return present;
+}
+
+/** Installed faces do not come and go while the app runs; measured once each. */
+const installed = new Map<string, boolean>();
+const SAMPLE = "mmmmmmmmmmlli1WQ@#0O";
+let canvas: HTMLCanvasElement | undefined;
+
+function measureWidth(font: string): number {
+	const context = (canvas ??= document.createElement("canvas")).getContext("2d");
+	if (!context) throw new Error("no 2d context");
+	context.font = font;
+	return context.measureText(SAMPLE).width;
 }
 
 /** Which preset a stored stack corresponds to, or null when it was typed by hand. */
