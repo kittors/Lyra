@@ -162,7 +162,7 @@ function Line({ agents, running, queued, focused, sessionId, menu, onOpen, label
 	const leadDoing = lead?.awaitingApproval ? t("subAgent.awaitingApproval") : lead?.status === "running" ? doingWord(lead) : lead?.status === "queued" ? t("subAgent.queued") : undefined;
 
 	return (
-		<div className="ly-enter group/bar flex w-full items-center gap-1 rounded-[12px] border border-line-soft bg-card/60 py-0.5 pr-2 pl-1 transition-colors hover:bg-card" style={{ "--ly-avatar-ring": "var(--color-card)" } as React.CSSProperties} data-ly-avatar-host="">
+		<div className="ly-enter group/bar flex w-full items-center gap-1 rounded-[12px] border border-line-soft bg-card/60 py-0.5 pr-2 pl-1 transition-colors hover:bg-card" data-ly-avatar-host="">
 			<button
 				type="button"
 				onClick={single ? onOpen : menu.toggle}
