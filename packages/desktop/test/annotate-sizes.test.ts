@@ -34,9 +34,12 @@ function recorder() {
 		fillText() {},
 		measureText: () => ({ width: 10 }),
 		drawImage(_source: unknown, ..._rest: number[]) {
-			// The mosaic blits one averaged pixel per cell at block size: the last two arguments.
-			blits.push({ block: _rest[_rest.length - 1] ?? 0 });
+			// The mosaic blows the averaged copy up by its block size in one blit: destination width over source width.
+			const [, , sw = 1, , , , dw = 0] = _rest;
+			blits.push({ block: dw / sw });
 		},
+		clip() {},
+		quadraticCurveTo() {},
 		setLineDash() {},
 		translate() {},
 		set lineWidth(value: number) {

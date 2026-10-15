@@ -21,6 +21,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
+	badgeAt,
 	canRedo,
 	canUndo,
 	commit,
@@ -28,13 +29,16 @@ import {
 	emptyHistory,
 	mosaicBlock,
 	mosaicBrush,
+	moveShape,
 	redo,
+	strokeAt,
+	typeAt,
 	undo,
 	type History,
 	type Shape,
 	type Tool,
 } from "./annotate.ts";
-import { strokeFor, TEXT_SCALE } from "./paint.ts";
+import { paintAll } from "./paint.ts";
 import { bridge } from "../../services/index.ts";
 
 export const COLOURS = ["#ef4444", "#3b82f6", "#22c55e", "#eab308", "#111827"];
@@ -84,7 +88,17 @@ export interface Annotator {
 	selected: number | null;
 	setSelected: (index: number | null) => void;
 	removeSelected: () => void;
-	/** The annotated image as a PNG data URL, or null before the source has decoded. */
+	/** Move the selected mark by this many screen points — the arrow keys. */
+	nudge: (dx: number, dy: number) => void;
+	/**
+	 * The annotated image as a PNG data URL, at the picture's own size, or null before the source has
+	 * decoded.
+	 *
+	 * Painted afresh rather than read off the canvas on screen: that one is drawn at the screen's
+	 * resolution, which for a picture shown larger than it is means more pixels than the picture has.
+	 * Reading it back handed over a 2200px copy of a 1408px drawing. The same `paintAll` does both, so
+	 * what comes out is what was on screen, at the size it came in.
+	 */
 	render: () => string | null;
 	/**
 	 * Commit the caption being typed right now, if there is one. Returns whether there was.
@@ -153,6 +167,13 @@ export interface Annotator {
 	width: number;
 	/** The grid a mosaic drawn now would use. Marks already placed carry their own. */
 	block: number;
+	/**
+	 * How many image pixels one screen point covers at the picture's fitted size: what turns the sizes
+	 * the toolbar offers, which are screen sizes, into the image pixels a mark is stored in. Reported
+	 * by the canvas, which is the one thing that knows how big the picture is on screen.
+	 */
+	unit: number;
+	setUnit: (unit: number) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -210,6 +231,7 @@ export function useAnnotator(src: string | RawPixels | null, options?: Annotator
 	const [revision, setRevision] = useState(0);
 	const [width, setWidth] = useState(0);
 	const [weight, setWeight] = useState(options?.initialWeight ?? 1);
+	const [unit, setUnit] = useState(1);
 
 	// Load once; every repaint draws this same decoded bitmap rather than re-decoding the data URL.
 	const session = options?.session;
@@ -334,7 +356,7 @@ export function useAnnotator(src: string | RawPixels | null, options?: Annotator
 	}, [src, session, colorSpace]);
 
 	/** The grain a mosaic drawn *now* would use. Marks already on the picture carry their own. */
-	const block = width > 0 ? mosaicBlock(width, weight) : 0;
+	const block = width > 0 ? mosaicBlock(unit, weight) : 0;
 
 	/**
 	 * The averaged image a mosaic is blitted from, one per grid size, built on demand.
@@ -388,10 +410,18 @@ export function useAnnotator(src: string | RawPixels | null, options?: Annotator
 		(change: (shape: Shape) => Shape) => {
 			setHistory((h) => {
 				const list = current(h);
-				if (selected === null || selected >= list.length) return h;
+				const shape = selected === null ? undefined : list[selected];
+				if (!shape) return h;
+				const changed = change(shape);
+				/*
+				 * A change that changes nothing is not a step. Picking the colour a mark already has — which
+				 * reopening a caption does, to put its colour back in the toolbar — used to commit one, and
+				 * the next undo then appeared to do nothing.
+				 */
+				if (JSON.stringify(changed) === JSON.stringify(shape)) return h;
 				return commit(
 					h,
-					list.map((shape, index) => (index === selected ? change(shape) : shape)),
+					list.map((one, index) => (index === selected ? changed : one)),
 				);
 			});
 		},
@@ -418,10 +448,9 @@ export function useAnnotator(src: string | RawPixels | null, options?: Annotator
 		(next: number) => {
 			setWeight(next);
 			if (width <= 0) return;
-			const stroke = Math.max(1, strokeFor(width) * next);
 			restyle((shape) => {
 				if (shape.tool === "text") {
-					const size = stroke * TEXT_SCALE;
+					const size = typeAt(unit, next);
 					const ratio = shape.size ? size / shape.size : 1;
 					return {
 						...shape,
@@ -431,12 +460,14 @@ export function useAnnotator(src: string | RawPixels | null, options?: Annotator
 					};
 				}
 				if (shape.tool === "mosaic") {
-					return { ...shape, block: mosaicBlock(width, next), brush: mosaicBrush(width) * next };
+					return { ...shape, block: mosaicBlock(unit, next), brush: mosaicBrush(unit, next) };
 				}
-				return { ...shape, stroke };
+				// A badge is a size, not a stroke: its own radius, kept in step with the other two settings.
+				if (shape.tool === "step") return { ...shape, size: badgeAt(unit, next), stroke: strokeAt(unit, next) };
+				return { ...shape, stroke: strokeAt(unit, next) };
 			});
 		},
-		[restyle, width],
+		[restyle, width, unit],
 	);
 
 
@@ -487,7 +518,23 @@ export function useAnnotator(src: string | RawPixels | null, options?: Annotator
 			});
 			setSelected(null);
 		}, [selected]),
-		render: useCallback(() => canvas.current?.toDataURL("image/png") ?? null, []),
+		nudge: useCallback(
+			(dx: number, dy: number) => restyle((shape) => moveShape(shape, dx * unit, dy * unit)),
+			[restyle, unit],
+		),
+		render: useCallback(() => {
+			const img = image.current;
+			if (!img) return null;
+			const out = document.createElement("canvas");
+			out.width = img.width;
+			out.height = img.height;
+			// The picture's own colour space, for the same reason the canvas on screen uses it.
+			const ctx = out.getContext("2d", { colorSpace });
+			if (!ctx) return null;
+			ctx.drawImage(img.source, 0, 0);
+			paintAll(ctx, shapes, { stroke: strokeAt(unit, weight), mosaicSourceFor, block, brush: mosaicBrush(unit, weight) });
+			return out.toDataURL("image/png");
+		}, [shapes, unit, weight, mosaicSourceFor, block, colorSpace]),
 		flushText: useCallback(() => {
 			const commit = pendingText.current;
 			if (!commit) return false;
@@ -505,6 +552,8 @@ export function useAnnotator(src: string | RawPixels | null, options?: Annotator
 		colorSpace,
 		width,
 		block,
+		unit,
+		setUnit,
 	};
 }
 
