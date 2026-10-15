@@ -5,6 +5,205 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.30](https://github.com/kittors/Lyra/releases/tag/v0.9.30) - 2026-10-15
+<!-- lyra:notes en -->
+
+### Improvements & Fixes
+
+- **The Sub-agents pane opens with ⌥⌘U now (Ctrl+Alt+U on Windows and Linux).** On Windows, ⌥⌘A is the screenshot key of QQ and TIM: with QQ running, pressing it took a screenshot and the pane never opened.
+- **Code blocks and formulas wider than the column show a scrollbar under the pointer.** They could only be scrolled with a trackpad, and nothing on screen said there was more to the right. Now a thin bar appears when you point at one, and you can drag it. Tables already worked this way.
+- **The Code font menu lists only fonts this computer can draw.** On Windows it offered SF Mono, Menlo and Monaco, and each came out as Consolas. On a Mac, SF Mono came out as Menlo — Chromium cannot reach it by name — and so did fonts the Mac does not have, such as Consolas. A font you had already picked stays on the button, marked “not available here”.
+- **Annotating a picture.** The toolbar can be dragged out of the way instead of being pinned to the bottom of the window. Lines and text are sized in points on screen rather than as a share of the picture's width, so they read on a large generated image too: a 4 pt line, 22 pt text (16, 22 or 32). They are no longer blurry on a Retina screen, and Esc finishes the text you are typing instead of throwing it away.
+- **Stacked sub-agent avatars no longer show the face underneath.** Above the message box, at the top of the Sub-agents pane and on the “reported back” line, each one covers the next, with a 2 px gap between them.
+- **The Vault's Add dialog keeps one height.** Switching between Password, Login, Token and SSH key made it jump between 505 and 677 px.
+
+### Windows
+
+- **The buttons at the right end of the toolbar stay visible after maximizing.** Terminal, Browser, Git and Panels were hidden under the minimize, maximize and close buttons, and after restoring the window they were pushed to its middle.
+- **Right-clicking the title bar of a pane or a split no longer opens the system window menu, and double-clicking it no longer maximizes the window.** The bar along the top of the window still does both.
+- **Dialogs, the image viewer and full-window video dim the minimize, maximize and close buttons too.** Those buttons stayed bright — the brightest thing on screen behind a dark backdrop. The strip of backdrop over the top bar is no longer taken for the title bar, so clicking there closes a dialog like anywhere else.
+- **Bold in replies is bold.** `**…**` was drawn at the same weight as the text around it: Microsoft YaHei and Segoe UI have no medium weight, and the medium that bold asked for fell back to regular.
+- **With a code font preset chosen, Chinese in the editor, the terminal and the Appearance preview is drawn in Microsoft YaHei** instead of falling back to SimSun.
+- **Ctrl+V pastes in the terminal.** In cmd, Git Bash, WSL or ssh it typed ^V; only PowerShell happened to paste. On Linux, paste stays Ctrl+Shift+V.
+- **Links that spell a path differently open one tab.** `C:/…`, `c:/…` and `C:\…` are the same file but opened three tabs, and a link with forward slashes was not recognized as inside the project, so Copy the relative path was missing from its menu.
+- **Lyra remembers that the window was maximized** (on Linux too), and at 125% scaling the window no longer grows a few pixels every time it reopens: 1202×802, 1206×807, 1210×813…
+- **Ctrl+M no longer minimizes the window** (on Linux too). It was easy to hit while typing.
+- **Shortcut hints name the keys on a PC keyboard.** The screenshot button's tooltip shows a shortcut with the Windows key as Win+Shift+S rather than “SuperShift+S”, and the annotation toolbar's delete hint reads Backspace rather than ⌫.
+
+<!-- lyra:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 优化与修复
+
+- **子 Agent 面板的快捷键换成 ⌥⌘U（Windows 和 Linux 上是 Ctrl+Alt+U）。** ⌥⌘A 在 Windows 上是 QQ 和 TIM 的截图键：开着 QQ 时按下去，截了一张图，面板没打开。
+- **代码块和公式比栏宽时，指针移上去会出现横向滚动条。** 以前只能用触控板横着滑，界面上也看不出右边还有东西；现在那根细条可以直接拖。表格本来就是这样。
+- **代码字体菜单只列这台机器画得出来的字体。** Windows 上列着 SF Mono、Menlo、Monaco，选哪个画出来都是 Consolas。Mac 上 SF Mono 画出来其实是 Menlo（Chromium 按名字拿不到它），没装的 Consolas 等也一样。之前已经选了的，按钮上照旧显示，后面注明「本机不可用」。
+- **标注图片。** 工具栏能拖开，不再钉在窗口底边。线和字按屏幕上的大小定，不再按图宽的比例算，在很大的生成图上也看得清：中档的线 4pt，字 22pt（可选 16、22、32）。Retina 屏上不再发虚；打字时按 Esc 是写完，字不会丢。
+- **叠在一起的子智能体头像不再透出下面那张脸。** 输入框上方、子 Agent 面板顶上、对话里「结果已交回」那一行，上面那枚把下一枚盖住，两枚之间留 2px 的缝。
+- **保险箱的「添加」弹窗不再忽高忽低。** 以前在密码、账号密码、令牌、SSH 密钥之间切换，弹窗在 505px 和 677px 之间来回跳。
+
+### Windows
+
+- **最大化之后，工具栏右端的按钮还看得见。** 以前终端、浏览器、Git 和「面板」被系统的最小化、最大化、关闭按钮盖住；还原后又被挤到窗口中间。
+- **在面板或分屏的标题栏上右键，不再弹出系统的窗口菜单；双击也不再把整个窗口最大化。** 窗口最上面那一条照旧可以。
+- **弹窗、看图和铺满窗口的视频，会把右上角的系统按钮一起压暗。** 以前背景暗下去了，那三个按钮还亮着，是屏幕上最亮的一块。压在顶部那条上的遮罩也不再被当成标题栏，点那里和点别处一样能关掉弹窗。
+- **回复里的加粗是粗的。** 以前 `**…**` 和正文一样粗：微软雅黑没有中等字重，加粗要的那一档落回了常规。
+- **选了代码字体预设后，编辑器、终端和外观预览里的中文用微软雅黑**，不再落到宋体。
+- **终端里 Ctrl+V 直接粘贴。** 以前在 cmd、Git Bash、WSL、ssh 里按下去只出一个 ^V，只有 PowerShell 碰巧能贴。Linux 上粘贴还是 Ctrl+Shift+V。
+- **同一个文件，链接里路径写法不同，也只开一个标签。** `C:/…`、`c:/…`、`C:\…` 是同一个文件，以前开出三个标签；正斜杠写的链接还被当成不在项目里，右键菜单里没有「复制相对路径」。
+- **窗口记得上次是最大化的**（Linux 也是）；125% 缩放下，窗口不再每次重开都长大几个像素：1202×802、1206×807、1210×813……
+- **按 Ctrl+M 不再把窗口最小化**（Linux 也是）。打字时很容易误按。
+- **快捷键提示写的是 PC 键盘上的键。** 截图按钮的提示里，用了 Win 键的快捷键显示成 Win+Shift+S，不再是「SuperShift+S」；标注工具条的删除提示写 Backspace，不再是一个 ⌫。
+
+</details>
+
+<!-- lyra:notes zh-TW -->
+
+<details>
+<summary>中文（繁體）</summary>
+
+### 最佳化與修復
+
+- **子 Agent 面板的快速鍵改成 ⌥⌘U（Windows 和 Linux 上是 Ctrl+Alt+U）。** ⌥⌘A 在 Windows 上是 QQ 和 TIM 的截圖鍵：開著 QQ 時按下去，只會截一張圖，面板不會打開。
+- **程式碼區塊和公式比欄寬時，指標移上去會出現水平捲軸。** 以前只能用觸控板橫向滑動，畫面上也看不出右邊還有內容；現在那條細捲軸可以直接拖曳。表格本來就是這樣。
+- **程式碼字型選單只列出這台電腦畫得出來的字型。** Windows 上列著 SF Mono、Menlo、Monaco，選哪個畫出來都是 Consolas。Mac 上 SF Mono 畫出來其實是 Menlo（Chromium 用名稱找不到它），沒安裝的 Consolas 等也一樣。之前已經選了的，按鈕上照舊顯示，後面註明「本機無法使用」。
+- **標註圖片。** 工具列可以拖開，不再釘在視窗底部。線條和文字依螢幕上的大小決定，不再按圖片寬度的比例計算，在很大的生成圖上也看得清楚：中等粗細的線 4pt，文字 22pt（可選 16、22、32）。Retina 螢幕上不再模糊；打字時按 Esc 會完成輸入，文字不會消失。
+- **疊在一起的子智能體頭像不再透出下面那張臉。** 輸入框上方、子 Agent 面板頂端、對話裡「結果已交回」那一行，上面那枚會蓋住下一枚，兩枚之間留 2px 的縫。
+- **保險箱的「新增」對話框不再忽高忽低。** 以前在密碼、帳號密碼、權杖、SSH 金鑰之間切換，對話框會在 505px 和 677px 之間來回跳動。
+
+### Windows
+
+- **最大化之後，工具列右端的按鈕依然看得見。** 以前終端機、瀏覽器、Git 和「面板」被系統的最小化、最大化、關閉按鈕蓋住；還原後又被擠到視窗中間。
+- **在面板或分割畫面的標題列上按右鍵，不再跳出系統的視窗選單；按兩下也不再把整個視窗最大化。** 視窗最上方那一條照舊可以。
+- **對話框、看圖和填滿視窗的影片，會把右上角的系統按鈕一起調暗。** 以前背景暗下去了，那三個按鈕還亮著，成了畫面上最亮的一塊。蓋在頂端那條上的遮罩也不再被當成標題列，點那裡和點其他地方一樣能關閉對話框。
+- **回覆裡的粗體看得出是粗體。** 以前 `**…**` 和內文一樣粗：微軟正黑體沒有中等粗細，粗體要的那一級退回了一般。
+- **選了程式碼字型預設後，編輯器、終端機和外觀預覽裡的中文改用微軟雅黑顯示。** 簡體中文版 Windows 上原本會落到新宋體。
+- **終端機裡 Ctrl+V 直接貼上。** 以前在 cmd、Git Bash、WSL、ssh 裡按下去只會出現 ^V，只有 PowerShell 碰巧能貼上。Linux 上貼上還是 Ctrl+Shift+V。
+- **同一個檔案，連結裡的路徑寫法不同，也只開一個分頁。** `C:/…`、`c:/…`、`C:\…` 是同一個檔案，以前會開出三個分頁；用正斜線寫的連結還被當成不在專案裡，右鍵選單裡沒有「複製相對路徑」。
+- **視窗記得上次是最大化的**（Linux 也是）；125% 縮放下，視窗不再每次重新開啟都大上幾個像素：1202×802、1206×807、1210×813……
+- **按 Ctrl+M 不再把視窗最小化**（Linux 也是）。打字時很容易誤按。
+- **快速鍵提示寫的是 PC 鍵盤上的按鍵。** 截圖按鈕的提示裡，用了 Win 鍵的快速鍵顯示成 Win+Shift+S，不再是「SuperShift+S」；標註工具列的刪除提示寫 Backspace，不再是一個 ⌫。
+
+</details>
+
+<!-- lyra:notes ja -->
+
+<details>
+<summary>日本語</summary>
+
+### 改善と修正
+
+- **サブエージェントパネルのショートカットが ⌥⌘U（Windows と Linux では Ctrl+Alt+U）になりました。** ⌥⌘A は Windows では QQ と TIM のスクリーンショットキーで、QQ を起動していると、押してもスクリーンショットが撮られるだけでパネルは開きませんでした。
+- **列に収まらないコードブロックと数式は、ポインターを乗せるとスクロールバーが出ます。** これまではトラックパッドで横に動かすしかなく、右に続きがあることも画面からは分かりませんでした。出てくる細いバーはそのままドラッグできます。表は以前からこの形です。
+- **コードフォントのメニューには、このマシンで実際に表示できるフォントだけが並びます。** Windows では SF Mono・Menlo・Monaco が並んでいて、どれを選んでも Consolas で表示されていました。Mac では SF Mono が実際には Menlo で表示されていました（Chromium は名前で SF Mono を使えません）。入っていない Consolas なども同じです。すでに選んでいたフォントはボタンにそのまま残り、「この環境では使えません」と表示されます。
+- **画像への注釈。** ツールバーをドラッグでどかせるようになり、ウィンドウの下端に固定されなくなりました。線と文字の大きさは画像の幅に対する割合ではなく画面上の大きさで決まるので、大きな生成画像でも読めます。中くらいの線は 4pt、文字は 22pt（16・22・32 から選択）。Retina 画面でもぼやけず、入力中に Esc を押すと文字は消えずに確定します。
+- **重なったサブエージェントのアイコンから、下の顔が透けて見えなくなりました。** 入力欄の上、サブエージェントパネルの上部、会話の「結果が戻りました」の行で、上のアイコンが次のアイコンを覆い、間に 2px のすき間が入ります。
+- **保管庫の「追加」ダイアログの高さが変わらなくなりました。** パスワード・ログイン・トークン・SSH 鍵を切り替えるたびに、505px から 677px のあいだで上下していました。
+
+### Windows
+
+- **最大化しても、ツールバー右端のボタンが見えます。** ターミナル・ブラウザ・Git・パネルが最小化・最大化・閉じるボタンの下に隠れ、元のサイズに戻すとウィンドウの真ん中まで押し出されていました。
+- **パネルや分割画面のタイトルバーを右クリックしても、システムのウィンドウメニューが出なくなりました。ダブルクリックでウィンドウ全体が最大化されることもありません。** ウィンドウ最上部のバーでは従来どおりです。
+- **ダイアログ、画像ビューア、ウィンドウいっぱいの動画では、右上のシステムボタンも一緒に暗くなります。** 背景が暗くなってもこの 3 つのボタンだけが明るいままで、画面でいちばん明るい部分になっていました。上端のバーに重なった部分の背景もタイトルバー扱いされなくなり、ほかの場所と同じくクリックでダイアログを閉じられます。
+- **返信の太字が太字に見えます。** `**…**` が本文と同じ太さで表示されていました。游ゴシック UI などにはミディアムの太さがなく、太字に指定していたミディアムが標準に戻っていたためです。
+- **コードフォントのプリセットを選んだとき、エディタ・ターミナル・外観のプレビューの漢字は Microsoft YaHei で表示されるようになりました。** 中国語版の Windows では宋体（NSimSun）になっていました。
+- **ターミナルで Ctrl+V で貼り付けられます。** cmd・Git Bash・WSL・ssh では ^V が入力されるだけで、貼り付けられたのはたまたま PowerShell だけでした。Linux での貼り付けは Ctrl+Shift+V のままです。
+- **パスの書き方が違うリンクでも、同じファイルはひとつのタブで開きます。** `C:/…`・`c:/…`・`C:\…` は同じファイルなのに 3 つのタブが開き、スラッシュで書かれたリンクはプロジェクトの外と判定されて、右クリックメニューに「相対パスをコピー」が出ませんでした。
+- **最大化していたウィンドウは、次に開いたときも最大化されます**（Linux も同様）。拡大率 125% で、開き直すたびにウィンドウが数ピクセルずつ大きくなる（1202×802、1206×807、1210×813…）こともなくなりました。
+- **Ctrl+M でウィンドウが最小化されなくなりました**（Linux も同様）。入力中にうっかり押しやすいキーでした。
+- **ショートカットの表示が PC のキーボードのキー名になりました。** スクリーンショットボタンのヒントでは、Windows キーを使うショートカットが「SuperShift+S」ではなく Win+Shift+S と表示されます。注釈ツールバーの削除のヒントも ⌫ ではなく Backspace です。
+
+</details>
+
+<!-- lyra:notes ko -->
+
+<details>
+<summary>한국어</summary>
+
+### 개선 및 수정
+
+- **하위 에이전트 패널 단축키가 ⌥⌘U(Windows와 Linux에서는 Ctrl+Alt+U)로 바뀌었습니다.** ⌥⌘A는 Windows에서 QQ와 TIM의 스크린샷 키라서, QQ가 켜져 있으면 눌러도 스크린샷만 찍히고 패널은 열리지 않았습니다.
+- **열 너비보다 넓은 코드 블록과 수식에 포인터를 올리면 가로 스크롤바가 나타납니다.** 예전에는 트랙패드로만 옆으로 밀 수 있었고, 오른쪽에 내용이 더 있다는 표시도 없었습니다. 이제 나타나는 얇은 막대를 바로 끌 수 있습니다. 표는 원래 이렇게 동작했습니다.
+- **코드 글꼴 메뉴에 이 컴퓨터에서 실제로 그릴 수 있는 글꼴만 나옵니다.** Windows에서는 SF Mono, Menlo, Monaco가 목록에 있었지만 무엇을 골라도 Consolas로 그려졌습니다. Mac에서는 SF Mono가 실제로는 Menlo로 그려졌고(Chromium이 이름으로 SF Mono를 찾지 못합니다), 설치되지 않은 Consolas 등도 마찬가지였습니다. 이미 골라 둔 글꼴은 버튼에 그대로 남고 '이 기기에서 사용 불가'라고 표시됩니다.
+- **이미지에 주석 달기.** 도구 막대를 끌어서 치울 수 있고, 더 이상 창 아래쪽에 고정되지 않습니다. 선과 글자 크기는 이미지 너비에 대한 비율이 아니라 화면에 보이는 크기로 정해져서, 큰 생성 이미지에서도 잘 보입니다. 중간 굵기 선은 4pt, 글자는 22pt(16, 22, 32 중 선택)입니다. Retina 화면에서도 흐릿하지 않고, 입력 중에 Esc를 누르면 글자가 사라지지 않고 입력이 끝납니다.
+- **겹쳐 놓인 하위 에이전트 아바타에서 아래 얼굴이 비쳐 보이지 않습니다.** 입력창 위, 하위 에이전트 패널 위쪽, 대화의 '결과가 돌아왔어요' 줄에서 위 아바타가 다음 아바타를 가리고, 둘 사이에 2px 틈이 생깁니다.
+- **보관함의 '추가' 대화상자 높이가 바뀌지 않습니다.** 비밀번호, 로그인, 토큰, SSH 키 사이를 오갈 때마다 505px와 677px 사이를 오르내렸습니다.
+
+### Windows
+
+- **창을 최대화해도 도구 막대 오른쪽 끝의 버튼이 보입니다.** 터미널, 브라우저, Git, 패널 버튼이 최소화·최대화·닫기 버튼 아래에 가려졌고, 이전 크기로 되돌리면 창 가운데로 밀려나 있었습니다.
+- **패널이나 분할 화면의 제목 표시줄을 오른쪽 클릭해도 시스템 창 메뉴가 뜨지 않고, 두 번 클릭해도 창 전체가 최대화되지 않습니다.** 창 맨 위의 막대에서는 예전처럼 동작합니다.
+- **대화상자, 이미지 뷰어, 창을 가득 채운 동영상이 오른쪽 위 시스템 버튼도 함께 어둡게 합니다.** 배경이 어두워져도 이 세 버튼만 밝게 남아 화면에서 가장 밝은 부분이 되었습니다. 위쪽 막대에 겹친 배경 부분도 더 이상 제목 표시줄로 취급되지 않아, 다른 곳처럼 클릭하면 대화상자가 닫힙니다.
+- **답변 속 굵은 글씨가 굵게 보입니다.** `**…**`가 본문과 같은 굵기로 그려졌습니다. 맑은 고딕 등에는 중간 굵기(미디엄)가 없어서, 굵은 글씨에 쓰던 미디엄이 보통으로 돌아갔기 때문입니다.
+- **코드 글꼴 프리셋을 고르면 편집기, 터미널, 모양 미리보기의 한자가 Microsoft YaHei로 그려집니다.** 중국어판 Windows에서는 송체(NSimSun)로 나왔습니다.
+- **터미널에서 Ctrl+V로 붙여넣습니다.** cmd, Git Bash, WSL, ssh에서는 ^V만 입력됐고, PowerShell만 우연히 붙여넣기가 됐습니다. Linux에서는 그대로 Ctrl+Shift+V입니다.
+- **경로를 다르게 쓴 링크라도 같은 파일이면 탭 하나로 열립니다.** `C:/…`, `c:/…`, `C:\…`는 같은 파일인데 탭이 세 개 열렸고, 슬래시로 쓴 링크는 프로젝트 밖으로 판단되어 오른쪽 클릭 메뉴에 '상대 경로 복사'가 없었습니다.
+- **최대화했던 창은 다음에 열어도 최대화된 상태입니다**(Linux도 같습니다). 125% 배율에서 다시 열 때마다 창이 몇 픽셀씩 커지던 문제(1202×802, 1206×807, 1210×813…)도 고쳤습니다.
+- **Ctrl+M을 눌러도 창이 최소화되지 않습니다**(Linux도 같습니다). 입력하다가 잘못 누르기 쉬운 키였습니다.
+- **단축키 안내가 PC 키보드의 키 이름으로 나옵니다.** 스크린샷 버튼의 도움말에서 Windows 키를 쓰는 단축키는 'SuperShift+S'가 아니라 Win+Shift+S로 나오고, 주석 도구 막대의 삭제 안내는 ⌫가 아니라 Backspace로 나옵니다.
+
+</details>
+
+<!-- lyra:notes fr -->
+
+<details>
+<summary>Français</summary>
+
+### Améliorations et corrections
+
+- **Le panneau Sous-agents s’ouvre désormais avec ⌥⌘U (Ctrl+Alt+U sous Windows et Linux).** Sous Windows, ⌥⌘A est la touche de capture d’écran de QQ et de TIM : avec QQ lancé, elle prenait une capture et le panneau ne s’ouvrait pas.
+- **Un bloc de code ou une formule plus large que la colonne affiche une barre de défilement sous le pointeur.** On ne pouvait le faire défiler qu’au pavé tactile, et rien à l’écran n’indiquait qu’il en restait à droite. La fine barre qui apparaît se fait glisser. Les tableaux fonctionnaient déjà ainsi.
+- **Le menu Police du code ne liste que les polices que cet ordinateur sait afficher.** Sous Windows, il proposait SF Mono, Menlo et Monaco, qui s’affichaient toutes en Consolas. Sur Mac, SF Mono s’affichait en réalité en Menlo — Chromium ne la trouve pas par son nom —, tout comme les polices absentes du Mac, Consolas par exemple. Une police déjà choisie reste sur le bouton, avec la mention « indisponible ici ».
+- **Annoter une image.** La barre d’outils se déplace à la souris au lieu de rester clouée en bas de la fenêtre. Traits et texte sont dimensionnés en points à l’écran, et non plus en proportion de la largeur de l’image : ils restent lisibles sur une grande image générée. Trait moyen de 4 pt, texte de 22 pt (16, 22 ou 32 au choix). Plus de flou sur un écran Retina, et Échap valide le texte en cours au lieu de l’effacer.
+- **Les avatars de sous-agents empilés ne laissent plus voir le visage du dessous.** Au-dessus de la zone de saisie, en haut du panneau Sous-agents et sur la ligne « a rendu son résultat », chacun recouvre le suivant, avec 2 px d’écart entre les deux.
+- **La fenêtre Ajouter du Coffre-fort garde la même hauteur.** En passant de Mot de passe à Identifiant, Jeton ou Clé SSH, elle sautait entre 505 et 677 px.
+
+### Windows
+
+- **Les boutons au bout droit de la barre d’outils restent visibles une fois la fenêtre agrandie.** Terminal, Navigateur, Git et Panneaux passaient sous les boutons Réduire, Agrandir et Fermer, puis se retrouvaient au milieu de la fenêtre une fois celle-ci restaurée.
+- **Un clic droit sur la barre de titre d’un panneau ou d’un écran partagé n’ouvre plus le menu système de la fenêtre, et un double clic n’agrandit plus toute la fenêtre.** La barre en haut de la fenêtre fait toujours les deux.
+- **Les boîtes de dialogue, la visionneuse d’images et la vidéo en pleine fenêtre assombrissent aussi les boutons Réduire, Agrandir et Fermer.** Ils restaient clairs : la zone la plus lumineuse de l’écran derrière un fond sombre. La partie du fond qui recouvre la barre du haut n’est plus prise pour la barre de titre : un clic à cet endroit ferme la boîte de dialogue comme partout ailleurs.
+- **Le gras des réponses se voit.** `**…**` avait la même graisse que le texte autour : Segoe UI et Microsoft YaHei n’ont pas de graisse medium, et le gras, qui la demandait, retombait sur le normal.
+- **Avec un préréglage de police du code, le chinois de l’éditeur, du terminal et de l’aperçu Apparence s’affiche en Microsoft YaHei**, au lieu de retomber sur SimSun.
+- **Ctrl+V colle dans le terminal.** Dans cmd, Git Bash, WSL ou ssh, la touche tapait ^V ; seul PowerShell collait, par hasard. Sous Linux, le collage reste Ctrl+Shift+V.
+- **Un même fichier, atteint par des liens qui écrivent son chemin différemment, s’ouvre dans un seul onglet.** `C:/…`, `c:/…` et `C:\…` désignent le même fichier mais ouvraient trois onglets, et un lien écrit avec des barres obliques n’était pas reconnu comme faisant partie du projet : « Copier le chemin relatif » manquait dans son menu.
+- **Lyra se souvient que la fenêtre était agrandie** (sous Linux aussi), et à 125 % la fenêtre ne grandit plus de quelques pixels à chaque réouverture : 1202×802, 1206×807, 1210×813…
+- **Ctrl+M ne réduit plus la fenêtre** (sous Linux aussi). La touche était facile à presser en tapant.
+- **Les indications de raccourcis nomment les touches d’un clavier de PC.** L’info-bulle du bouton de capture affiche un raccourci avec la touche Windows sous la forme Win+Shift+S, et non « SuperShift+S » ; l’indication de suppression de la barre d’annotation affiche Backspace au lieu de ⌫.
+
+</details>
+
+<!-- lyra:notes ru -->
+
+<details>
+<summary>Русский</summary>
+
+### Улучшения и исправления
+
+- **Панель «Субагенты» теперь открывается по ⌥⌘U (Ctrl+Alt+U в Windows и Linux).** В Windows ⌥⌘A — клавиша скриншота в QQ и TIM: если QQ запущен, нажатие делало снимок экрана, а панель не открывалась.
+- **Блок кода или формула шире колонки показывают полосу прокрутки под указателем.** Раньше их можно было прокрутить только тачпадом, и ничто на экране не говорило, что справа есть продолжение. Теперь при наведении появляется тонкая полоса, её можно тянуть. Таблицы так работали и раньше.
+- **В меню «Шрифт кода» только те шрифты, которые этот компьютер может отрисовать.** В Windows там были SF Mono, Menlo и Monaco, и любой из них выводился как Consolas. На Mac SF Mono на деле выводился как Menlo — Chromium не находит его по имени, — как и шрифты, которых на Mac нет, например Consolas. Уже выбранный шрифт остаётся на кнопке с пометкой «здесь недоступен».
+- **Разметка изображений.** Панель инструментов можно отодвинуть мышью, она больше не прибита к нижнему краю окна. Толщина линий и размер текста задаются в пунктах на экране, а не долей ширины картинки, поэтому их видно и на большом сгенерированном изображении: средняя линия 4 pt, текст 22 pt (на выбор 16, 22 или 32). На экране Retina они больше не размыты, а Esc завершает ввод текста, а не стирает его.
+- **Аватары субагентов, сложенные стопкой, больше не просвечивают.** Над полем ввода, вверху панели «Субагенты» и в строке «вернул результат» верхний аватар закрывает следующий, между ними зазор в 2 px.
+- **Окно «Добавить» в Хранилище больше не прыгает по высоте.** При переключении между «Паролем», «Логином и паролем», «Токеном» и «SSH-ключом» его высота менялась от 505 до 677 px.
+
+### Windows
+
+- **Кнопки в правом конце панели инструментов видны и после разворачивания окна.** «Терминал», «Браузер», Git и «Панели» прятались под кнопками «Свернуть», «Развернуть» и «Закрыть», а после восстановления окна уезжали в его середину.
+- **Правый щелчок по заголовку панели или разделённого экрана больше не открывает системное меню окна, а двойной щелчок не разворачивает всё окно.** Полоса вдоль верхнего края окна по-прежнему делает и то и другое.
+- **Диалоги, просмотр изображений и видео на всё окно затемняют и кнопки «Свернуть», «Развернуть» и «Закрыть».** Они оставались светлыми — самым ярким местом на экране за тёмным фоном. Часть фона над верхней полосой больше не считается заголовком окна: щелчок там закрывает диалог, как и в любом другом месте.
+- **Жирный текст в ответах выглядит жирным.** `**…**` рисовался той же толщины, что и окружающий текст: у Segoe UI и Microsoft YaHei нет среднего начертания (medium), и жирный, который его запрашивал, откатывался к обычному.
+- **Если выбран готовый шрифт кода, китайский текст в редакторе, терминале и предпросмотре «Оформления» выводится шрифтом Microsoft YaHei**, а не откатывается к SimSun.
+- **Ctrl+V вставляет текст в терминале.** В cmd, Git Bash, WSL и ssh вместо вставки появлялось ^V; вставлял только PowerShell, и то случайно. В Linux вставка по-прежнему Ctrl+Shift+V.
+- **Один и тот же файл по ссылкам с разным написанием пути открывается в одной вкладке.** `C:/…`, `c:/…` и `C:\…` — один файл, а открывались три вкладки; ссылка с прямыми слэшами не считалась частью проекта, и в её меню не было пункта «Копировать относительный путь».
+- **Lyra помнит, что окно было развёрнуто** (в Linux тоже), а при масштабе 125 % окно больше не подрастает на несколько пикселей при каждом открытии: 1202×802, 1206×807, 1210×813…
+- **Ctrl+M больше не сворачивает окно** (в Linux тоже). Её легко было нажать во время набора текста.
+- **Подсказки к сочетаниям клавиш называют клавиши клавиатуры ПК.** Во всплывающей подсказке кнопки скриншота сочетание с клавишей Windows показывается как Win+Shift+S, а не «SuperShift+S», а подсказка удаления на панели разметки — Backspace вместо ⌫.
+
+</details>
+
 ## [0.9.29](https://github.com/kittors/Lyra/releases/tag/v0.9.29) - 2026-10-14
 <!-- lyra:notes en -->
 
