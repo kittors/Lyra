@@ -16,6 +16,51 @@
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
+        },
+        "CFBundleAllowMixedLocalizations": true
+      }
+    },
+    "locales": {
+      "en": {
+        "ios": {
+          "NSCameraUsageDescription": "Scan the QR code on the desktop to pair, or take a photo to send in a conversation.",
+          "NSMicrophoneUsageDescription": "Records sound when you film a video to send in a conversation."
+        }
+      },
+      "zh-Hans": {
+        "ios": {
+          "NSCameraUsageDescription": "扫描桌面端的二维码完成配对，或拍一张照片发到对话里。",
+          "NSMicrophoneUsageDescription": "拍视频发到对话里时录下声音。"
+        }
+      },
+      "zh-Hant": {
+        "ios": {
+          "NSCameraUsageDescription": "掃描桌面端的 QR Code 完成配對，或拍一張照片傳到對話裡。",
+          "NSMicrophoneUsageDescription": "拍影片傳到對話裡時錄下聲音。"
+        }
+      },
+      "ja": {
+        "ios": {
+          "NSCameraUsageDescription": "デスクトップの QR コードを読み取ってペアリングしたり、写真を撮って会話に送ったりするときに使います。",
+          "NSMicrophoneUsageDescription": "会話に送る動画を撮るときに音声を録音します。"
+        }
+      },
+      "ko": {
+        "ios": {
+          "NSCameraUsageDescription": "데스크톱의 QR 코드를 스캔해 페어링하거나, 사진을 찍어 대화에 보낼 때 사용합니다.",
+          "NSMicrophoneUsageDescription": "대화에 보낼 동영상을 찍을 때 소리를 녹음합니다."
+        }
+      },
+      "fr": {
+        "ios": {
+          "NSCameraUsageDescription": "Pour scanner le code QR de l’ordinateur et vous associer, ou prendre une photo à envoyer dans une conversation.",
+          "NSMicrophoneUsageDescription": "Enregistre le son quand vous filmez une vidéo à envoyer dans une conversation."
+        }
+      },
+      "ru": {
+        "ios": {
+          "NSCameraUsageDescription": "Чтобы отсканировать QR-код на компьютере для сопряжения или сделать фото для разговора.",
+          "NSMicrophoneUsageDescription": "Записывает звук, когда вы снимаете видео для разговора."
         }
       }
     },
@@ -43,7 +88,8 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "扫描桌面端的二维码，一步完成配对。"
+          "cameraPermission": "Scan the QR code on the desktop to pair, or take a photo to send in a conversation.",
+          "microphonePermission": "Records sound when you film a video to send in a conversation."
         }
       ]
     ],

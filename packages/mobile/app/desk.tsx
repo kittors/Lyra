@@ -381,7 +381,8 @@ export default function DeskScreen() {
 				<View
 					pointerEvents="none"
 					className="absolute left-0 right-0 items-center"
-					style={{ top: insets.top + 8 }}
+					// Under the page's title bar (44pt below the status bar), not over the title in it.
+					style={{ top: insets.top + 52 }}
 				>
 					<View className="flex-row items-center gap-2 rounded-full border border-line bg-card/95 px-3 py-2">
 						<ActivityIndicator size="small" color="#9a9a9a" />

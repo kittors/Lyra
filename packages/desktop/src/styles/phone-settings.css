@@ -1,0 +1,211 @@
+/* ---------------------------------------------------------------------------
+ * Settings on a phone: a list of pages under a large title, and the page you picked pushed over it.
+ * See `PhoneSettings`.
+ *
+ * Part of `phone.css`.
+ * ------------------------------------------------------------------------ */
+
+.ly-phone-settings {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* The list and a page are each a whole screen, starting below the status bar. */
+.ly-phone-stack,
+.ly-phone-page {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--ly-safe-top);
+  background: var(--color-shell);
+}
+
+/* Under a page, the list steps aside the way the conversation does under a panel. */
+.ly-phone-stack {
+  transition: transform var(--ly-t-slow) var(--ly-e-out);
+}
+
+.ly-phone-stack[data-under] {
+  transform: translateX(-24%);
+}
+
+/* The shadow falls off the left edge of the screen until a swipe pulls the page aside. */
+.ly-phone-settings-root,
+.ly-phone-page {
+  box-shadow: -12px 0 32px -18px rgb(0 0 0 / 0.45);
+}
+
+.ly-phone-page {
+  z-index: 1;
+  animation: ly-phone-push-in var(--ly-t-slow) var(--ly-e-out);
+}
+
+.ly-phone-page[data-leaving] {
+  animation: ly-phone-push-out var(--ly-t-base) var(--ly-e-in) forwards;
+}
+
+@keyframes ly-phone-push-out {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.ly-phone-page-bar {
+  display: flex;
+  height: 44px;
+  flex-shrink: 0;
+  align-items: center;
+  padding-inline: 6px;
+}
+
+/* Back, with the name of where it goes: "‹ 设置". */
+.ly-phone-back {
+  display: inline-flex;
+  height: 44px;
+  align-items: center;
+  padding: 0 14px 0 4px;
+  border-radius: 999px;
+  font-size: var(--text-label);
+  color: var(--color-ink);
+}
+
+.ly-phone-back:active {
+  background: var(--color-card-hover);
+}
+
+.ly-phone-settings-list {
+  padding: 0 16px calc(var(--ly-safe-bottom, 0px) + 32px);
+}
+
+/* Level with the cards' edge, as a phone's large title is — and with each page's own title. */
+.ly-phone-large-title {
+  padding: 4px 0 6px;
+  font-size: var(--text-display);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--color-ink);
+}
+
+.ly-phone-group {
+  margin-top: 22px;
+}
+
+.ly-phone-group-label {
+  padding: 0 16px 8px;
+  font-size: var(--text-caption);
+  font-weight: 500;
+  color: var(--color-ink-faint);
+}
+
+.ly-phone-group-card {
+  overflow: hidden;
+  border: 0.5px solid var(--color-line-float, var(--color-line-soft));
+  border-radius: 16px;
+  background: var(--color-float);
+}
+
+.ly-phone-group-row {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-height: 52px;
+  align-items: center;
+  gap: 14px;
+  padding: 0 12px 0 14px;
+  text-align: left;
+  transition: background-color var(--ly-t-quick) ease-out;
+}
+
+/* Separators start under the name, not the mark, the way a phone's lists draw them. */
+.ly-phone-group-row + .ly-phone-group-row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 56px;
+  height: 0.5px;
+  background: var(--color-line-float, var(--color-line-soft));
+}
+
+.ly-phone-group-row:active {
+  background: var(--color-card-hover);
+}
+
+.ly-phone-group-mark {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-ink) 7%, var(--color-float));
+  color: var(--color-ink);
+}
+
+.ly-phone-group-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  font-size: var(--text-label);
+  color: var(--color-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ly-phone-group-chevron {
+  flex-shrink: 0;
+  color: var(--color-ink-faint);
+}
+
+/*
+ * A switch sits beside its setting's name, as on every phone, rather than under its description.
+ *
+ * A row stacks its control below the text when the card is narrower than `@md`, which a phone always
+ * is — right for a picker or a field, which need the width, and wrong for a 38px switch: it left
+ * each setting half a screen tall with the switch alone on a line of its own.
+ */
+[data-lyra-host="mobile"] [data-settings-row]:has(> div:last-child > [role="switch"]:only-child) {
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+}
+
+/*
+ * …and a field or a slider, which need the width, get all of it.
+ *
+ * Stacked, they kept the desktop's sizes: the 220px font field under 「UI 字体」 with 140px of nothing
+ * beside it, the contrast slider stopping at half the row. The slider's input is also 18px tall —
+ * a pointer's target, not a thumb's — so it reaches 13px past the track on both sides.
+ */
+[data-lyra-host="mobile"][data-layout="compact"] [data-settings-row] > div:last-child > .ly-field:only-child,
+[data-lyra-host="mobile"][data-layout="compact"] [data-settings-row] > div:last-child > :only-child:has(> .ly-slider) {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}
+
+[data-lyra-host="mobile"][data-layout="compact"] [data-settings-row] .ly-slider {
+  flex: 1 1 auto;
+  width: auto;
+}
+
+[data-lyra-host="mobile"] .ly-slider > input[type="range"] {
+  top: -13px;
+  bottom: -13px;
+  height: auto;
+}
+
+/*
+ * A section opens with the desktop's 32px above its title — room under a window's title bar. Under
+ * the page's own bar it put the title 40px below the list's, so the heading dropped on the way in
+ * and rose on the way out.
+ */
+.ly-phone-page-body > :first-child {
+  padding-top: 0;
+}

@@ -106,6 +106,8 @@ export function useDrawerGesture(open: boolean, setOpen: (next: boolean) => void
 			 */
 			const under = document.elementFromPoint(touch.clientX, touch.clientY);
 			if (under && !under.closest(".ly-shell")) return;
+			// Nor over a screen with no drawer to pull: settings is a list and its pages (`PhoneSettings`).
+			if (under?.closest("[data-ly-no-drawer]")) return;
 
 			width = drawerWidth(window.innerWidth);
 			gesture = begin({ x: touch.clientX, y: touch.clientY, t: event.timeStamp }, open);

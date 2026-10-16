@@ -92,11 +92,12 @@ test("the drawer's bottom bar: settings and a new conversation, and the drawer g
 	}
 });
 
-test("the empty screen on a phone: the question in the middle, the starting points in one sideways row", async () => {
+test("the empty screen on a phone: the question in the middle, the four starting points two by two under it", async () => {
 	const view = await mount(h(I18nProvider, { locale: "zh-CN", children: h(LayoutProvider, null, h(EmptyState)) }));
 	try {
-		const chips = view.all(".ly-phone-suggest .ly-phone-chip");
-		assert.equal(chips.length, 4, "四个起点一个不少");
+		const chips = view.all(".ly-phone-hero .ly-phone-starts .ly-phone-start");
+		assert.equal(chips.length, 4, "四个起点一个不少，和问题在同一组里");
+		assert.equal(view.all(".ly-phone-suggest").length, 0, "不再是输入框上面那一排横滑、被截断的胶囊");
 		assert.equal(view.find(".ly-phone-hero-title .whitespace-nowrap").textContent, "aurora-notes", "项目名不在连字符处折行");
 		assert.equal(view.all(".ly-draft-chip").length, 0, "手机上不再是桌面那一排起点");
 
@@ -109,7 +110,7 @@ test("the empty screen on a phone: the question in the middle, the starting poin
 	Object.defineProperty(window, "lyra", { configurable: true, value: desktop });
 	const wide = await mount(h(I18nProvider, { locale: "zh-CN", children: h(LayoutProvider, null, h(EmptyState)) }));
 	try {
-		assert.equal(wide.all(".ly-phone-suggest").length, 0, "桌面端没有横滑的那一排");
+		assert.equal(wide.all(".ly-phone-starts").length, 0, "桌面端没有手机的那一组卡片");
 		assert.equal(wide.all(".ly-draft-chip").length, 4, "桌面端仍是四枚起点");
 	} finally {
 		await wide.unmount();

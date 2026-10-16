@@ -165,6 +165,20 @@ jobs:
 
       - uses: ./.github/actions/setup
 
+      # Xcode 26, by name, not whatever `macos-latest` defaults to. Linked against the iOS 27 SDK an
+      # app must adopt the UIScene life cycle or iOS 27 terminates it at launch
+      # (`_UIApplicationEvaluateRuntimeIssueForNoSceneLifecycleAdoption`, EXC_BREAKPOINT), and Expo
+      # 57's template does not adopt it — measured on an iPhone 14 Pro with iOS 27.0.1 on 2026-10-16:
+      # the project built with Xcode 27 closed the instant it was tapped. Apple binds the requirement
+      # to the SDK an app is built with, so an app linked against 26 is not held to it; that half is
+      # Apple's stated rule, not a measurement. Lift this once the app has a scene delegate.
+      - name: Pin Xcode 26
+        run: |
+          set -euo pipefail
+          xcode=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)
+          sudo xcode-select -s "$xcode/Contents/Developer"
+          xcodebuild -version
+
       - name: What this build is called
         id: version
         run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"

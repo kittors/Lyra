@@ -30,6 +30,7 @@ export function SessionMenu({
 	session,
 	onClose,
 	onRequestDelete,
+	lead,
 }: {
 	anchor: Anchor;
 	session: SessionMeta;
@@ -43,6 +44,13 @@ export function SessionMenu({
 	 * nothing, and deleted nothing — see `SessionRow`, which outlives the menu and holds it instead.
 	 */
 	onRequestDelete: () => void;
+	/**
+	 * Drawn above the actions, inside the same surface.
+	 *
+	 * The phone opens this from its title bar as the conversation's sheet, and puts the panels at the
+	 * top of it — the buttons the desktop has along its toolbar. See `PhoneTopBar`.
+	 */
+	lead?: React.ReactNode;
 }) {
 	const { t } = useI18n();
 	const splitTree = useSplit((s) => s.tree);
@@ -214,6 +222,7 @@ export function SessionMenu({
 	return (
 		<>
 			<Popover anchor={anchor} onClose={onClose} placement="right" width="compact" label={t("sessionMenu.options")}>
+				{lead}
 				<MenuBody>
 					{!session.archived && (
 						<MenuItem

@@ -183,9 +183,10 @@ export function WindowButtons({
 	onToggleNav: () => void;
 }) {
 	const { titlebar } = useLayout();
+	// A phone's bar carries its own way to the drawer (`PhoneTopBar`), clear of the status bar.
+	if (onPhone()) return null;
 	return (
 		<div
-			/* Found by the phone's stylesheet, which puts this under the drawer rather than over it. */
 			data-ly-window-buttons=""
 			className="no-drag absolute z-[60] flex items-center gap-0.5"
 			/*

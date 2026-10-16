@@ -26,6 +26,7 @@ import { OverlayDepth } from "./Overlay.tsx";
 import { leaveAfterimage } from "./afterimage.ts";
 import { claimHoverSuppression } from "./hover-layers.ts";
 import { chromeTop, heldClear, placeBeside, safeInsets } from "./keep-clear.ts";
+import { sheetHost, useSheetDrag } from "./sheet.ts";
 import { Scroller } from "../scroll/Scroller.tsx";
 import { portal } from "./portal.ts";
 
@@ -274,6 +275,16 @@ export function Popover({
 	onMouseLeave,
 }: PopoverProps) {
 	const ref = useRef<HTMLDivElement>(null);
+	/*
+	 * A sheet from the bottom edge rather than a card beside the trigger, where the host draws menus
+	 * that way — a phone held upright. See `sheet.ts`.
+	 *
+	 * Only for a surface hung off a control. One hung off a point is a long press's menu, which stays
+	 * beside the thing being held (`keep-clear.ts`): it is about that row, and a sheet would cover it.
+	 * Decided as it opens, because the answer is a property of where it was opened from.
+	 */
+	const [asSheet] = useState(() => anchor instanceof HTMLElement && sheetHost());
+	const scrim = useRef<HTMLDivElement>(null);
 	const [style, setStyle] = useState<React.CSSProperties>({
 		opacity: 0,
 		left: 0,
@@ -353,7 +364,10 @@ export function Popover({
 	 * before React detaches the element: the copy is taken of what is on screen.
 	 */
 	useLayoutEffect(() => () => {
-		if (!exited.current) leaveAfterimage(ref.current);
+		if (exited.current) return;
+		// The dimmed page goes with the sheet, or the sheet slides away over a page already lit.
+		leaveAfterimage(scrim.current);
+		leaveAfterimage(ref.current);
 	}, []);
 
 	/*
@@ -406,6 +420,15 @@ export function Popover({
 			 */
 			if (anchor instanceof HTMLElement && !anchor.isConnected) {
 				dismissRef.current();
+				return;
+			}
+			/*
+			 * A sheet has nothing to measure against: the stylesheet pins it to the bottom edge, full width,
+			 * up to the status bar. Its height is its content's, and a long list scrolls inside it.
+			 */
+			if (asSheet) {
+				setPlaced(true);
+				setStyle({ opacity: 1 });
 				return;
 			}
 			const a = rectOf(anchor);
@@ -632,7 +655,9 @@ export function Popover({
 			observer.disconnect(); cancelAnimationFrame(frame);
 			window.removeEventListener("resize", schedule); window.removeEventListener("scroll", onScroll, true);
 		};
-	}, [anchor, align, placement, width, role, maxHeight, kind]);
+	}, [anchor, align, placement, width, role, maxHeight, kind, asSheet]);
+
+	useSheetDrag(ref, asSheet, dismiss);
 
 	// Which modal layer this popover itself sits on — read here because the press-outside test below
 	// needs it, and used again for the z-index it is drawn at.
@@ -707,12 +732,24 @@ export function Popover({
 	 * `transform` clips it or becomes its containing block. A transient layer that belongs on top
 	 * of the window should not be a descendant of anything in it.
 	 */
+	const layer = 60 + overlayDepth * 20 + (overlayDepth ? 10 : 0);
 	return portal(/* Everything drawn in here is inside this popover, and so must not close it. */
 		<PopoverChain.Provider value={chain}>
+			{/*
+			 * The page dimmed behind a sheet, and what a tap outside it lands on — rather than on the
+			 * button underneath, which the press-outside rule would otherwise let through as well.
+			 */}
+			{asSheet && <div ref={scrim} aria-hidden className={`ly-menu-sheet-scrim ${leaving ? "ly-pop-out" : "ly-pop-in"}`} style={{ zIndex: layer }} />}
 			<div
 				ref={ref}
 				role={role}
 				aria-label={label}
+				/*
+				 * A sheet is a layer over the page. Also how Android's back button finds it: the phone's
+				 * shell counts `aria-modal` layers and closes the top one with an Escape (see the bridge's
+				 * `layerDepth`), and without this the back button left the app with a sheet open.
+				 */
+				aria-modal={asSheet || undefined}
 				// How deeply nested this one is, for the press-outside test above — the only way a
 				// portalled sibling can tell an ancestor from an unrelated surface.
 				data-ly-popover={self.depth}
@@ -722,7 +759,7 @@ export function Popover({
 				onAnimationEnd={(event) => {
 					if (closed.current && event.target === event.currentTarget && event.animationName.endsWith("pop-out")) finish();
 				}}
-				style={{ ...style, zIndex: 60 + overlayDepth * 20 + (overlayDepth ? 10 : 0) }}
+				style={{ ...style, zIndex: layer }}
 				/*
 				 * Above everything, including the side panel.
 				 *
@@ -737,7 +774,7 @@ export function Popover({
 				 * The hole goes when the popover does, so the strip drags again once it closes.
 				 */
 				// `line-float`, not `line`: `line` is set against the page, and on a layer brighter than the page it draws a dark rim.
-				className={`ly-menu-card no-drag fixed z-[60] flex flex-col overflow-hidden border border-line-float ${
+				className={`ly-menu-card no-drag fixed z-[60] flex flex-col overflow-hidden border border-line-float ${asSheet ? "ly-menu-sheet" : ""} ${
 					leaving ? "ly-pop-out" : placed ? "ly-pop-in" : ""
 				} ${className}`}
 			>

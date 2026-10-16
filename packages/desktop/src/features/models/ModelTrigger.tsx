@@ -32,6 +32,8 @@ export function ModelTrigger({
 	inheriting,
 	disabled,
 	selection,
+	extra,
+	badge,
 }: {
 	/** The model that will actually answer — chosen here, or inherited. The mark and name come from it. */
 	modelId: string | null | undefined;
@@ -46,6 +48,10 @@ export function ModelTrigger({
 	 * composer wants.
 	 */
 	selection?: ModelSelection;
+	/** Passed on to the menu's footer — see `ModelMenu`. */
+	extra?: React.ReactNode;
+	/** Drawn after the name, inside the chip: what the phone's chip says besides it (`PhoneTurnBadge`). */
+	badge?: React.ReactNode;
 }) {
 	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
@@ -100,8 +106,9 @@ export function ModelTrigger({
 				)}
 				{/* Not on a phone: at 320pt the 18px it takes is the difference between "Sonnet 5" and "So…". */}
 				{!onPhone() && <ChevronDown size={14} className="shrink-0 text-ink-muted" aria-hidden />}
+				{badge}
 			</button>
-			{menu.open && !disabled && <ModelMenu anchor={menu.anchor} onClose={menu.close} selection={selection} />}
+			{menu.open && !disabled && <ModelMenu anchor={menu.anchor} onClose={menu.close} selection={selection} extra={extra} />}
 		</>
 	);
 }

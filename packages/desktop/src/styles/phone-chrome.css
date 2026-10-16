@@ -1,0 +1,345 @@
+/* ---------------------------------------------------------------------------
+ * The phone's frame: the edges, the bar along the top, and how a panel arrives.
+ *
+ * Part of `phone.css`. See `PhoneTopBar` and `PhonePaneHeader`.
+ * ------------------------------------------------------------------------ */
+
+/*
+ * Below the status bar, on the page's own colour.
+ *
+ * Every screen in the window starts here — the conversation, its panels, settings — so the bar on
+ * top of each one does too. This was a rule on `main.ly-opaque` until the conversation's `main` lost
+ * that class, and from then on the title bar's buttons sat under the clock and the battery.
+ */
+[data-lyra-host="mobile"] .ly-shell > main {
+  padding-top: var(--ly-safe-top);
+  /* Its own colour, not the shell's: the shell is the sidebar's grey, and that is what showed through. */
+  background: var(--color-shell);
+}
+
+/* No window frame to stand off from: the screen is the frame. */
+[data-lyra-host="mobile"] .ly-frames {
+  padding: 0;
+}
+
+[data-lyra-host="mobile"] .ly-card-page {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * The bar: one control at each end and a title between them, centred on the screen.
+ * ------------------------------------------------------------------------ */
+
+.ly-phone-bar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  height: 100%;
+  padding-inline: 6px;
+}
+
+/* Never narrower than what they hold: a long title truncates in the middle rather than covering them. */
+.ly-phone-bar-side {
+  display: flex;
+  align-items: center;
+}
+
+.ly-phone-bar-end {
+  justify-content: flex-end;
+}
+
+.ly-phone-bar-icon {
+  display: grid;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--color-ink);
+}
+
+/* An end with nothing to offer still takes its width, so the title stays in the middle. */
+.ly-phone-bar-icon[data-placeholder] {
+  visibility: hidden;
+}
+
+.ly-phone-bar-icon:active {
+  background: var(--color-card-hover);
+}
+
+.ly-phone-bar-title {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  height: 40px;
+  align-items: center;
+  gap: 4px;
+  padding-inline: 14px 10px;
+  border-radius: 999px;
+  color: var(--color-ink);
+  transition: background-color var(--ly-t-quick) ease-out;
+}
+
+.ly-phone-bar-title:active,
+.ly-phone-bar-title[aria-expanded="true"] {
+  background: var(--color-card-hover);
+}
+
+.ly-phone-bar-label {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-label);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ly-phone-bar-chevron {
+  flex-shrink: 0;
+  color: var(--color-ink-faint);
+}
+
+/* Beside the conversation on a tablet: the name at the start, the close at the end. */
+.ly-phone-bar.ly-phone-bar-beside {
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding-inline: 10px 6px;
+}
+
+/* A panel's name, beside its mark. */
+.ly-phone-bar-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  padding-inline: 4px;
+  color: var(--color-ink);
+}
+
+.ly-phone-bar-mark {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--color-ink-muted);
+}
+
+.ly-phone-bar-mark > svg {
+  width: 17px;
+  height: 17px;
+}
+
+/* ---------------------------------------------------------------------------
+ * A panel is a page pushed over the conversation.
+ *
+ * It comes in from the right; the conversation under it stays drawn and slides a little to the left
+ * and back again, so the way back reads as the way it came. On the desktop a pane that is not shown
+ * is transparent — here the conversation is the page underneath, and has to be there to be pushed.
+ * ------------------------------------------------------------------------ */
+
+@keyframes ly-phone-push-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+[data-lyra-host="mobile"][data-layout="compact"] .ly-dock-pane:not([data-pane="conversation"]):not([inert]) {
+  animation: ly-phone-push-in var(--ly-t-slow) var(--ly-e-out);
+  box-shadow: -12px 0 32px -18px rgb(0 0 0 / 0.45);
+}
+
+[data-lyra-host="mobile"][data-layout="compact"] .ly-dock-pane[data-pane="conversation"] {
+  transition: transform var(--ly-t-slow) var(--ly-e-out);
+}
+
+[data-lyra-host="mobile"][data-layout="compact"] .ly-dock-pane[data-pane="conversation"][inert] {
+  opacity: 1;
+  transform: translateX(-24%);
+}
+
+/* ---------------------------------------------------------------------------
+ * Things that are not for a phone.
+ * ------------------------------------------------------------------------ */
+
+/*
+ * The question rail. It runs down the left edge — which on a phone is where the drawer is pulled
+ * from, so its marks stood in the way of the gesture — and it is a pointer's tool: a column of 12px
+ * ticks that preview on hover. On a phone they were a row of stray dashes beside every reply.
+ */
+[data-lyra-host="mobile"] .ly-question-rail {
+  display: none;
+}
+
+/*
+ * The composer's tray. On the desktop it is the grey ground the project and branch chips sit on,
+ * with the card resting in it; on a phone, edge to edge, it drew a second card around the first
+ * with their sides two pixels apart. The chips are a caption over the composer, on the page.
+ */
+/* Over `:root.dark .ly-composer-tray`, which would otherwise keep its fill in the dark theme. */
+:root[data-lyra-host="mobile"] .ly-composer-tray {
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+/* ---------------------------------------------------------------------------
+ * The conversation's sheet: what it is, its panels, then the actions. See `PhoneTopBar`.
+ * ------------------------------------------------------------------------ */
+
+.ly-phone-sheet-heading {
+  padding: 6px 20px 12px;
+}
+
+.ly-phone-sheet-heading-title {
+  overflow: hidden;
+  font-size: var(--text-title);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--color-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ly-phone-sheet-heading-caption {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  font-size: var(--text-detail);
+  color: var(--color-ink-faint);
+}
+
+.ly-phone-sheet-heading-caption > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * The panels, one row of tiles the thumb can run along — the way a phone lists the places something
+ * can go. A panel that is already open says so with the accent.
+ *
+ * The tiles share the row, and shrink to fit it, rather than each taking a fixed width: at 76px six
+ * of them came to 486px in a 390px row, and the cut fell just after the fifth, so nothing showed
+ * there was a sixth — and any fixed width is a near miss on some phone (60px left 7px of the sixth
+ * cut off on a 393pt one). Shrinking, six fit every phone from 360pt up. Past 50px a tile stops
+ * shrinking and the row scrolls: a plugin's seventh, on a narrow phone.
+ */
+.ly-phone-panels {
+  container-type: inline-size;
+  display: flex;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding: 0 14px 12px;
+  scrollbar-width: none;
+  border-bottom: 0.5px solid var(--color-line-float, var(--color-line-soft));
+  margin-bottom: 6px;
+}
+
+.ly-phone-panels::-webkit-scrollbar {
+  display: none;
+}
+
+.ly-phone-panel {
+  display: flex;
+  min-width: 50px;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 0;
+  border-radius: 16px;
+}
+
+.ly-phone-panel-mark {
+  display: grid;
+  width: min(52px, 100% - 8px);
+  aspect-ratio: 1;
+  place-items: center;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--color-ink) 6%, var(--color-float));
+  color: var(--color-ink);
+  transition:
+    transform var(--ly-t-base) var(--ly-e-out),
+    background-color var(--ly-t-quick) ease-out;
+}
+
+.ly-phone-panel:active .ly-phone-panel-mark {
+  transform: scale(0.92);
+  background: color-mix(in srgb, var(--color-ink) 11%, var(--color-float));
+}
+
+.ly-phone-panel[data-open] .ly-phone-panel-mark {
+  background: color-mix(in srgb, var(--color-accent) 16%, var(--color-float));
+  color: var(--color-accent);
+}
+
+/*
+ * Named the way a home screen names an app: small, and on two lines when one will not do.
+ *
+ * The size follows the row. At 13px 「文件内容」 is 60px, and six tiles on a 360pt phone are 53px
+ * each, so it broke as 「文件内 / 容」. At 3.2% of the row it is 11px there and 11.6px on a 402pt
+ * phone, a few px clear of its neighbours on both. Names that still need two lines get balanced
+ * ones — 「Contenu / du fichier」 — rather than a full first line and one word, or one character,
+ * left on the second.
+ */
+.ly-phone-panel-label {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: clamp(11px, 3.2cqi, var(--text-caption));
+  line-height: 1.25;
+  color: var(--color-ink-muted);
+  text-align: center;
+  text-wrap: balance;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* ---------------------------------------------------------------------------
+ * The status bar over a dimmed page.
+ *
+ * iOS picks the status bar's colours from what is under it, and reads a translucent dimming layer
+ * there as a light background: with the drawer or a sheet open, the clock and the battery turned
+ * black on a page dimmed to near-black. So no dimming layer reaches into that strip. The strip gets
+ * an opaque fill in the colour the dimmed page has there — the page under the status bar is the
+ * page's own colour, so it looks the same, and it is something iOS reads as dark.
+ * ------------------------------------------------------------------------ */
+
+[data-lyra-host="mobile"] .ly-drawer-scrim,
+[data-lyra-host="mobile"] .ly-menu-sheet-scrim {
+  top: var(--ly-safe-top);
+}
+
+[data-lyra-host="mobile"] .ly-drawer-scrim::before,
+[data-lyra-host="mobile"] .ly-menu-sheet-scrim::before {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  left: 0;
+  height: var(--ly-safe-top);
+  background: var(--ly-dimmed-strip);
+}
+
+/* The page's colour under each layer's own dimming: `phone-drawer.css` and `phone-sheet.css`. */
+[data-lyra-host="mobile"] .ly-drawer-scrim {
+  --ly-dimmed-strip: color-mix(in srgb, var(--color-shell) 66%, rgb(10 10 12));
+}
+
+:root.dark[data-lyra-host="mobile"] .ly-drawer-scrim {
+  --ly-dimmed-strip: color-mix(in srgb, var(--color-shell) 45%, rgb(0 0 0));
+}
+
+[data-lyra-host="mobile"] .ly-menu-sheet-scrim {
+  --ly-dimmed-strip: color-mix(in srgb, var(--color-shell) 66%, rgb(0 0 0));
+}
+
+:root.dark[data-lyra-host="mobile"] .ly-menu-sheet-scrim {
+  --ly-dimmed-strip: color-mix(in srgb, var(--color-shell) 50%, rgb(0 0 0));
+}

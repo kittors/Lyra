@@ -30,6 +30,7 @@ import { usePopover } from "../../ui/overlay/Popover.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { BranchMenu, WorktreeFailedNote, WorktreeMenu, useWorktreeState } from "../modals/index.ts";
 import { PermissionPicker } from "../modals/index.ts";
+import { PhoneTurnBadge, PhoneTurnSettings, usePhoneTurnLabel } from "./PhoneTurnSettings.tsx";
 import { ProjectPicker } from "../modals/index.ts";
 import { useLayout } from "../../app/layout.tsx";
 import type { DraftAttachment } from "./attachments/read.ts";
@@ -382,6 +383,8 @@ export function Composer({ centered = false }: {
 		auto: t("composer.permissionAuto"),
 		full: t("composer.permissionFull"),
 	}[permissionMode];
+	// On a phone the model's chip also draws the effort and full access, and has to name them.
+	const phoneTurnLabel = usePhoneTurnLabel();
 
 	async function submit() {
 		if (submitting.current.has(draftKey)) return;
@@ -800,7 +803,8 @@ export function Composer({ centered = false }: {
 					left={
 						<>
 							<IconButton size="composer" emphasis label={t("composer.addAttachment")} onClick={kit.picker.open} icon={<Plus size={16} strokeWidth={1.9} />} />
-							{settings?.screenshot?.enabled !== false && settings?.screenshot?.showInComposer && (
+							{/* Not on a phone: it captures the desktop's screen, which the person holding the phone cannot see. */}
+							{settings?.screenshot?.enabled !== false && settings?.screenshot?.showInComposer && !onPhone() && (
 								<IconButton
 									size="composer"
 									emphasis
@@ -813,7 +817,8 @@ export function Composer({ centered = false }: {
 							)}
 							{kit.picker.input}
 
-							<button
+							{/* On a phone the mode is a row in the model's sheet, and the chip carries its red: see `PhoneTurnSettings`. */}
+							{!onPhone() && <button
 								type="button"
 								/* The app's own tooltip, so the icon-only form still says what it is. */
 								data-ly-tip={permissionLabel}
@@ -856,7 +861,7 @@ export function Composer({ centered = false }: {
 									<RollingText>{permissionLabel}</RollingText>
 									<ChevronDown size={14} className="shrink-0" aria-hidden />
 								</span>
-							</button>
+							</button>}
 						</>
 					}
 					right={
@@ -875,9 +880,20 @@ export function Composer({ centered = false }: {
 							</div>
 
 							{/* Before the chat model, not between it and its effort: those two are one thing. */}
-							<MediaModelButton />
-							<ModelTrigger modelId={modelId} ariaLabel={t("composer.selectModel")} />
-							<EffortTrigger modelId={modelId} />
+							{/*
+							 * On a phone the row is the attachment, the model and send. The model's sheet carries the
+							 * effort, the approval mode and the media models, and its chip says the two that matter
+							 * at a glance — see `PhoneTurnSettings`.
+							 */}
+							{onPhone() ? (
+								<ModelTrigger modelId={modelId} ariaLabel={phoneTurnLabel} extra={<PhoneTurnSettings permission={(anchor, close) => <PermissionPicker anchor={anchor} onClose={close} />} />} badge={<PhoneTurnBadge />} />
+							) : (
+								<>
+									<MediaModelButton />
+									<ModelTrigger modelId={modelId} ariaLabel={t("composer.selectModel")} />
+									<EffortTrigger modelId={modelId} />
+								</>
+							)}
 
 							{/* 正忙时按下去是排队而不是插话，所以它说的也不再是「发送」——见 `submitOnce`。 */}
 							<div className="ly-queue-send" data-visible={running && Boolean(text.trim() || attachments.length || sessionRefs.length)} inert={!running || !(text.trim() || attachments.length || sessionRefs.length)}><div><ComposerSend running={false} active={running && Boolean(text.trim() || attachments.length || sessionRefs.length)} disabled={!running || !(text.trim() || attachments.length || sessionRefs.length)} tip={t("composer.queueWaiting")} onSend={() => void submit()} onStop={() => void abort(activeSessionId ?? undefined)} /></div></div>

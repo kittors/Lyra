@@ -20,6 +20,7 @@ import { StatusSpinner } from "../../ui/motion/loaders.tsx";
 import { describeHiccup, hiccupTip, type Hiccup } from "../../lib/hiccup.ts";
 import { useScopedSessionId } from "../../app/session-scope.tsx";
 import { useApp } from "../../store/index.ts";
+import { onPhone } from "../../services/index.ts";
 
 /** 等待时每秒重画一次，就为了那个数字；不等待时一次都不用。 */
 function useTick(active: boolean): number {
@@ -168,7 +169,8 @@ function Next({ hint }: { hint?: string }) {
 	const setView = useApp((s) => s.setView);
 	const setSettingsSection = useApp((s) => s.setSettingsSection);
 
-	if (hint === "check-key" || hint === "check-model") {
+	// A key or a model is set up on the computer: on a phone the page is not there (`sections-for.ts`).
+	if ((hint === "check-key" || hint === "check-model") && !onPhone()) {
 		return (
 			<button
 				type="button"

@@ -115,7 +115,8 @@ function composerFit() {
 		shown = probe.textContent ?? "";
 		cut = probe.scrollWidth > probe.clientWidth + 1 || value.scrollWidth > value.clientWidth + 1;
 	}
-	const effort = probe.closest("button")?.nextElementSibling as HTMLElement;
+	// The level is drawn inside the model's chip on a phone (`PhoneTurnBadge`), and named in its label.
+	const meter = probe.closest("button")?.querySelector(".ly-phone-turn-badge .ly-effort-meter") as HTMLElement | null;
 	const controls = [...shell.querySelectorAll("button")]
 		.filter((button) => button.checkVisibility({ visibilityProperty: true }) && getComputedStyle(button).opacity !== "0")
 		.map((button) => ({ label: button.getAttribute("aria-label"), w: button.getBoundingClientRect().width, h: button.getBoundingClientRect().height }));
@@ -136,7 +137,7 @@ function composerFit() {
 		shown,
 		cut,
 		room: { name: [name.scrollWidth, name.clientWidth], chip: [chip.getBoundingClientRect().width, chipStyle.paddingLeft, chipStyle.paddingRight, chipStyle.gap], bar: bar ? [bar.getBoundingClientRect().width, getComputedStyle(bar).gap] : null },
-		effort: { text: effort.textContent?.trim() ?? "", w: effort.getBoundingClientRect().width, label: effort.getAttribute("aria-label") },
+		effort: { drawn: Boolean(meter), text: meter?.textContent?.trim() ?? "", w: meter?.getBoundingClientRect().width ?? 0, label: chip.getAttribute("aria-label") ?? "" },
 		controls,
 		placeholder: { text: field.placeholder, needs: Math.ceil(placeholder), room: Math.floor(room) },
 	};
@@ -224,9 +225,10 @@ test("the model's name is whole wherever it fits, and never cut where it does no
 			if (width >= 390) assert.equal(fit.shown, MODEL, `the whole name wherever a phone has 390pt — ${at}`);
 			// Short of room it gives up the house's word, which the mark beside it already says.
 			else assert.ok(fit.shown === MODEL || fit.shown === "Sonnet 5", `the whole name or the name without its house — ${at}`);
-			assert.equal(fit.effort.text, "", `the reasoning level is drawn, not named, so it is as wide in every language — ${at}`);
-			assert.ok(fit.effort.w <= 45, `the reasoning level keeps to one 44pt target — ${at}`);
-			assert.ok(fit.effort.label && fit.effort.label.length > 0, `the level is still named for assistive technology — ${at}`);
+			assert.ok(fit.effort.drawn, `the reasoning level is drawn inside the model's chip — ${at}`);
+			assert.equal(fit.effort.text, "", `drawn, not named, so it is as wide in every language — ${at}`);
+			assert.ok(fit.effort.w <= 20, `a few bars, not a word — ${at}`);
+			assert.ok(fit.effort.label.includes(" · "), `the chip names the level for assistive technology — ${at}`);
 			for (const control of fit.controls) assert.ok(control.w >= 44 && control.h >= 44, `a thumb's target — ${JSON.stringify(control)} ${at}`);
 			assert.ok(fit.placeholder.needs <= fit.placeholder.room, `the placeholder fits on its one line — ${at}`);
 		}

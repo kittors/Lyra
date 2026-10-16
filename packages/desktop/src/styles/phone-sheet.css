@@ -1,0 +1,222 @@
+/* ---------------------------------------------------------------------------
+ * Menus as sheets. See `ui/overlay/sheet.ts`.
+ *
+ * Part of `phone.css`. On a phone held upright every menu hung off a control comes up from the
+ * bottom edge, over a dimmed page, and goes back down the way it came. A tablet's layout is not
+ * compact and keeps its menus beside their triggers.
+ * ------------------------------------------------------------------------ */
+
+[data-lyra-host="mobile"][data-layout="compact"] {
+  --ly-menu-sheet: 1;
+}
+
+.ly-menu-card.ly-menu-sheet {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: auto;
+  max-width: 640px;
+  max-height: calc(100% - var(--ly-safe-top, 0px) - 16px);
+  margin-inline: auto;
+  /* Room for the handle above the first row, and for the home indicator below the last. */
+  padding-top: 18px;
+  padding-bottom: calc(var(--ly-safe-bottom, 0px) + 6px);
+  border-width: 0.5px 0 0;
+  border-radius: 24px 24px 0 0;
+  background: var(--color-float);
+  /* A sheet rests on the bottom edge; the only side it can cast towards is up. */
+  box-shadow: 0 -10px 36px -14px rgb(0 0 0 / 0.3);
+  transform-origin: 50% 100%;
+  transition: translate var(--ly-t-base) var(--ly-e-out);
+}
+
+.ly-menu-card.ly-menu-sheet[data-dragging] {
+  transition: none;
+}
+
+/* The handle: says it is a sheet, and which way it goes. */
+.ly-menu-card.ly-menu-sheet::before {
+  content: "";
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  width: 36px;
+  height: 5px;
+  margin-left: -18px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-ink) 18%, transparent);
+  pointer-events: none;
+}
+
+/* Rows run the width of the screen, so they get the screen's inset rather than a menu's. */
+.ly-menu-sheet .ly-item {
+  min-height: 50px;
+  padding-inline: 16px;
+  border-radius: 14px;
+}
+
+.ly-menu-sheet [role="separator"] {
+  margin-inline: 16px;
+}
+
+/*
+ * The search field lines up with the rows under it: its icon in their icons' column, its text where
+ * their names start. It kept a menu's 12px inset and 13px icon, and sat 12px left of everything below.
+ */
+.ly-menu-sheet .ly-menu-search {
+  height: 48px;
+  gap: 13px;
+  padding-inline: 24px 22px;
+}
+
+.ly-menu-sheet .ly-menu-search > svg {
+  width: 19px;
+  height: 19px;
+}
+
+.ly-menu-card.ly-menu-sheet.ly-pop-in {
+  animation: ly-menu-sheet-in var(--ly-t-slow) var(--ly-e-out);
+}
+
+.ly-menu-card.ly-menu-sheet.ly-pop-out {
+  animation: ly-phone-sheet-pop-out var(--ly-t-base) var(--ly-e-in) forwards;
+}
+
+@keyframes ly-menu-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+/* Named for `Popover`, which closes on the end of an animation whose name ends in `pop-out`. */
+@keyframes ly-phone-sheet-pop-out {
+  to {
+    transform: translateY(100%);
+  }
+}
+
+.ly-menu-sheet-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 0.34);
+}
+
+:root.dark .ly-menu-sheet-scrim {
+  background: rgb(0 0 0 / 0.5);
+}
+
+:root .ly-menu-sheet-scrim.ly-pop-in {
+  animation: ly-menu-sheet-scrim-in var(--ly-t-slow) ease-out;
+}
+
+:root .ly-menu-sheet-scrim.ly-pop-out {
+  animation: ly-menu-sheet-scrim-pop-out var(--ly-t-base) ease-in forwards;
+}
+
+@keyframes ly-menu-sheet-scrim-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes ly-menu-sheet-scrim-pop-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * The model's sheet on a phone: the effort as a row of choices, then the rows that open their own
+ * sheets. See `PhoneTurnSettings`.
+ * ------------------------------------------------------------------------ */
+
+.ly-phone-turn-effort {
+  padding: 10px 16px 12px;
+}
+
+.ly-phone-turn-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  font-size: var(--text-detail);
+  font-weight: 500;
+  color: var(--color-ink-muted);
+}
+
+.ly-phone-turn-note {
+  font-size: var(--text-caption);
+  font-weight: 400;
+  color: var(--color-ink-faint);
+}
+
+/* Choices in a row that runs on sideways when a model offers more than fit — never wraps. */
+.ly-phone-options {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  margin-inline: -16px;
+  padding-inline: 16px;
+  scrollbar-width: none;
+}
+
+.ly-phone-options::-webkit-scrollbar {
+  display: none;
+}
+
+.ly-phone-option {
+  flex: 0 0 auto;
+  min-width: 56px;
+  height: 40px;
+  padding-inline: 16px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-ink) 6%, var(--color-float));
+  font-size: var(--text-label);
+  color: var(--color-ink);
+  white-space: nowrap;
+  transition:
+    background-color var(--ly-t-quick) ease-out,
+    color var(--ly-t-quick) ease-out,
+    transform var(--ly-t-base) var(--ly-e-out);
+}
+
+.ly-phone-option[aria-checked="true"] {
+  background: var(--color-ink);
+  color: var(--color-float);
+  font-weight: 600;
+}
+
+.ly-phone-option:active {
+  transform: scale(0.94);
+}
+
+.ly-phone-turn-value {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+  font-size: var(--text-detail);
+  color: var(--color-ink-muted);
+}
+
+/* The chip in the composer: the effort's bars after the name, and full access's dot on top of them. */
+.ly-phone-turn-badge {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  margin-left: 4px;
+}
+
+.ly-phone-turn-danger {
+  position: absolute;
+  top: -3px;
+  right: -5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--color-danger);
+  box-shadow: 0 0 0 1.5px var(--ly-phone-well, var(--color-shell));
+}

@@ -91,6 +91,27 @@ slug；`-exportArchive` 没有签名身份时直接拒绝运行；`Payload/` 里
 去的每个 scheme 一起列出来，「取第一个」取到的是 `EXConstants`，它归档成功、然后在找不到 `.app`
 的地方失败。
 
+## 应用要向 iOS 报出自己会哪几种语言
+
+`app.json` 里的 `locales` 不只是给相机、麦克风的权限说明配译文，它同时是应用向 iOS 声明「我有这
+七种语言」的那一处——prebuild 把每种语言写成 `ios/Lyra/Supporting/<lang>.lproj/InfoPlist.strings`，
+iOS 看的就是这些 `.lproj`。
+
+一种都不声明的时候，iOS 把开发区域（`en`）当成应用唯一会的语言，于是在简体中文的 iPhone 上：
+
+- 原生的几页（首页、配对、扫码、桌面端连不上时的提示）是英文的。它们按
+  `Intl.DateTimeFormat().resolvedOptions().locale` 选语言，而这个值是 `en-CN`——语言跟着应用走，
+  只有地区跟着手机。
+- WebView 里由系统画的东西也是英文：输入框 + 号弹出的「Photo Library / Take Photo or Video /
+  Choose Files」，长按文字的拷贝粘贴菜单。
+- 同一个手机上，系统自己弹的「在 "Lyra" 中打开？」却是中文——这正是分辨「系统没翻」和「应用没报」
+  的那个对照。
+
+`CFBundleAllowMixedLocalizations` 一起开着，让系统框架在应用没列出的语言里也照用户的语言来。
+
+给手机端（`src/i18n.ts`）加一种语言时，`locales` 里也要加一项，否则那种语言的手机仍然拿到英文的
+原生页。语言代码用 Apple 的写法：`zh-Hans`、`zh-Hant`，不是 `zh-CN`、`zh-TW`。
+
 ## 本地怎么验
 
 ```bash

@@ -23,8 +23,11 @@ import { useApp } from "../../store/index.ts";
 import { SessionMenu, deleteSessionQuestion } from "../modals/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
+import { onPhone } from "../../services/host.ts";
 import { closePane } from "./actions.ts";
 import { paneKey } from "./pane-key.ts";
+import { PhoneTopBar } from "./PhoneTopBar.tsx";
+import { useScreenMeta } from "./screen-meta.ts";
 import { SplitMoveItems } from "./SplitMoveItems.tsx";
 import { leafCount, firstSession } from "./tree.ts";
 import { useSplit } from "./store.ts";
@@ -44,6 +47,8 @@ export function SplitChrome({
 	// Under a header bar this sits mid-window, where moving the window would bring Windows' title
 	// bar along with it — the system menu on a right-click, maximise on a double-click. See `PaneHeader`.
 	const { headerBar } = useLayout();
+	// Three things and a sheet, rather than this bar's six controls: see `PhoneTopBar`.
+	if (onPhone()) return <PhoneTopBar sessionId={sessionId} />;
 	return (
 		<header
 			// One screen answers to the old single-screen selector; several each answer to their own.
@@ -59,19 +64,6 @@ export function SplitChrome({
 			<ScreenTitle sessionId={sessionId} screen={screen} />
 			<ScreenTools sessionId={sessionId} screen={screen} />
 		</header>
-	);
-}
-
-/** The conversation's metadata, wherever it is: the live one, a warmed screen, or the sidebar list. */
-function useScreenMeta(sessionId: string | null) {
-	return useApp((s) =>
-		!sessionId
-			? s.activeSessionId
-				? null
-				: s.meta
-			: s.activeSessionId === sessionId
-				? s.meta
-				: (s.sessionCache[sessionId]?.meta ?? s.sessions.find((session) => session.id === sessionId) ?? null),
 	);
 }
 

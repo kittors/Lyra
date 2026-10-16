@@ -22,7 +22,7 @@ import {
 } from "../../lib/number-draft.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import { Minus, Plus } from "lucide-react";
-import { useEffect, useRef, useState, type JSX } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type JSX } from "react";
 
 import { InlineSelect } from "./inputs.tsx";
 
@@ -107,7 +107,8 @@ export function Slider({
 	}, []);
 
 	return (
-		<div className="relative h-[18px]" style={{ width }}>
+		// The width through a variable rather than inline, so a phone can give a stacked slider the row.
+		<div className="ly-slider relative h-[18px] w-(--ly-slider-width)" style={{ "--ly-slider-width": `${width}px` } as CSSProperties}>
 			{/* Track, and the part of it behind the handle. */}
 			<div className="absolute top-1/2 h-[3px] w-full -translate-y-1/2 overflow-hidden rounded-full bg-line">
 				<div
