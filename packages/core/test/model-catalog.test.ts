@@ -10,6 +10,7 @@ import {
 } from "../src/model-catalog.ts";
 import { normalizeSettings } from "../src/config/settings.ts";
 import { computeCost } from "../src/utils/pricing.ts";
+import { emptyUsage } from "../src/types/message.ts";
 import type { ProviderConfig } from "../src/types/provider.ts";
 
 function provider(baseUrl: string, id = "provider-local"): ProviderConfig {
@@ -124,6 +125,31 @@ describe("offline model catalogue", () => {
 			assert.equal(catalogModelFor(relay, id), null, id);
 		}
 	});
+	/*
+	 * The 2026-09-06 snapshot predates GPT-6 Sol, GPT-6 Luna and GPT-6.1 Sol, so a relay serving them
+	 * got no window, no limits and no bill. Pinned to OpenAI's published tariff for the ids relays list.
+	 */
+	it("gives GPT-6.1 Sol on a relay OpenAI's window, limits and long-context tier", () => {
+		const relay = provider("https://relay.example/v1");
+		for (const id of ["gpt-6.1-sol", "openai/gpt-6.1-sol"]) {
+			const found = catalogModelFor(relay, id)?.model;
+			assert.equal(found?.name, "GPT-6.1 Sol", id);
+			assert.equal(found?.contextWindow, 1_050_000, id);
+			assert.equal(found?.maxOutputTokens, 128_000, id);
+			assert.equal(found?.inputPrice, 2, id);
+			assert.equal(found?.outputPrice, 10, id);
+			assert.equal(found?.cacheReadPrice, 0.1, id);
+		}
+		const model = modelConfigFromCatalog(relay, "gpt-6.1-sol");
+		assert.ok(model);
+		assert.equal(model.modelId, "gpt-6.1-sol");
+		const bill = (input: number) => computeCost({ ...emptyUsage(), input, total: input }, model).cost.rates;
+		assert.deepEqual(bill(272_000), { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 });
+		assert.deepEqual(bill(272_001), { input: 4, output: 15, cacheRead: 0.2, cacheWrite: 5 }, "past 272k every bucket moves to the long-context tier");
+		for (const id of ["gpt-6-sol", "gpt-6-luna"]) {
+			assert.equal(typeof catalogModelFor(relay, id)?.model.inputPrice, "number", id);
+		}
+	});
 	it("distinguishes regional endpoints instead of applying international prices in China", () => {
 		assert.equal(catalogProviderFor(provider("https://api.moonshot.cn/v1"))?.id, "moonshotai-cn");
 		assert.equal(catalogProviderFor(provider("https://dashscope.aliyuncs.com/compatible-mode/v1"))?.id, "alibaba-cn");
@@ -140,7 +166,10 @@ describe("offline model catalogue", () => {
 	});
 	it("repairs old imports at settings load so live requests use the same prices as the editor", () => {
 		const relay = provider("https://relay.example/v1");
-		const legacy = { id: "local", providerId: relay.id, modelId: "deepseek-v4-flash:0731", name: "Custom name", contextWindow: 200000, maxOutputTokens: 16384, supportsThinking: true, supportsImages: true, supportsTools: true };
+		const legacy = { id: "local", providerId: relay.id, modelId: "deepseek-v4-pro:0731", name: "Custom name", contextWindow: 200000, maxOutputTokens: 16384, supportsThinking: true, supportsImages: true, supportsTools: true };
+		// The legacy signature claims image input, so only a text-only entry shows the repair. This used
+		// deepseek-v4-flash until models.dev made it an alias of the image-capable V4.1 Flash.
+		assert.equal(catalogModelFor(relay, legacy.modelId)?.model.supportsImages, false, "the fixture must be text-only in the catalogue");
 		const settings = normalizeSettings({ providers: [{ ...relay, models: [legacy] }] });
 		const model = settings.providers[0].models[0];
 		assert.equal(model.supportsImages, false);
