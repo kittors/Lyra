@@ -124,6 +124,54 @@ test("a long press on a row opens the row's own context menu, lifted, with a tap
 	assert.equal(heldClear(), null, "卸载时松开避让区");
 });
 
+test("on iOS, the mouse press a lifted finger still makes does not close the menu the long press opened", async () => {
+	const view = await mount(
+		h(
+			"div",
+			null,
+			h(PhoneTouch),
+			h(
+				"div",
+				{ "data-ly-hover-row": "", "data-ly-row": "s1", onContextMenu: (event: MouseEvent) => event.preventDefault() },
+				h("button", { type: "button" }, h("span", null, "排查首页加载慢")),
+			),
+			h("div", { "data-ly-popover": "1" }, h("button", { type: "button", id: "pin" }, "置顶")),
+		),
+	);
+	// Where a popover listens for a press outside it: on the window, capturing — after the layer, as
+	// every popover is mounted after it.
+	const heard: string[] = [];
+	const listen = (event: MouseEvent) => heard.push((event.target as Element).id || (event.target as Element).tagName);
+	window.addEventListener("mousedown", listen, true);
+	// WebKit's own: trusted, which no event a script dispatches is.
+	const press = (target: Element) => {
+		const event = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
+		Object.defineProperty(event, "isTrusted", { value: true });
+		target.dispatchEvent(event);
+		return event;
+	};
+	try {
+		await hold(view.find("[data-ly-row] span"), HOLD_MS + 60);
+		const echo = press(document.body);
+		assert.deepEqual(heard, [], "松手后补来的那一下按下，弹层听不到——菜单不会刚打开就关上");
+		assert.equal(echo.defaultPrevented, true);
+
+		press(document.getElementById("pin")!);
+		assert.deepEqual(heard, ["pin"], "按在菜单里的照常送达：菜单项要点得动");
+
+		const ours = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
+		document.body.dispatchEvent(ours);
+		assert.equal(heard.length, 2, "脚本自己发的不是回声，不拦");
+
+		await wait(500);
+		press(document.body);
+		assert.equal(heard.length, 3, "过了那一小段，按在外面又能关菜单了");
+	} finally {
+		window.removeEventListener("mousedown", listen, true);
+		await view.unmount();
+	}
+});
+
 test("a tap is only a tap, and a scroll never becomes a press", async () => {
 	let menus = 0;
 	const view = await mount(

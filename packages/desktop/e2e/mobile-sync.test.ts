@@ -231,12 +231,13 @@ test("mobile trajectory keeps real touch targets and omits desktop file exports"
 	await until(phone, `!document.querySelector('[role="alert"] button[aria-label="关闭"]')`);
 	// 轨迹条目在「大规模轨迹验证」那个会话里——前面几条留在别的会话上，那里一次工具调用都没有。
 	const trace = '[data-ly-row="10000000-0000-4000-8000-000000000001"]';
-	await click(phone, 'button[aria-label^="显示侧边栏"]');
+	await click(phone, 'button[aria-label="打开会话列表"]');
 	await until(phone, `document.querySelector(${JSON.stringify(trace)}).getBoundingClientRect().left >= 0`, "drawer open");
 	await phone.evaluate("Promise.all(document.getAnimations().filter(a=>Number.isFinite(a.effect?.getComputedTiming().endTime)).map(a=>a.finished.catch(()=>{})))");
 	await click(phone, `${trace} > button`);
 	await until(phone, `!!document.querySelector(${JSON.stringify(`${trace} > button[aria-current="page"]`)})`, "trajectory session opened");
-	await click(phone, 'button[aria-label="面板"]');
+	// 面板在会话的弹层里：点标题从底边升起，第一排就是各个面板。
+	await click(phone, '.ly-phone-bar-title');
 	t.diagnostic(await phone.evaluate("document.body.innerText.slice(-800)"));
 	await phone.evaluate("(()=>{const e=[...document.querySelectorAll('button')].find(e=>e.textContent.trim()==='轨迹');if(!e)throw new Error('trajectory action missing');e.click();})()");
 	t.diagnostic(`轨迹面板：${await phone.evaluate<string>(`(()=>{const p=document.querySelector('[data-dock-pane="trajectory"]');return p?('在，内容='+p.innerText.slice(0,240).replace(/\\s+/g,' ')):'✗ 没有 trajectory 面板；当前 dock='+[...document.querySelectorAll('[data-dock-pane]')].map(e=>e.getAttribute('data-dock-pane')).join(',');})()`)}`);

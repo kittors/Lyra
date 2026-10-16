@@ -9,16 +9,22 @@
  * Scoped to `[data-lyra-host="mobile"]`, which the bridge sets before the app boots. Nothing here
  * reaches the desktop, and a narrow desktop window stays a desktop window — it still has a mouse.
  *
- * Four files, by what they are about:
+ * Seven files, by what they are about:
  *   phone.css               the page: safe areas, type, hit areas, hover, the keyboard
- *   phone-touch.css         what a finger does: pressing, holding, menus and sheets
+ *   phone-touch.css         what a finger does: pressing, holding, long-press menus
+ *   phone-sheet.css         every other menu, as a sheet from the bottom edge
  *   phone-drawer.css        the navigation drawer and its bottom bar
- *   phone-conversation.css  the conversation: its top bar, the empty screen, the composer
+ *   phone-conversation.css  the conversation: the empty screen, the composer
+ *   phone-chrome.css        the frame: the bar along the top, the edges, panels as pages
+ *   phone-settings.css      settings: a list of pages, and the page pushed over it
  * ------------------------------------------------------------------------ */
 
 @import "./phone-touch.css";
+@import "./phone-sheet.css";
 @import "./phone-drawer.css";
 @import "./phone-conversation.css";
+@import "./phone-chrome.css";
+@import "./phone-settings.css";
 
 [data-lyra-host="mobile"] {
   /*
@@ -131,15 +137,13 @@
  * The status bar is kept clear column by column rather than across the top of the whole page, so
  * the strip under it is the colour of the column it belongs to: the sidebar's over a sidebar laid
  * out beside the conversation (a tablet, a phone on its side), the page's over the page. The drawer
- * pads itself (`phone-drawer.css`).
+ * pads itself (`phone-drawer.css`), the page's column in `phone-chrome.css`.
  */
-[data-lyra-host="mobile"] .ly-shell main.ly-opaque,
 [data-lyra-host="mobile"] aside[data-pane="beside"] > .ly-sidebar-fill {
   padding-top: var(--ly-safe-top);
 }
 
 /* Controls laid over the shell's top edge move down with it. */
-[data-lyra-host="mobile"] [data-ly-window-buttons],
 [data-lyra-host="mobile"] [data-ly-settings] > .drag-region {
   top: var(--ly-safe-top);
 }
@@ -215,19 +219,6 @@
 
 [data-lyra-host="mobile"] .ly-file-tab > button {
   min-height: 44px;
-}
-
-/*
- * The question rail is capped to a small nearby window, so 44px per question remains bounded and
- * gives each jump its own target instead of stacking overlapping invisible hit areas on 12px rows.
- */
-[data-lyra-host="mobile"] .ly-question-rail {
-  width: 44px;
-}
-
-[data-lyra-host="mobile"] .ly-question-mark {
-  width: 44px;
-  height: 44px;
 }
 
 [data-lyra-host="mobile"] [data-trajectory] button,

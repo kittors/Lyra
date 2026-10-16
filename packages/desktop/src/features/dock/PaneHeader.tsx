@@ -31,9 +31,11 @@
 
 import { translate } from "../../i18n/translate.ts";
 import { Maximize2, Minimize2, SquareArrowOutUpRight, X } from "lucide-react";
+import { onPhone } from "../../services/host.ts";
 import { HEADER_HEIGHT, HEADER_PAD } from "./geometry.ts";
 import type { DropSide, PaneKind } from "./tree.ts";
 import { PaneGrip } from "./PaneGrip.tsx";
+import { PhonePaneHeader } from "./PhonePaneHeader.tsx";
 
 export function PaneHeader({
 	kind,
@@ -118,6 +120,8 @@ export function PaneHeader({
 	/** Whether the bar outside its controls drags the window; false under a header bar, see above. */
 	movesWindow?: boolean;
 }) {
+	// A page's bar rather than a pane's: see `PhonePaneHeader`.
+	if (onPhone()) return <PhonePaneHeader kind={kind} label={label} icon={icon} title={title} actions={actions} onClose={onClose} />;
 	return (
 		<div
 			data-dock-header={kind}

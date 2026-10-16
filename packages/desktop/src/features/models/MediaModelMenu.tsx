@@ -16,6 +16,7 @@ import { MEDIA_KINDS, type MediaKind, mediaModelRows, resolveMediaModel } from "
 import { useScopedMeta, useScopedSessionId } from "../../app/session-scope.tsx";
 import { useI18n } from "../../i18n/index.ts";
 import { ambiguousNames, groupModels } from "../../lib/model-grouping.ts";
+import { onPhone } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { RollingText } from "../../ui/motion/RollingText.tsx";
 import { MenuBody, MenuFooter, MenuItem, MenuLabel, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
@@ -51,7 +52,8 @@ export function MediaModelMenu({ anchor, onClose }: { anchor: Anchor; onClose: (
 			footer={
 				<MenuFooter>
 					<p className="px-2 pb-1 text-caption text-ink-faint">{meta ? t("mediaMenu.hint") : t("mediaMenu.hintNew")}</p>
-					<MenuItem
+					{/* Not on a phone, for the reason in `ModelMenu`: the page is not there. */}
+					{!onPhone() && <MenuItem
 						trailing={<ChevronRight size={13} strokeWidth={2} className="shrink-0 text-ink-faint" />}
 						onClick={() => {
 							setView("settings");
@@ -60,7 +62,7 @@ export function MediaModelMenu({ anchor, onClose }: { anchor: Anchor; onClose: (
 						}}
 					>
 						<RollingText>{t("modelMenu.manageProviders")}</RollingText>
-					</MenuItem>
+					</MenuItem>}
 				</MenuFooter>
 			}
 		>

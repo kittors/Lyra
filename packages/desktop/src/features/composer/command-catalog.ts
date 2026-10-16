@@ -2,6 +2,7 @@ import { translate } from "../../i18n/translate.ts";
 import { builtinCommandsFor, type CommandAction } from "@lyra/core/commands-builtin";
 import { parseInvocation, resolveCommand, type SlashCommand } from "@lyra/core/commands-view";
 import type { SkillEntry } from "../../../electron/ipc-types.ts";
+import { onPhone } from "../../services/host.ts";
 
 export interface CommandEntry {
 	name: string;
@@ -18,7 +19,8 @@ export function skillCommandName(skill: SkillEntry): string {
 
 export function commandEntries(commands: SlashCommand[], skills: SkillEntry[]): CommandEntry[] {
 	const entries: CommandEntry[] = [
-		...builtinCommandsFor(["compact", "clear", "manage-commands"]).map((command): CommandEntry => ({ ...command, kind: "builtin", origin: translate("common.builtin") })),
+		// 「管理命令」 opens a page a phone does not have — commands run on the computer (`sections-for.ts`).
+		...builtinCommandsFor(onPhone() ? ["compact", "clear"] : ["compact", "clear", "manage-commands"]).map((command): CommandEntry => ({ ...command, kind: "builtin", origin: translate("common.builtin") })),
 		...commands.map((command): CommandEntry => ({ ...command, kind: "command", origin: translate(
 				command.origin === "claude"
 					? command.scope === "workspace"

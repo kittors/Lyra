@@ -686,7 +686,7 @@ async function revealRow(phone: Phone, id: string): Promise<void> {
 		`(() => { const el = document.querySelector(${JSON.stringify(row)}); if (!el) return false; const r = el.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth; })()`,
 	);
 	if (!onScreen) {
-		await tap(phone, 'button[aria-label^="显示侧边栏"]');
+		await tap(phone, 'button[aria-label="打开会话列表"]');
 		for (let i = 0; i < 40; i++) {
 			const ready = await phone.cdp.evaluate<boolean>(
 				`(() => { const el = document.querySelector(${JSON.stringify(row)}); if (!el) return false; const r = el.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth; })()`,

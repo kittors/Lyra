@@ -180,17 +180,20 @@ function EmptyMark({ compact }: { compact: boolean }) {
 }
 
 /**
- * The same screen, shaped for a phone: the mark and the question in the middle of the empty space,
- * the four starting points in one row just above the composer.
+ * The same screen, shaped for a phone: the mark, the question and the four starting points as one
+ * group in the middle of the empty space, the composer under it.
  *
- * Above the composer because that is where the thumb already is and where the draft they fill in
- * appears. In one row that scrolls sideways because a two-by-two grid of cards took half the screen
- * on a phone and pushed the mark up under the status bar; as chips they cost one line, and the
- * last one peeking in at the edge says there are more.
+ * The starting points are a two-by-two grid of small tiles under the question. They were a row of
+ * chips above the composer that scrolled sideways, the last one cut off at the edge to say there
+ * were more — which on a phone read as a layout that did not fit rather than as more to see, and
+ * stacked a fourth strip of controls (chips, project and branch, the field, its buttons) on top of
+ * the thumb's corner. The grid had been tried before and dropped for taking half the screen and
+ * pushing the mark up under the status bar; that was the page not keeping clear of the status bar
+ * (see `phone-chrome.css`) and cards twice this height. At 76pt a row the four fit in 162pt.
  *
  * Centred rather than top-weighted, unlike the desktop. There the composer grows under a steady
  * heading; here the keyboard takes half the screen, and a heading pinned to the top of what is left
- * lands under the toolbar. The middle of the space that remains is always visible.
+ * lands under the bar. The middle of the space that remains is always visible, and it scrolls.
  */
 function PhoneEmpty({ heading }: { heading: React.ReactNode }) {
 	const { t } = useI18n();
@@ -202,23 +205,23 @@ function PhoneEmpty({ heading }: { heading: React.ReactNode }) {
 				<div className="ly-phone-hero">
 					<EmptyMark compact />
 					<h1 className="ly-phone-hero-title">{heading}</h1>
+					<div className="ly-phone-starts" role="group" aria-label={t("phone.suggestions")}>
+						{PROMPTS.map((prompt, index) => (
+							<button
+								key={prompt.labelKey}
+								type="button"
+								// Into the composer, never straight to the agent — the desktop's row works the same way.
+								onClick={() => useApp.getState().setComposerDraft(t(prompt.promptKey), { sessionId: screen, replace: true })}
+								style={{ animationDelay: `${120 + index * 50}ms` }}
+								className="ly-phone-start ly-press"
+							>
+								<prompt.icon size={18} strokeWidth={1.8} aria-hidden className="shrink-0" />
+								<span>{t(prompt.labelKey)}</span>
+							</button>
+						))}
+					</div>
 				</div>
 			</Scroller>
-
-			<div className="ly-phone-suggest" role="group" aria-label={t("phone.suggestions")}>
-				{PROMPTS.map((prompt) => (
-					<button
-						key={prompt.labelKey}
-						type="button"
-						// Into the composer, never straight to the agent — the desktop's row works the same way.
-						onClick={() => useApp.getState().setComposerDraft(t(prompt.promptKey), { sessionId: screen, replace: true })}
-						className="ly-phone-chip ly-press"
-					>
-						<prompt.icon size={16} strokeWidth={1.8} aria-hidden className="shrink-0" />
-						<span>{t(prompt.labelKey)}</span>
-					</button>
-				))}
-			</div>
 
 			<Composer />
 		</div>

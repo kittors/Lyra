@@ -17,3 +17,15 @@ test("completion uses the caret and leaves a selected range, inline code and pat
 	assert.equal(commandCompletion("`/rev", 5, 5), null);
 	assert.equal(commandCompletion("src/foo", 7, 7), null);
 });
+
+test("a phone is not offered 「管理命令」: the page it opens is not on a phone", () => {
+	const names = (entries: ReturnType<typeof commandEntries>) => entries.filter((entry) => entry.kind === "builtin").map((entry) => entry.action);
+	assert.ok(names(commandEntries([], [])).includes("manage-commands"), "桌面端照旧有它");
+	const scope = globalThis as { lyra?: unknown };
+	scope.lyra = { host: "mobile" };
+	try {
+		assert.deepEqual(names(commandEntries([], [])), ["compact", "clear"]);
+	} finally {
+		delete scope.lyra;
+	}
+});

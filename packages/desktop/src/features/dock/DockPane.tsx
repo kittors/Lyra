@@ -8,6 +8,7 @@
  */
 
 import { useLayout } from "../../app/layout.tsx";
+import { onPhone } from "../../services/host.ts";
 import { PaneHeader } from "./PaneHeader.tsx";
 import { PaneSurface } from "./PaneSurface.tsx";
 import { pct } from "./css.ts";
@@ -106,7 +107,12 @@ export function DockPane({
 	 * neighbour, where the hairline goes.
 	 */
 	const { framed, headerBar } = useLayout();
-	const flat = framed && !carried;
+	/*
+	 * Flat on a phone as well. A phone shows one pane at a time, edge to edge, so a card there is not
+	 * a pane resting on a surface — it was a 1px rim and a 12px radius drawn 4px inside the screen,
+	 * running up under the status bar, around everything.
+	 */
+	const flat = (framed || onPhone()) && !carried;
 	const edges = { left: box.left > 0.001, top: box.top > 0.001 };
 	/** Where the card's inside starts within the pane's box: its inset and its border. */
 	const edge = flat ? 0 : PANE_INSET + 1;
@@ -117,6 +123,8 @@ export function DockPane({
 		<PaneSurface
 			carried={Boolean(carried)}
 			isHidden={hidden}
+			// A panel on a phone is a page, whose left edge takes it back rather than pulling the drawer.
+			data-ly-no-drawer={onPhone() && kind !== "conversation" ? "" : undefined}
 			data-dock-pane={kind}
 			data-ly-pane-slot={customHeader ? "conversation" : undefined}
 			// Focus follows the click for the benefit of the collapsed layout and the keyboard;
@@ -262,8 +270,8 @@ export function DockPane({
 			 * terminal's and the editor's code background); `ly-dock-flat` takes its edge, corners and
 			 * shadow away.
 			 *
-			 * Anything in the air is a card, whichever it is — it is off the surface by definition. And
-			 * where there is no frame (a phone), every pane is still the card it was.
+			 * Anything in the air is a card, whichever it is — it is off the surface by definition. A phone
+			 * is flat too, for a reason of its own: see `flat` above.
 			 *
 			 * `overflow-hidden` is what makes a card's radius real: without it a scroller inside paints
 			 * its own square corners straight over the rounded ones.

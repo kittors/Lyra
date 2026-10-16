@@ -227,7 +227,8 @@ function Shell() {
 	 */
 	return (
 		<>
-			<div className={settings ? "pointer-events-none invisible absolute inset-0" : "h-full"}>
+			{/* Marked while it is put away, for a phone's swipe back out of settings to uncover (`PhoneSettings`). */}
+			<div data-ly-under-settings={settings ? "" : undefined} className={settings ? "pointer-events-none invisible absolute inset-0" : "h-full"}>
 				<ChatShell settings={settings} />
 			</div>
 			{settingsVisited && <Activity mode={settings ? "visible" : "hidden"}>

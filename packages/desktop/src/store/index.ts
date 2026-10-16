@@ -160,6 +160,14 @@ export interface AppState extends QueueSlice {
   view: View;
   settingsSection: SettingsSection;
   /**
+   * How many times a section has been asked for, the same one again included.
+   *
+   * The phone opens settings on its list of pages and pushes a page when one is named — 「管理供应商与
+   * 模型」 from the model's sheet. Asked for the section it was already on, `settingsSection` does not
+   * change and nothing would say a page was wanted; this does. See `PhoneSettings`.
+   */
+  settingsAsked: number;
+  /**
    * Which bundle the catalogue should be showing, by key, or null for the grid.
    *
    * Up here rather than inside the view because it is now reached from two places: clicking a
@@ -628,6 +636,7 @@ export const useApp = create<AppState>((set, get) => ({
   ready: false,
   view: "chat",
   settingsSection: "models",
+  settingsAsked: 0,
   pluginFocus: null,
   pluginUpdates: null,
   extensionsFocus: null,
@@ -797,11 +806,11 @@ export const useApp = create<AppState>((set, get) => ({
         },
       };
     }),
-  setSettingsSection: (settingsSection) => set({ settingsSection }),
+  setSettingsSection: (settingsSection) => set((state) => ({ settingsSection, settingsAsked: state.settingsAsked + 1 })),
   setPluginFocus: (pluginFocus) => set({ pluginFocus }),
   setExtensionsFocus: (extensionsFocus) => set({ extensionsFocus }),
   openExtensions: (tab, query) =>
-    set({ view: "settings", settingsSection: "plugins", extensionsFocus: query === undefined ? { tab } : { tab, query } }),
+    set((state) => ({ view: "settings", settingsSection: "plugins", settingsAsked: state.settingsAsked + 1, extensionsFocus: query === undefined ? { tab } : { tab, query } })),
   bumpExtensions: () => set((state) => ({ extensionsNonce: state.extensionsNonce + 1 })),
 
   async saveSettings(settings) {

@@ -175,6 +175,23 @@ export function PhoneTouch() {
 			}
 		};
 
+		/*
+		 * The press a lifted finger still produces on iOS, cancelled touch end or not.
+		 *
+		 * WebKit answers a touch that did not move with the mouse events of a tap — `mousedown`,
+		 * `mouseup`, `click` — some 130ms after the finger leaves, whether or not the `touchend` was
+		 * prevented (measured on the iOS 26 simulator; Android honours the prevention). The
+		 * `mousedown` lands on the lift's scrim, and a press outside is what every popover closes on:
+		 * the menu a long press had just opened closed as the finger left the glass, every time.
+		 * Taken before the popovers hear it — capture, on the window, registered first.
+		 */
+		const onMouseDown = (event: MouseEvent) => {
+			if (!event.isTrusted || performance.now() >= echoUntil) return;
+			if (event.target instanceof Element && event.target.closest("[data-ly-popover]")) return;
+			event.preventDefault();
+			event.stopImmediatePropagation();
+		};
+
 		// The click a lifted finger can still produce on the row, if the touch end was not cancellable.
 		const onClick = (event: MouseEvent) => {
 			if (performance.now() >= echoUntil) return;
@@ -194,6 +211,7 @@ export function PhoneTouch() {
 		document.addEventListener("touchend", onEnd, { capture: true, passive: false });
 		document.addEventListener("touchcancel", onEnd, { capture: true, passive: false });
 		window.addEventListener("contextmenu", onContextMenu, true);
+		window.addEventListener("mousedown", onMouseDown, true);
 		document.addEventListener("click", onClick, true);
 		document.addEventListener("selectstart", onSelectStart, true);
 		return () => {
@@ -206,6 +224,7 @@ export function PhoneTouch() {
 			document.removeEventListener("touchend", onEnd, true);
 			document.removeEventListener("touchcancel", onEnd, true);
 			window.removeEventListener("contextmenu", onContextMenu, true);
+			window.removeEventListener("mousedown", onMouseDown, true);
 			document.removeEventListener("click", onClick, true);
 			document.removeEventListener("selectstart", onSelectStart, true);
 		};

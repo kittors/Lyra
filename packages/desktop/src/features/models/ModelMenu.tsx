@@ -7,6 +7,7 @@ import { RollingText } from "../../ui/motion/RollingText.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { MenuBody, MenuFooter, MenuItem, MenuSearch, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
 import { useI18n } from "../../i18n/index.ts";
+import { onPhone } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useScopedFromMessages, useScopedMeta, useScopedSessionId } from "../../app/session-scope.tsx";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
@@ -83,7 +84,22 @@ export interface ModelSelection {
 	kind?: "chat" | MediaKind;
 }
 
-export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onClose: () => void; selection?: ModelSelection }) {
+export function ModelMenu({
+	anchor,
+	onClose,
+	selection,
+	extra,
+}: {
+	anchor: Anchor;
+	onClose: () => void;
+	selection?: ModelSelection;
+	/**
+	 * Drawn in the footer in place of the 「关闭思考」 switch: the phone's effort, approval and media
+	 * rows (see `PhoneTurnSettings`), which have no row of their own in its composer. The effort's
+	 * choices include 「关」, so the switch would only say it twice.
+	 */
+	extra?: React.ReactNode;
+}) {
 	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
 	/*
@@ -301,7 +317,7 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 			}
 			footer={selection ? undefined :
 				<MenuFooter>
-					<MenuItem
+					{extra ?? <MenuItem
 						detail={floor && floor.id !== "off"
 							? t("modelMenu.noThinkingFloor", { level: effortLabel("off", currentModel, t) })
 							: meta ? t("modelMenu.noThinkingSession") : t("modelMenu.noThinkingFaster")}
@@ -330,8 +346,9 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 						}}
 					>
 						{t("modelMenu.noThinking")}
-					</MenuItem>
-					<MenuItem
+					</MenuItem>}
+					{/* Not on a phone: providers are set up on the computer, and the page is not there (`sections-for.ts`) — the link landed on 常规. */}
+					{!onPhone() && <MenuItem
 						trailing={<ChevronRight size={13} strokeWidth={2} className="shrink-0 text-ink-faint" />}
 						onClick={() => {
 							setView("settings");
@@ -340,7 +357,7 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 						}}
 					>
 						<RollingText>{t("modelMenu.manageProviders")}</RollingText>
-					</MenuItem>
+					</MenuItem>}
 				</MenuFooter>
 			}
 		>
@@ -354,7 +371,7 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 						onClick={() => choose("")}>{selection.inheritLabel}</MenuItem>
 					<MenuSeparator />
 				</>}
-				{total === 0 && (
+				{total === 0 && !onPhone() && (
 					<MenuItem
 						onClick={() => {
 							setView("settings");
@@ -365,6 +382,7 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 						{t("modelMenu.noModels")}
 					</MenuItem>
 				)}
+				{total === 0 && onPhone() && <p className="px-2 py-6 text-center text-detail text-ink-faint">{t("modelMenu.noModelsPhone")}</p>}
 
 				{total > 0 && sections.length === 0 && (
 					<p className="px-2 py-6 text-center text-detail text-ink-faint">{t("modelMenu.noMatch")}</p>
@@ -374,13 +392,14 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 					const folded = section.foldable && !query && collapsed.includes(section.key);
 					return (
 						<div key={section.key}>
-							<SectionHead
+							{/* A phone with one house to choose from has nothing to fold or count: the rows are the list. */}
+							{!(onPhone() && sections.length === 1 && !query) && <SectionHead
 								title={section.title}
 								count={section.rows.length}
 								folded={folded}
 								foldable={section.foldable}
 								onFold={() => fold(section.key)}
-							/>
+							/>}
 
 							{/* A hair of air between rows, so a filled one reads as a card of its own
 							    rather than as a stripe painted across a solid block of list. */}
@@ -397,7 +416,8 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 												// Two houses offering one name: say which, on both rows.
 												showProvider={clashes.has(row.model.name.trim().toLowerCase())}
 												// Drawn only where the key it names actually does this; see `searchable`.
-												numbered={!searchable && !query}
+												// Never on a phone: there is no keyboard for the digit to be typed on.
+												numbered={!searchable && !query && !onPhone()}
 												shortcut={at >= 0 && at < SHORTCUTS ? at + 1 : null}
 												onChoose={() => choose(row.model.id)}
 												onStar={() => star(row.model.id)}

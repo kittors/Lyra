@@ -19,8 +19,8 @@
 }
 
 .ly-phone-hero img {
-  width: 92px;
-  height: 92px;
+  width: 84px;
+  height: 84px;
 }
 
 .ly-phone-hero-title {
@@ -42,65 +42,52 @@
 }
 
 /*
- * The four starting points, one row, sideways. The ends fade so the chip cut off at the edge reads
- * as "more this way" rather than as clipped.
+ * The four starting points, two by two under the question. See `PhoneEmpty`.
  */
-.ly-phone-suggest {
+.ly-phone-starts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-self: stretch;
+  width: 100%;
+  max-width: 440px;
+  margin: 10px auto 0;
+}
+
+.ly-phone-start {
   display: flex;
-  flex-shrink: 0;
+  min-height: 76px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 8px;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  padding: 4px 16px 10px;
-  scroll-padding-inline: 16px;
-  scroll-snap-type: x proximity;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-  -webkit-mask-image: linear-gradient(to right, transparent 0, rgb(0 0 0) 14px, rgb(0 0 0) calc(100% - 28px), transparent 100%);
-  mask-image: linear-gradient(to right, transparent 0, rgb(0 0 0) 14px, rgb(0 0 0) calc(100% - 28px), transparent 100%);
-}
-
-.ly-phone-suggest::-webkit-scrollbar {
-  display: none;
-}
-
-.ly-phone-chip {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 8px;
-  height: 42px;
-  padding: 0 17px 0 14px;
+  padding: 13px 14px 12px;
   border: 0.5px solid var(--ly-phone-well-edge);
-  border-radius: 999px;
+  border-radius: 18px;
   background: var(--ly-phone-well);
-  font-size: var(--text-label);
+  color: var(--color-ink-muted);
+  text-align: left;
+  animation: ly-phone-start-in 460ms var(--ly-e-out) backwards;
+}
+
+.ly-phone-start > span {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: var(--text-detail);
+  line-height: 1.35;
   color: var(--color-ink);
-  white-space: nowrap;
-  scroll-snap-align: start;
-  animation: ly-phone-chip-in 460ms var(--ly-e-out) backwards;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
-.ly-phone-chip:nth-child(2) {
-  animation-delay: 40ms;
-}
-
-.ly-phone-chip:nth-child(3) {
-  animation-delay: 80ms;
-}
-
-.ly-phone-chip:nth-child(4) {
-  animation-delay: 120ms;
-}
-
-.ly-phone-chip:active {
+.ly-phone-start:active {
   background: color-mix(in srgb, var(--color-ink) 9%, var(--color-shell));
 }
 
-@keyframes ly-phone-chip-in {
+@keyframes ly-phone-start-in {
   from {
     opacity: 0;
-    transform: translateX(14px);
+    transform: translateY(10px);
   }
 }
 
@@ -289,6 +276,15 @@
 
 [data-lyra-host="mobile"] .ly-composer-bar .ly-queue-send {
   order: 5;
+}
+
+/*
+ * Send at the far end in the main composer, whose row ends at the model now (see `PhoneTurnSettings`):
+ * the rule above pushes the effort trigger there, and here there is none. The queue's slot leads the
+ * end group, so it carries the push; it is no wider than nothing while it is hidden.
+ */
+[data-lyra-host="mobile"] .ly-composer-bar button:has(.ly-fit-probe) + .ly-queue-send {
+  margin-left: auto;
 }
 
 [data-lyra-host="mobile"] .ly-composer-bar > div:last-child > button:last-child {

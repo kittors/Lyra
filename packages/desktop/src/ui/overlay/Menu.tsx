@@ -14,6 +14,7 @@ import { createContext, useContext } from "react";
 
 import { ScrollText } from "../scroll/ScrollText.tsx";
 import { shortcutLabel } from "../keyboard.ts";
+import { sheetHost } from "./sheet.ts";
 
 /**
  * Whether rows in this menu keep a column for their mark, even the ones that have none.
@@ -220,10 +221,15 @@ export function MenuSearch({
 	autoFocus?: boolean;
 }) {
 	return (
-		<div className="flex h-[34px] items-center gap-2 px-3">
+		<div className="ly-menu-search flex h-[34px] items-center gap-2 px-3">
 			<Search size={13} strokeWidth={1.9} className="shrink-0 text-ink-faint" />
 			<Input
-				autoFocus={autoFocus}
+				/*
+				 * Not in a sheet. There the focus brings up the keyboard, which takes the half of the screen
+				 * the list was rising into — opening the project picker on a phone showed three rows and a
+				 * keyboard. A thumb taps the field when it wants to type; a pointer's menu still starts there.
+				 */
+				autoFocus={autoFocus && !sheetHost()}
 				value={value}
 				onChange={(event) => onChange(event.target.value)}
 				onKeyDown={(event) => {
