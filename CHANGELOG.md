@@ -5,6 +5,219 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.31](https://github.com/kittors/Lyra/releases/tag/v0.9.31) - 2026-10-16
+<!-- lyra:notes en -->
+
+### New
+
+- **The phone app has a layout of its own.** It used to be the desktop window shrunk to fit: a row of small buttons along the top that sat under the clock and the battery, a rounded border drawn around the whole screen, the message box inside a second card, and menus hanging beside 44 pt buttons. Now:
+  - The top bar holds three things, below the status bar: the chat list on the left, the conversation's name in the middle, New chat on the right. Tap the name and the conversation's sheet comes up — its panels in a row at the top (Files, File contents, Sub-agents, Side chat, Tasks, Trace), then Pin, Rename, Archive and the rest.
+  - Every menu rises from the bottom edge and goes back down when you pull it or tap the dimmed page. Long-press menus still open beside the row or the message you are holding.
+  - The message box has three controls: attach, the model, send. Reasoning effort is a row of choices in the model's sheet, with Permission mode and Image and video models under it. The model's chip draws the effort as bars, and shows a red dot while Full access is on.
+  - Panels and settings pages slide in from the right. Swipe from the left edge or tap ‹ to go back; on the conversation itself the same swipe opens the chat list. On Android the back button closes one thing at a time — a sheet, a page, settings — instead of leaving the app.
+  - Settings is a list under a large title. Each page opens over it with ‹ Settings, and switches sit beside their names rather than under their descriptions.
+  - A new conversation shows its four starting points as two rows of cards, not a sideways row cut off at the edge of the screen.
+  - What a phone cannot use is gone from it: the question marks along the left edge, Open in new window, full screen, and the button that took a screenshot of the desktop.
+
+### Improvements & Fixes
+
+- **On an iPhone in any language but English, the pairing screens were in English** — and the pairing page's title was in Chinese whatever the language. The app now tells iOS which seven languages it speaks, so the pairing screens, the photo picker behind + and the copy-and-paste menu follow the phone. The camera prompt now says what the camera is for — the pairing code, or a photo to send — in the phone's language; it used to be one Chinese sentence about the QR code.
+- **On iPhone, a long-press menu closed the moment you lifted your finger.** iOS sends a mouse click about 130 ms after a long touch ends, and the click landed outside the menu. The menu stays open now, and Copy copies.
+- **On iPhone, opening a sheet or the chat list turned the clock and battery black on the darkened page, where they could hardly be read.** iOS picks their colour from what is under them, and the translucent dimming passed for a light background. They stay readable now.
+- **A sheet with a search box no longer opens the keyboard by itself.** It covered most of the list it was there to search.
+- **Manage providers and models is no longer offered on the phone.** Providers are set up on the computer, and on the phone the link opened General. With no models at all, the model sheet now says where to add them.
+- **Settings → Personalization has a title at the top**, like every other page.
+- **GPT reasoning levels follow OpenAI's API.** GPT-6.1 Sol had no levels of its own and fell back to Off/Low/Medium/High. Off sent `effort: none`, which it rejects, and after the 400 Lyra stopped sending a reasoning setting at all — so it ran at the default Medium, the opposite of Off. It now goes up to Extra high and Max, and on models that cannot turn reasoning off, Off becomes their lowest level. A few older entries were wrong as well: `minimal` on GPT-5.6, and Codex's `ultra` alias sent as-is. A level a model does not have now moves to the nearest one it does, instead of back to Medium.
+- **Models released since September have prices and context windows.** The built-in catalog was a 09-06 snapshot with no GPT-6 Sol, GPT-6 Luna or GPT-6.1 Sol, so their usage was never priced. It is now 10-16: gpt-6.1-sol is $2 in / $10 out per million tokens ($0.10 for cache hits) with a 1,050,000-token context. Usage recorded without a price gets one; usage already priced keeps its rate.
+- **Moving the reasoning slider on a new conversation no longer snaps back.**
+- **Subagent reasoning levels are in your interface language.** Settings → Subagents listed them in Chinese in every language, and a button read “Default · 高”.
+
+<!-- lyra:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 新功能
+
+- **手机端有了自己的布局。** 以前手机上是桌面窗口缩小了塞进来：顶上一排小按钮压在时间和电量底下，整屏画着一圈圆角边框，输入框外面又套了一层卡片，菜单挂在 44pt 的小按钮旁边。现在：
+  - 顶栏只有三样，都在状态栏下面：左边打开会话列表，中间是会话名，右边新对话。点会话名，底部升起这个会话的弹层——第一排是它的各个面板（文件、文件内容、子 Agent、侧边聊天、任务、轨迹），下面是置顶、重命名、归档这些操作。
+  - 所有菜单都从屏幕底边升起，往下一拉、或者点一下变暗的地方就收回去。长按出来的菜单照旧贴着被按住的那一行、那条消息。
+  - 输入框一行三样：附件、模型、发送。推理强度在模型的弹层里，是一排直接点的选项，下面是权限模式和生图与视频模型；模型胶囊上画着推理强度，开着完全访问时亮一个红点。
+  - 面板和设置的每一页都从右边推进来，从左边缘往右滑或者点 ‹ 返回；在会话上同样一滑，拉出的是会话列表。安卓的返回键一次关一层——弹层、页面、设置——不会一下子退出应用。
+  - 设置是大标题下的一张列表，点哪项推进哪一页，左上「‹ 设置」返回；开关放在名字右边，不再压在说明文字下面。
+  - 新对话的四个起点排成两行卡片，不再是一排横着滑、在屏幕边上被截断的胶囊。
+  - 手机上用不了的东西不再出现：左边缘那一列问题刻度、在新窗口中打开、全屏，还有截桌面屏幕的那颗按钮。
+
+### 优化与修复
+
+- **系统语言不是英文的 iPhone 上，配对页是英文的**，而配对页的标题不管什么语言都是中文。现在应用向 iOS 声明了自己支持的七种语言，配对页、+ 号弹出的选图菜单、长按文字出来的拷贝粘贴菜单都跟着手机的语言走。相机权限的提示也说清了相机拿来做什么——扫配对码，或者拍照发到对话里——以前只有一句只讲扫码的中文。
+- **iPhone 上长按出来的菜单，手指一松就关了。** iOS 会在长按结束约 130 毫秒后补发一次鼠标点击，落在菜单外面。现在菜单留着，「复制」也复制得上。
+- **iPhone 上打开弹层或会话列表时，时间和电量变成黑色，压在变暗的页面上几乎看不清。** iOS 按它们底下的颜色决定字的深浅，半透明的压暗层被当成了浅色背景。现在它们一直清楚可读。
+- **带搜索框的弹层不再自己弹出键盘**——以前键盘一上来就挡住了大半个要搜的列表。
+- **手机上不再出现「管理供应商与模型」。** 供应商在电脑上配，这一页手机上没有，以前点进去落在「常规」。一个模型都没有时，模型弹层会说去哪里添加。
+- **设置 → 个性化顶上有了标题**，和其他页一样。
+- **GPT 的推理档位照 OpenAI 的接口来。** GPT-6.1 Sol 以前没有自己的档位，落到通用的「关/低/中/高」：选「关」发的是 `effort: none`，它的接口不收，400 之后 Lyra 干脆不再发推理参数，结果按默认的「中」在想，和「关」正好相反。现在它有「超高」和「最高」，关不掉推理的模型选「关」会落到它最低的那一档。旧表里还有几处错：GPT-5.6 上的 `minimal`，Codex 界面上的别名 `ultra` 被原样发了出去。模型没有的档位会落到它有的最近一档，不再退回「中」。
+- **九月以后发布的模型有了价格和上下文窗口。** 内置目录还停在 09-06，没有 GPT-6 Sol、GPT-6 Luna、GPT-6.1 Sol，它们的用量一直算不出价。现在是 10-16 的数据：gpt-6.1-sol 每百万 token 输入 2 美元、输出 10 美元（缓存命中 0.1 美元），上下文 1,050,000。以前没算出价的记录会补上，已经算过的保留当时的费率。
+- **新对话页上拖推理强度，不再自己弹回去。**
+- **子智能体的思考等级跟着界面语言走。** 设置 → 智能体里，英文、日文等界面下这个下拉写的是中文的「关闭/低/中/高」，按钮上是「Default · 高」。
+
+</details>
+
+<!-- lyra:notes zh-TW -->
+
+<details>
+<summary>中文（繁體）</summary>
+
+### 新功能
+
+- **手機端有了自己的版面。** 以前手機上是桌面視窗縮小後硬塞進來：頂端一排小按鈕壓在時間和電量底下，整個畫面畫著一圈圓角外框，輸入框外面又多套一層卡片，選單掛在 44pt 的小按鈕旁邊。現在：
+  - 頂列只有三樣，都在狀態列下方：左邊開啟對話列表，中間是對話名稱，右邊新對話。點對話名稱，底部升起這個對話的面板——第一排是它的各個面板（檔案、檔案內容、子 Agent、側邊聊天、任務、軌跡），下面是置頂、重新命名、封存等操作。
+  - 所有選單都從螢幕底邊升起，往下一拉、或點一下變暗的地方就收回去。長按跳出的選單照舊貼著被按住的那一列、那則訊息。
+  - 輸入框一列三樣：附件、模型、傳送。推理強度在模型的面板裡，是一排直接點選的選項，下面是權限模式和生圖與影片模型；模型膠囊上畫著推理強度，開著完整存取時會亮一個紅點。
+  - 面板和設定的每一頁都從右邊推進來，從左邊緣往右滑或點 ‹ 返回；在對話畫面上同樣一滑，拉出的是對話列表。Android 的返回鍵一次關一層——面板、頁面、設定——不會一下子離開 App。
+  - 設定是大標題下的一張清單，點哪一項就推進哪一頁，左上角「‹ 設定」返回；開關放在名稱右邊，不再壓在說明文字下面。
+  - 新對話的四個起點排成兩列卡片，不再是一排橫向滑動、在螢幕邊緣被截斷的膠囊。
+  - 手機上用不到的東西不再出現：左邊緣那一欄問題刻度、在新視窗中開啟、全螢幕，還有擷取桌面畫面的那顆按鈕。
+
+### 最佳化與修復
+
+- **系統語言不是英文的 iPhone 上，配對頁是英文的**，而配對頁的標題不論什麼語言都是中文。現在 App 向 iOS 宣告了自己支援的七種語言，配對頁、+ 號跳出的選圖選單、長按文字出現的拷貝貼上選單都跟著手機的語言走。相機權限的提示也說清楚相機用來做什麼——掃配對碼，或拍照傳到對話裡——以前只有一句只講掃碼的中文。
+- **iPhone 上長按跳出的選單，手指一放開就關了。** iOS 會在長按結束約 130 毫秒後補送一次滑鼠點擊，落在選單外面。現在選單會留著，「複製」也複製得到。
+- **iPhone 上打開面板或對話列表時，時間和電量變成黑色，壓在變暗的頁面上幾乎看不清楚。** iOS 依底下的顏色決定文字深淺，半透明的壓暗層被當成淺色背景。現在會一直清楚可讀。
+- **有搜尋框的面板不再自己叫出鍵盤**——以前鍵盤一出來就擋住大半個要搜尋的清單。
+- **手機上不再出現「管理供應商與模型」。** 供應商要在電腦上設定，這一頁手機上沒有，以前點進去會落在「一般」。一個模型都沒有時，模型面板會說明去哪裡新增。
+- **設定 → 個人化頂端有了標題**，和其他頁面一樣。
+- **GPT 的推理強度照 OpenAI 的 API 來。** GPT-6.1 Sol 以前沒有自己的檔位，套用通用的「關/低/中/高」：選「關」送出的是 `effort: none`，它的 API 不接受，回 400 之後 Lyra 乾脆不再送推理參數，結果用預設的「中」在思考，和「關」正好相反。現在它有「超高」和「最高」，無法關閉推理的模型選「關」會落到它最低的那一檔。舊表裡還有幾處錯：GPT-5.6 上的 `minimal`，以及 Codex 介面上的別名 `ultra` 被原樣送出。模型沒有的檔位會落到它有的最接近的一檔，不再退回「中」。
+- **九月以後發布的模型有了價格和上下文長度。** 內建目錄還停在 09-06，沒有 GPT-6 Sol、GPT-6 Luna、GPT-6.1 Sol，它們的用量一直算不出費用。現在更新到 10-16：gpt-6.1-sol 每百萬 token 輸入 2 美元、輸出 10 美元（快取命中 0.1 美元），上下文 1,050,000。以前沒算出費用的紀錄會補上，已經算過的保留當時的費率。
+- **在新對話頁拖動推理強度，不再自己彈回去。**
+- **子智能體的推理強度跟著介面語言顯示。** 在設定 → 子智能體裡，英文、日文等介面下這個下拉選單寫的是簡體中文的「关闭/低/中/高」，按鈕上是「Default · 高」。
+
+</details>
+
+<!-- lyra:notes ja -->
+
+<details>
+<summary>日本語</summary>
+
+### 新機能
+
+- **スマートフォン版に専用のレイアウトができました。** これまではデスクトップのウィンドウをそのまま縮めたもので、上端に並ぶ小さなボタンが時計やバッテリーの下に潜り込み、画面全体に角丸の枠が描かれ、入力欄はさらにもう一枚のカードに囲まれ、メニューは 44pt のボタンの横からぶら下がっていました。今回から：
+  - 上部バーはステータスバーの下に 3 つだけ。左に会話の一覧、中央に会話の名前、右に新しい会話。名前をタップすると、その会話のシートが下から上がってきます。いちばん上にパネル（ファイル、ファイルの中身、サブエージェント、サイドチャット、タスク、トレース）が並び、その下にピン留め・名前を変更・アーカイブなどがあります。
+  - メニューはすべて画面の下端からせり上がり、下に引くか、暗くなった部分をタップすると戻ります。長押しのメニューはこれまでどおり、押さえている行やメッセージのすぐ横に出ます。
+  - 入力欄のボタンは添付・モデル・送信の 3 つ。推論の強度はモデルのシートの中で一列の選択肢から選べ、その下に権限モードと画像・動画生成モデルがあります。モデルのチップには推論の強度がバーで描かれ、フルアクセスがオンのあいだは赤い点が付きます。
+  - パネルと設定の各ページは右からスライドして入ってきます。左端から右へスワイプするか ‹ で戻れます。会話画面で同じスワイプをすると会話の一覧が開きます。Android の戻るボタンはシート・ページ・設定を一枚ずつ閉じ、いきなりアプリを抜けることはありません。
+  - 設定は大きな見出しの下の一覧になり、選んだページがその上に重なって開きます。戻るのは左上の「‹ 設定」。スイッチは説明文の下ではなく、名前の右に並びます。
+  - 新しい会話の 4 つの始め方は 2 段のカードになりました。画面の端で切れていた横スクロールのチップではありません。
+  - スマートフォンでは使えないものは表示しません：左端の質問の目盛り、新しいウィンドウで開く、全画面、デスクトップの画面を撮るボタン。
+
+### 改善と修正
+
+- **英語以外の言語の iPhone で、ペアリング画面が英語になっていました。** しかもペアリング画面のタイトルは、言語にかかわらず中国語でした。アプリが対応する 7 つの言語を iOS に伝えるようにしたので、ペアリング画面、＋ から開く写真の選択メニュー、文字を長押ししたときのコピー＆ペーストのメニューが端末の言語で表示されます。カメラの許可を求める文も、何に使うのか（ペアリングのコードを読む、会話に送る写真を撮る）を端末の言語で説明するようになりました。以前は QR コードのことだけを書いた中国語の一文でした。
+- **iPhone で長押しのメニューが、指を離した瞬間に閉じていました。** iOS は長押しが終わって約 130 ミリ秒後にマウスのクリックを送ってきて、それがメニューの外に当たっていました。今はメニューが開いたままになり、「コピー」でちゃんとコピーされます。
+- **iPhone でシートや会話の一覧を開くと、時計とバッテリーの表示が黒くなり、暗くなったページの上でほとんど読めませんでした。** iOS は下にある色を見て文字の明暗を決めるため、半透明の暗い層を明るい背景と判断していました。今は読みやすいままです。
+- **検索欄のあるシートで、キーボードが勝手に出なくなりました。** 探したい一覧の大半がキーボードに隠れていました。
+- **スマートフォンでは「提供元とモデルを管理」を表示しなくなりました。** 提供元はパソコンで設定するもので、スマートフォンにはそのページがなく、押すと「一般」が開いていました。モデルがひとつもないときは、どこで追加するかをモデルのシートに表示します。
+- **設定 →「パーソナライズ」の上部に見出しが付きました。** ほかのページと同じです。
+- **GPT の推論の強度が OpenAI の API どおりになりました。** GPT-6.1 Sol には専用の段階がなく、汎用の「オフ・低・中・高」になっていました。「オフ」で送る `effort: none` をこのモデルは受け付けず、400 が返ったあと Lyra は推論の設定そのものを送らなくなり、結果として既定の「中」で考えていました。「オフ」とは正反対です。今は「非常に高い」「最大」まで選べ、推論をオフにできないモデルでは「オフ」がそのモデルの最も低い段階になります。古い表の誤り（GPT-5.6 の `minimal`、Codex の画面上の別名 `ultra` をそのまま送っていたこと）も直しました。モデルにない段階は「中」に戻らず、いちばん近い段階に移ります。
+- **9 月以降に出たモデルに料金とコンテキスト長が付きました。** 内蔵のカタログは 09-06 時点のままで、GPT-6 Sol・GPT-6 Luna・GPT-6.1 Sol が入っておらず、使用量の料金が計算されていませんでした。今回 10-16 時点に更新し、gpt-6.1-sol は入力 2 ドル・出力 10 ドル／100 万トークン（キャッシュヒットは 0.1 ドル）、コンテキストは 1,050,000 です。料金が付いていなかった記録には新しく付き、すでに計算済みの記録は当時の料金のままです。
+- **新しい会話で推論の強度のスライダーを動かしても、元に戻らなくなりました。**
+- **サブエージェントの推論の強度が表示言語で出るようになりました。** 設定 →「サブエージェント」のプルダウンが、どの言語でも中国語の「关闭/低/中/高」になっていて、ボタンには「Default · 高」と出ていました。
+
+</details>
+
+<!-- lyra:notes ko -->
+
+<details>
+<summary>한국어</summary>
+
+### 새 기능
+
+- **휴대폰 앱에 전용 레이아웃이 생겼습니다.** 지금까지는 데스크톱 창을 줄여 넣은 모습이었습니다. 위쪽의 작은 버튼 한 줄이 시계와 배터리 아래로 들어가 있었고, 화면 전체에 둥근 테두리가 그려졌으며, 입력창은 카드 한 장에 또 싸여 있었고, 메뉴는 44pt짜리 버튼 옆에 매달려 열렸습니다. 이제는:
+  - 상단 바에는 상태 표시줄 아래로 세 가지만 있습니다. 왼쪽은 대화 목록, 가운데는 대화 이름, 오른쪽은 새 대화. 이름을 누르면 그 대화의 시트가 아래에서 올라옵니다. 맨 위 줄에 패널(파일, 파일 내용, 하위 에이전트, 사이드 챗, 작업, 트레이스)이 있고, 그 아래에 고정·이름 바꾸기·보관 등이 있습니다.
+  - 모든 메뉴는 화면 아래쪽에서 올라오고, 아래로 끌어내리거나 어두워진 곳을 누르면 내려갑니다. 길게 눌러 여는 메뉴는 지금처럼 누르고 있는 행이나 메시지 바로 옆에 열립니다.
+  - 입력창의 버튼은 첨부, 모델, 보내기 세 개입니다. 추론 강도는 모델 시트 안에서 한 줄의 선택지로 고르고, 그 아래에 권한 모드와 이미지·동영상 생성 모델이 있습니다. 모델 칩에는 추론 강도가 막대로 그려지고, 전체 접근이 켜져 있는 동안 빨간 점이 붙습니다.
+  - 패널과 설정의 각 페이지는 오른쪽에서 밀려 들어옵니다. 왼쪽 가장자리에서 오른쪽으로 쓸거나 ‹ 를 누르면 돌아갑니다. 대화 화면에서 같은 동작을 하면 대화 목록이 열립니다. Android의 뒤로 버튼은 시트·페이지·설정을 한 번에 하나씩 닫고, 앱을 바로 빠져나가지 않습니다.
+  - 설정은 큰 제목 아래의 목록이 되었고, 고른 페이지가 그 위에 열립니다. 왼쪽 위의 「‹ 설정」으로 돌아갑니다. 스위치는 설명 아래가 아니라 이름 오른쪽에 있습니다.
+  - 새 대화의 시작점 네 개가 두 줄의 카드로 바뀌었습니다. 화면 끝에서 잘리던 가로 스크롤 칩이 아닙니다.
+  - 휴대폰에서 쓸 수 없는 것은 보이지 않습니다. 왼쪽 가장자리의 질문 눈금, 새 창에서 열기, 전체 화면, 데스크톱 화면을 캡처하던 버튼.
+
+### 개선 및 수정
+
+- **영어가 아닌 언어로 쓰는 iPhone에서 페어링 화면이 영어로 나왔습니다.** 게다가 페어링 화면의 제목은 언어와 상관없이 중국어였습니다. 이제 앱이 지원하는 일곱 개 언어를 iOS에 알리므로, 페어링 화면, + 에서 여는 사진 선택 메뉴, 글자를 길게 눌렀을 때의 복사·붙여넣기 메뉴가 휴대폰 언어를 따릅니다. 카메라 권한을 묻는 문구도 카메라를 어디에 쓰는지(페어링 코드 스캔, 대화에 보낼 사진 촬영)를 휴대폰 언어로 설명합니다. 예전에는 QR 코드 이야기만 하는 중국어 한 문장이었습니다.
+- **iPhone에서 길게 눌러 연 메뉴가 손가락을 떼는 순간 닫혔습니다.** iOS가 길게 누르기가 끝나고 약 130ms 뒤에 마우스 클릭을 한 번 더 보내는데, 그 클릭이 메뉴 바깥에 떨어졌기 때문입니다. 이제 메뉴가 열린 채로 있고, 「복사」도 제대로 복사됩니다.
+- **iPhone에서 시트나 대화 목록을 열면 시계와 배터리 표시가 검게 바뀌어, 어두워진 페이지 위에서 거의 보이지 않았습니다.** iOS는 아래에 있는 색을 보고 글자 색을 정하는데, 반투명한 어두운 층을 밝은 배경으로 판단했습니다. 이제 계속 잘 보입니다.
+- **검색창이 있는 시트에서 키보드가 저절로 올라오지 않습니다.** 찾으려던 목록의 대부분을 키보드가 가렸습니다.
+- **휴대폰에서는 「제공자와 모델 관리」가 보이지 않습니다.** 제공자는 컴퓨터에서 설정하고 휴대폰에는 그 페이지가 없어서, 누르면 「일반」이 열렸습니다. 모델이 하나도 없을 때는 어디서 추가하는지 모델 시트에 알려 줍니다.
+- **설정 → 개인 설정 맨 위에 제목이 생겼습니다.** 다른 페이지와 같습니다.
+- **GPT의 추론 강도가 OpenAI API를 따릅니다.** GPT-6.1 Sol은 자체 단계가 없어 기본값인 「끔/낮음/보통/높음」을 썼습니다. 「끔」은 `effort: none`을 보내는데 이 모델은 이를 받지 않았고, 400이 돌아온 뒤 Lyra가 추론 설정 자체를 보내지 않아 결국 기본값인 「보통」으로 생각했습니다. 「끔」과 정반대입니다. 이제 「매우 높음」과 「최대」까지 고를 수 있고, 추론을 끌 수 없는 모델에서는 「끔」이 그 모델의 가장 낮은 단계가 됩니다. 예전 표의 오류(GPT-5.6의 `minimal`, Codex 화면의 별칭 `ultra`를 그대로 보내던 것)도 고쳤습니다. 모델에 없는 단계는 「보통」으로 돌아가지 않고 가장 가까운 단계로 옮겨 갑니다.
+- **9월 이후 출시된 모델에 가격과 컨텍스트 길이가 생겼습니다.** 내장 카탈로그가 09-06 시점에 머물러 GPT-6 Sol, GPT-6 Luna, GPT-6.1 Sol이 없었고, 이 모델들의 사용량은 가격이 계산되지 않았습니다. 이제 10-16 기준입니다. gpt-6.1-sol은 100만 토큰당 입력 2달러, 출력 10달러(캐시 적중 0.1달러), 컨텍스트 1,050,000입니다. 가격이 없던 기록에는 새로 가격이 붙고, 이미 계산된 기록은 그때의 요율을 유지합니다.
+- **새 대화에서 추론 강도 슬라이더를 움직여도 되돌아가지 않습니다.**
+- **하위 에이전트의 추론 강도가 인터페이스 언어로 표시됩니다.** 설정 → 하위 에이전트의 드롭다운이 어느 언어에서든 중국어 「关闭/低/中/高」로 나왔고, 버튼에는 「Default · 高」라고 적혀 있었습니다.
+
+</details>
+
+<!-- lyra:notes fr -->
+
+<details>
+<summary>Français</summary>
+
+### Nouveautés
+
+- **L’app mobile a enfin sa propre mise en page.** Jusqu’ici, c’était la fenêtre du bureau réduite à la taille du téléphone : une rangée de petits boutons en haut, cachés sous l’heure et la batterie, un cadre arrondi tracé autour de tout l’écran, le champ de saisie enfermé dans une deuxième carte, et des menus suspendus à côté de boutons de 44 pt. Désormais :
+  - La barre du haut, sous la barre d’état, ne contient que trois éléments : la liste des discussions à gauche, le nom de la discussion au milieu, Nouvelle discussion à droite. Touchez le nom pour faire monter la feuille de la discussion : ses panneaux sur une rangée en haut (Fichiers, Contenu du fichier, Sous-agents, Discussion latérale, Tâches, Trace), puis Épingler, Renommer, Archiver et le reste.
+  - Tous les menus montent depuis le bas de l’écran et redescendent quand on les tire vers le bas ou qu’on touche la page assombrie. Les menus ouverts par un appui long restent à côté de la ligne ou du message que vous tenez.
+  - Le champ de saisie n’a plus que trois commandes : joindre, le modèle, envoyer. L’effort de raisonnement se choisit sur une rangée d’options dans la feuille du modèle, avec en dessous le mode d’autorisation et les modèles d’image et de vidéo. La puce du modèle dessine l’effort en barres et porte un point rouge tant que l’accès complet est activé.
+  - Les panneaux et les pages des réglages arrivent par la droite. Balayez depuis le bord gauche ou touchez ‹ pour revenir ; sur la discussion elle-même, le même geste ouvre la liste des discussions. Sur Android, le bouton Retour ferme une chose à la fois — une feuille, une page, les réglages — au lieu de quitter l’app.
+  - Les réglages sont une liste sous un grand titre ; chaque page s’ouvre par-dessus avec « ‹ Réglages », et les interrupteurs sont à côté de leur nom plutôt que sous leur description.
+  - Une nouvelle discussion présente ses quatre points de départ en deux rangées de cartes, au lieu d’une rangée défilante coupée au bord de l’écran.
+  - Ce qui ne sert à rien sur un téléphone n’y apparaît plus : les repères de questions le long du bord gauche, Ouvrir dans une nouvelle fenêtre, le plein écran et le bouton qui capturait l’écran du bureau.
+
+### Améliorations et corrections
+
+- **Sur un iPhone réglé dans une autre langue que l’anglais, les écrans d’association étaient en anglais** — et le titre de la page d’association était en chinois, quelle que soit la langue. L’app déclare maintenant à iOS les sept langues qu’elle parle : les écrans d’association, le sélecteur de photos derrière le + et le menu copier-coller suivent la langue du téléphone. La demande d’accès à la caméra dit à quoi elle sert — le code d’association ou une photo à envoyer — dans la langue du téléphone ; c’était une seule phrase en chinois qui ne parlait que du code QR.
+- **Sur iPhone, un menu ouvert par un appui long se refermait dès qu’on levait le doigt.** iOS envoie un clic de souris environ 130 ms après la fin d’un appui long, et ce clic tombait hors du menu. Le menu reste ouvert maintenant, et Copier copie.
+- **Sur iPhone, ouvrir une feuille ou la liste des discussions faisait passer l’heure et la batterie en noir sur la page assombrie, où on ne les lisait presque plus.** iOS choisit leur couleur d’après ce qu’il y a dessous, et le voile translucide passait pour un fond clair. Elles restent lisibles maintenant.
+- **Une feuille avec un champ de recherche n’ouvre plus le clavier toute seule.** Il cachait l’essentiel de la liste à parcourir.
+- **« Gérer les fournisseurs et les modèles » n’est plus proposé sur le téléphone.** Les fournisseurs se configurent sur l’ordinateur, et sur le téléphone le lien ouvrait Général. Sans aucun modèle, la feuille du modèle indique maintenant où les ajouter.
+- **Réglages → Personnalisation a un titre en haut**, comme toutes les autres pages.
+- **Les niveaux de raisonnement GPT suivent l’API d’OpenAI.** GPT-6.1 Sol n’avait pas de niveaux à lui et retombait sur Désactivé/Faible/Moyen/Élevé. « Désactivé » envoyait `effort: none`, que ce modèle refuse ; après l’erreur 400, Lyra n’envoyait plus aucun réglage de raisonnement, et le modèle réfléchissait donc au niveau Moyen par défaut — l’inverse de ce qui était demandé. Il va maintenant jusqu’à Très élevé et Maximum, et sur les modèles qui ne peuvent pas couper le raisonnement, « Désactivé » devient leur niveau le plus bas. Quelques anciennes entrées étaient fausses aussi : `minimal` sur GPT-5.6, et l’alias `ultra` de Codex envoyé tel quel. Un niveau qu’un modèle n’a pas passe au plus proche qu’il possède, au lieu de revenir à Moyen.
+- **Les modèles sortis depuis septembre ont un prix et une fenêtre de contexte.** Le catalogue intégré datait du 06/09 : ni GPT-6 Sol, ni GPT-6 Luna, ni GPT-6.1 Sol, dont l’usage n’était donc jamais chiffré. Il est maintenant au 16/10 : gpt-6.1-sol coûte 2 $ en entrée et 10 $ en sortie par million de jetons (0,10 $ pour les accès au cache), avec un contexte de 1 050 000 jetons. L’usage enregistré sans prix en reçoit un ; celui déjà chiffré garde son tarif.
+- **Le curseur de raisonnement d’une nouvelle discussion ne revient plus en arrière tout seul.**
+- **Les niveaux de raisonnement des sous-agents s’affichent dans la langue de l’interface.** Dans Réglages → Sous-agents, ils étaient en chinois quelle que soit la langue, et un bouton affichait « Default · 高 ».
+
+</details>
+
+<!-- lyra:notes ru -->
+
+<details>
+<summary>Русский</summary>
+
+### Новое
+
+- **У мобильного приложения появилась своя раскладка.** Раньше это было окно десктопа, сжатое до размеров телефона: ряд мелких кнопок сверху уходил под часы и индикатор батареи, вокруг всего экрана была нарисована скруглённая рамка, поле ввода сидело ещё в одной карточке, а меню свисали рядом с кнопками размером 44 pt. Теперь:
+  - В верхней панели под строкой состояния только три элемента: слева список бесед, посередине название беседы, справа «Новая беседа». Нажмите на название — снизу поднимется лист беседы: вверху ряд её панелей («Файлы», «Содержимое файла», «Субагенты», «Боковая беседа», «Задачи», «Трасса»), ниже «Закрепить», «Переименовать», «В архив» и остальное.
+  - Все меню поднимаются от нижнего края экрана и уходят обратно, если потянуть их вниз или коснуться затемнённой страницы. Меню по долгому нажатию, как и раньше, открываются рядом со строкой или сообщением, которое вы держите.
+  - В поле ввода три элемента: вложение, модель, отправка. Глубина рассуждений выбирается из ряда вариантов в листе модели, под ней — режим разрешений и модели изображений и видео. На плашке модели глубина нарисована столбиками, а пока включён полный доступ, на ней горит красная точка.
+  - Панели и страницы настроек въезжают справа. Чтобы вернуться, проведите от левого края или нажмите ‹; в самой беседе тот же жест открывает список бесед. На Android кнопка «Назад» закрывает по одному слою — лист, страницу, настройки — и больше не выходит из приложения сразу.
+  - Настройки — это список под крупным заголовком; каждая страница открывается поверх него с «‹ Настройки», а переключатели стоят рядом с названием, а не под описанием.
+  - Четыре варианта начала новой беседы теперь две строки карточек, а не горизонтальная лента, обрезанная у края экрана.
+  - Из телефонной версии убрано то, чем на телефоне не воспользоваться: отметки вопросов вдоль левого края, «Открыть в новом окне», полноэкранный режим и кнопка снимка экрана компьютера.
+
+### Улучшения и исправления
+
+- **На iPhone с любым языком, кроме английского, экраны сопряжения были на английском** — а заголовок страницы сопряжения был на китайском при любом языке. Теперь приложение сообщает iOS, какие семь языков оно знает, и экраны сопряжения, выбор фото за кнопкой + и меню «Скопировать/Вставить» следуют языку телефона. Запрос доступа к камере объясняет, зачем она нужна, — код сопряжения или фото для беседы — на языке телефона; раньше это была одна фраза на китайском только про QR-код.
+- **На iPhone меню по долгому нажатию закрывалось, как только вы отпускали палец.** Примерно через 130 мс после долгого касания iOS присылает щелчок мыши, и он попадал мимо меню. Теперь меню остаётся открытым, а «Копировать» копирует.
+- **На iPhone при открытом листе или списке бесед часы и индикатор батареи становились чёрными на затемнённой странице и почти не читались.** iOS выбирает их цвет по тому, что под ними, а полупрозрачное затемнение принималось за светлый фон. Теперь они остаются читаемыми.
+- **Лист с полем поиска больше не открывает клавиатуру сам.** Она закрывала большую часть списка, по которому нужно было искать.
+- **На телефоне больше нет пункта «Управление поставщиками и моделями».** Поставщиков настраивают на компьютере, а на телефоне ссылка открывала «Общие». Если моделей нет совсем, лист модели теперь говорит, где их добавить.
+- **У страницы «Настройки → Персонализация» появился заголовок**, как у остальных.
+- **Уровни рассуждений GPT соответствуют API OpenAI.** У GPT-6.1 Sol не было своих уровней, и она получала общий набор «Выкл./Низкая/Средняя/Высокая». «Выкл.» отправлял `effort: none`, который эта модель не принимает; после ошибки 400 Lyra переставала отправлять параметр рассуждений совсем, и модель думала на уровне «Средняя» по умолчанию — то есть ровно наоборот. Теперь доступны «Очень высокая» и «Максимум», а у моделей, где рассуждения нельзя отключить, «Выкл.» становится их самым низким уровнем. Исправлены и старые ошибки в таблице: `minimal` у GPT-5.6 и псевдоним `ultra` из интерфейса Codex, который уходил в запрос как есть. Уровень, которого у модели нет, переходит к ближайшему из её уровней, а не возвращается к «Средней».
+- **У моделей, вышедших после сентября, есть цены и размер контекста.** Встроенный каталог оставался снимком от 06.09, без GPT-6 Sol, GPT-6 Luna и GPT-6.1 Sol, поэтому их расход не оценивался. Теперь он от 16.10: gpt-6.1-sol стоит $2 за ввод и $10 за вывод за миллион токенов ($0,10 за попадания в кэш), контекст — 1 050 000 токенов. Записи без цены получат её; уже оценённые сохранят свою ставку.
+- **Ползунок глубины рассуждений в новой беседе больше не отскакивает назад.**
+- **Уровни рассуждений субагентов отображаются на языке интерфейса.** В «Настройки → Субагенты» они были на китайском при любом языке, а на кнопке стояло «Default · 高».
+
+</details>
+
 ## [0.9.30](https://github.com/kittors/Lyra/releases/tag/v0.9.30) - 2026-10-15
 <!-- lyra:notes en -->
 

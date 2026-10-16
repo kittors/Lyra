@@ -2,7 +2,7 @@
   "expo": {
     "name": "Lyra",
     "slug": "lyra",
-    "version": "0.9.30",
+    "version": "0.9.31",
     "icon": "../../assets/lyra.png",
     "orientation": "default",
     "scheme": "lyra",
@@ -12,7 +12,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "dev.lyra.app",
-      "buildNumber": "9030",
+      "buildNumber": "9031",
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
@@ -66,7 +66,7 @@
     },
     "android": {
       "package": "dev.lyra.app",
-      "versionCode": 9030,
+      "versionCode": 9031,
       "icon": "../../assets/lyra.png",
       "adaptiveIcon": {
         "foregroundImage": "../../assets/lyra.png",
