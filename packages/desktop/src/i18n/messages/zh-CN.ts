@@ -1387,6 +1387,7 @@ export const zhCN = {
 	"modelMenu.search": "搜索模型或供应商",
 	"modelMenu.noThinkingSession": "跳过推理直接作答，只影响当前会话",
 	"modelMenu.noThinkingFaster": "跳过推理直接作答，明显更快",
+	"modelMenu.noThinkingFloor": "关不掉推理，会用最低档「{level}」",
 	"modelMenu.noThinking": "关闭思考",
 	"modelMenu.isDefault": "已是新会话的默认模型",
 	"modelMenu.makeDefault": "设为新会话的默认模型",

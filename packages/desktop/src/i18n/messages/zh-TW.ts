@@ -1198,6 +1198,7 @@ export const zhTW = {
 	"modelMenu.search": "搜尋模型或供應商",
 	"modelMenu.noThinkingSession": "跳過推理直接作答，只影響目前工作階段",
 	"modelMenu.noThinkingFaster": "跳過推理直接作答，明顯更快",
+	"modelMenu.noThinkingFloor": "關不掉推理，會用最低檔「{level}」",
 	"modelMenu.noThinking": "關閉思考",
 	"modelMenu.isDefault": "已是新工作階段的預設模型",
 	"modelMenu.makeDefault": "設為新工作階段的預設模型",

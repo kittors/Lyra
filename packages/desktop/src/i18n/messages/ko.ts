@@ -1198,6 +1198,7 @@ export const ko = {
 	"modelMenu.search": "모델이나 제공자 검색",
 	"modelMenu.noThinkingSession": "먼저 추론하지 않고 바로 답합니다 — 이 대화에만 적용",
 	"modelMenu.noThinkingFaster": "먼저 추론하지 않고 바로 답합니다 — 눈에 띄게 빠릅니다",
+	"modelMenu.noThinkingFloor": "추론을 끌 수 없음 — {level}",
 	"modelMenu.noThinking": "생각 끄기",
 	"modelMenu.isDefault": "이미 새 대화의 기본값입니다",
 	"modelMenu.makeDefault": "새 대화의 기본값으로 삼기",

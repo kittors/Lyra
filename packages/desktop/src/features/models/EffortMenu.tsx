@@ -8,7 +8,7 @@ import type { ModelConfig, ThinkingLevel, ThinkingOption } from "@lyra/core";
  * free (they vanish at compile time); a *value* is not. `thinking-options.ts` has one type import
  * and nothing else.
  */
-import { resolveModelThinkingOptions } from "@lyra/core/thinking-options";
+import { resolveModelThinkingOptions, resolveThinkingOption } from "@lyra/core/thinking-options";
 import { CircleHelp } from "lucide-react";
 import { useState } from "react";
 import { Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
@@ -20,12 +20,15 @@ import { useI18n, type MessageKey } from "../../i18n/index.ts";
 
 type Translate = (key: MessageKey) => string;
 
+/**
+ * The word for the level this model actually runs at — the one `resolveReasoningEffort` sends.
+ *
+ * "Off" only where the model can stop reasoning. On one that cannot, turning thinking off runs its
+ * shallowest level, and the composer names that level rather than an "Off" the request does not do.
+ */
 export function effortLabel(level: ThinkingLevel, model?: ModelConfig | null, t?: Translate): string {
-	const options = resolveModelThinkingOptions(model);
-	if (options.length === 0 || level === "off") return t?.("thinking.off") ?? translate("common.close");
-	const selected = options.find((option: ThinkingOption) => option.id === level)
-		?? options.find((option: ThinkingOption) => option.isDefault)
-		?? options[0];
+	const selected = resolveThinkingOption(level, model);
+	if (!selected) return t?.("thinking.off") ?? translate("common.close");
 	return localizeThinkingOption(selected, model?.thinkingOptions === undefined, t).label;
 }
 
@@ -66,32 +69,38 @@ export function EffortMenu({ anchor, onClose, selection }: { anchor: Anchor; onC
 	);
 	const level = selection ? selection.value : sessionThinking(meta, settings);
 
-	let index = options.findIndex((l) => l.id === level);
-	if (index === -1) {
-		const defaultIdx = options.findIndex((l) => l.isDefault);
-		index = defaultIdx !== -1 ? defaultIdx : 0;
-	}
-
-	const current = options.length > 0 && level === "off"
-		? options.find((option) => option.id === "off") ?? { id: "off", label: t("thinking.off"), detail: t("thinking.disabledDetail") }
-		: options[index];
+	/*
+	 * Where the level lands on this model, so the slider sits on what is sent — see
+	 * `resolveThinkingOption`. Nowhere, when reasoning is off on a configured ladder that does not
+	 * list "Off": the slider waits at the default for the moment it is turned back on.
+	 */
+	const resolved = resolveThinkingOption(level, model);
+	const landed = options.findIndex((option) => option.id === resolved?.id);
+	const index = landed !== -1 ? landed : Math.max(0, options.findIndex((option) => option.isDefault));
+	const current: ThinkingOption | undefined = resolved || options.length === 0
+		? options[index]
+		: { id: "off", label: t("thinking.off"), detail: t("thinking.disabledDetail") };
 	const atMax = options.length > 0 && index === options.length - 1;
 
 	const set = (nextIndex: number) => {
 		if (!settings || options.length === 0) return;
 		const next = options[Math.min(options.length - 1, Math.max(0, nextIndex))].id;
-		if (selection) selection.onChange(next);
-		else void setThinking(next, sessionId);
 		/*
-		 * The last level above 「关闭」, so fast mode has something to put back.
+		 * Remembered as the last level above 「关闭」, so fast mode has something to put back.
 		 *
 		 * Still global while the level itself is per conversation: it is not a setting anyone
 		 * chose, it is a memory of the last thing they did, and remembering it per session would
 		 * mean the switch has nothing to restore in the conversation where it matters most — a
-		 * fresh one.
+		 * fresh one. Written by `setThinking`, in one save with the level — see the note there.
 		 */
-		if (next !== "off" && settings.lastThinking !== next) {
-			void useApp.getState().saveSettings({ ...settings, lastThinking: next });
+		if (!selection) {
+			void setThinking(next, sessionId, true);
+			return;
+		}
+		selection.onChange(next);
+		const latest = useApp.getState().settings;
+		if (next !== "off" && latest && latest.lastThinking !== next) {
+			void useApp.getState().saveSettings({ ...latest, lastThinking: next });
 		}
 	};
 

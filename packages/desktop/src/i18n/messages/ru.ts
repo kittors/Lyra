@@ -1198,6 +1198,7 @@ export const ru = {
 	"modelMenu.search": "Искать модель или поставщика",
 	"modelMenu.noThinkingSession": "Отвечать без предварительных рассуждений — только в этой беседе",
 	"modelMenu.noThinkingFaster": "Отвечать без предварительных рассуждений — заметно быстрее",
+	"modelMenu.noThinkingFloor": "Не отключается: «{level}»",
 	"modelMenu.noThinking": "Без размышления",
 	"modelMenu.isDefault": "Уже по умолчанию для новых бесед",
 	"modelMenu.makeDefault": "Сделать её умолчанием для новых бесед",

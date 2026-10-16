@@ -79,12 +79,12 @@ test("a phone draws the reasoning level as a meter: no word in the row, the word
 	}
 });
 
-test("the meter lights what the menu would say: the model's own scale, its default for a level it lacks, nothing for off", () => {
+test("the meter lights what the menu would say: the model's own scale, the nearest level for one it lacks, nothing for off", () => {
 	assert.deepEqual(effortSteps("medium", claude), { bars: 3, lit: 2 });
 	assert.deepEqual(effortSteps("off", claude), { bars: 3, lit: 0 });
 	assert.deepEqual(effortSteps("high", claude), { bars: 3, lit: 3 });
-	// Claude has no `xhigh`; the menu shows its default, 中, and so does the meter.
-	assert.deepEqual(effortSteps("xhigh", claude), { bars: 3, lit: 2 });
+	// Claude has no `xhigh`; the menu shows the nearest level it has, 高, and so does the meter.
+	assert.deepEqual(effortSteps("xhigh", claude), { bars: 3, lit: 3 });
 	// GPT-5.5 offers four levels above off.
 	assert.deepEqual(effortSteps("xhigh", gpt), { bars: 4, lit: 4 });
 	assert.deepEqual(effortSteps("medium", { ...claude, supportsThinking: false }), { bars: 3, lit: 0 }, "不支持推理的模型是一排暗格");

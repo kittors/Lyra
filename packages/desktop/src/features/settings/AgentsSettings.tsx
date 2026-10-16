@@ -2,7 +2,7 @@ import { translate } from "../../i18n/translate.ts";
 import { BUILTIN_AGENTS } from "@lyra/core/agents-builtin";
 import type { Settings } from "@lyra/core";
 import { agentProfile, withAgentProfile, availableModels, resolveModelRef, type SubAgentProfile } from "@lyra/core/model-roles";
-import { resolveModelThinkingOptions } from "@lyra/core/thinking-options";
+import { resolveModelThinkingOptions, resolveThinkingOption } from "@lyra/core/thinking-options";
 import { AlertCircle, Brain, Copy, Ellipsis, MessageSquare, Minimize2, Pencil, Plus, RotateCcw, RotateCw, Trash2, Undo2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { AgentCapabilities } from "../../../electron/ipc-types.ts";
@@ -255,7 +255,8 @@ function AgentModelControls({ agent, settings, mainModelId, disabled, onChange }
 	const invalid = profile.modelId && !selected;
 	const invalidThinking = profile.thinking && levels.length > 0 && !levels.some((level) => level.id === profile.thinking);
 	const inheritedThinking = profile.modelId ? settings.thinking : inherited?.thinking ?? settings.thinking;
-	const defaultThinking = levels.find((level) => level.id === inheritedThinking) ?? levels.find((level) => level.isDefault) ?? levels[0];
+	// The level the agent will run at, resolved as `resolveSubAgentModel` resolves it.
+	const defaultThinking = resolveThinkingOption(inheritedThinking, current?.model);
 
 	return (
 		<fieldset disabled={disabled} aria-label={t("agents.runConfig", { name: agent.name })} className="m-0 flex min-w-0 flex-1 items-center gap-1 border-0 p-0 disabled:opacity-60 @xl:flex-none">

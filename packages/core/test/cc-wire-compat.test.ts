@@ -378,8 +378,15 @@ test("关思考要明说 reasoning_effort:none —— 什么都不发等于没�
 	 * 不可见，只有账单知道。这也顺带否掉了 oh-my-pi 的 `lowest-effort` 默认。
 	 */
 	resetRequestParamsCompat();
-	const { bodies } = await runTurn([{ status: 200, body: OK_STREAM }], modelOf({ supportsThinking: true }), { thinking: "off" });
+	const { bodies } = await runTurn([{ status: 200, body: OK_STREAM }], modelOf({ modelId: "deepseek-flash", supportsThinking: true }), { thinking: "off" });
 	assert.equal(bodies[0].reasoning_effort, "none", "关思考要明说，不能靠不发");
+});
+
+test("关不掉推理的模型上，关思考发它最低的一档，而不是它会拒的 none", async () => {
+	// o3 takes low/medium/high and nothing else; `none` arrived with GPT-5.1.
+	resetRequestParamsCompat();
+	const { bodies } = await runTurn([{ status: 200, body: OK_STREAM }], modelOf({ supportsThinking: true }), { thinking: "off" });
+	assert.equal(bodies[0].reasoning_effort, "low");
 });
 
 test("端点不认 none 时退回「什么都不发」——这条链原来的行为", async () => {
@@ -390,7 +397,7 @@ test("端点不认 none 时退回「什么都不发」——这条链原来的�
 			{ status: 400, body: JSON.stringify({ error: { message: "none is not a valid ThinkingLevel enum value", type: "invalid_request_error" } }) },
 			{ status: 200, body: OK_STREAM },
 		],
-		modelOf({ supportsThinking: true }),
+		modelOf({ modelId: "deepseek-flash", supportsThinking: true }),
 		{ thinking: "off" },
 	);
 	assert.equal(bodies[0].reasoning_effort, "none", "第一发照常明说");

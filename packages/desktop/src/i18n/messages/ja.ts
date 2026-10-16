@@ -1198,6 +1198,7 @@ export const ja = {
 	"modelMenu.search": "モデルや提供元を検索",
 	"modelMenu.noThinkingSession": "推論を挟まずに答えます。この会話だけの設定です",
 	"modelMenu.noThinkingFaster": "推論を挟まずに答えます。目に見えて速くなります",
+	"modelMenu.noThinkingFloor": "推論を止められず「{level}」で回答",
 	"modelMenu.noThinking": "思考しない",
 	"modelMenu.isDefault": "新しい会話の既定になっています",
 	"modelMenu.makeDefault": "新しい会話の既定にする",

@@ -1198,6 +1198,7 @@ export const fr = {
 	"modelMenu.search": "Rechercher un modèle ou un fournisseur",
 	"modelMenu.noThinkingSession": "Répondre sans raisonner d'abord — pour cette conversation seulement",
 	"modelMenu.noThinkingFaster": "Répondre sans raisonner d'abord — nettement plus rapide",
+	"modelMenu.noThinkingFloor": "Raisonne toujours : {level}",
 	"modelMenu.noThinking": "Sans réflexion",
 	"modelMenu.isDefault": "Déjà le modèle par défaut des nouvelles conversations",
 	"modelMenu.makeDefault": "En faire le modèle par défaut des nouvelles conversations",

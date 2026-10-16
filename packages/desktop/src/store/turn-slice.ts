@@ -539,11 +539,19 @@ export function turnSlice(set: Set, get: Get) {
    * read by the composer's label, and a control that lags a frame behind the press reads as one
    * that did not take.
    */
-  async setThinking(thinking: ThinkingLevel, sessionId?: string | null) {
+  async setThinking(thinking: ThinkingLevel, sessionId?: string | null, remember = false) {
     // Named the way `setModel` names it: another screen's conversation comes on stage, `null` is the blank one.
     if (sessionId && sessionId !== get().activeSessionId && !(await onStage(sessionId))) return;
     const { meta, settings } = get();
     const activeSessionId = sessionId === null ? null : get().activeSessionId;
+    /*
+     * In the same write as the level, never beside it.
+     *
+     * The menu used to save `lastThinking` itself, right after this, from the settings it was drawn
+     * with. On the blank screen both saves went out at once and the second still carried the default
+     * from before the press: landing last, it put that back. The slider moved and the level did not.
+     */
+    const memory = remember && thinking !== "off" ? { lastThinking: thinking } : {};
     if (activeSessionId) {
 			const optimistic = meta ? { ...meta, thinking } : null;
 			if (optimistic) set({ meta: optimistic });
@@ -552,10 +560,13 @@ export function turnSlice(set: Set, get: Get) {
 			} catch (cause) {
 				if (get().activeSessionId === activeSessionId && get().meta === optimistic) set({ meta });
 				get().notify(translate("turn.thinkingFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
+				return;
 			}
+      const latest = get().settings;
+      if (latest && "lastThinking" in memory && latest.lastThinking !== thinking) await get().saveSettings({ ...latest, ...memory });
       return;
     }
-    if (settings) await get().saveSettings({ ...settings, thinking });
+    if (settings) await get().saveSettings({ ...settings, thinking, ...memory });
   },
 
   async setMediaModel(kind: MediaKind, modelId: string | null, sessionId?: string | null) {

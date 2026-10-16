@@ -599,8 +599,11 @@ export interface AppState extends QueueSlice {
    * brought on stage first, `null` is the blank screen, and leaving it out means the live one.
    */
   setModel(modelId: string, options?: { asDefault?: boolean; sessionId?: string | null }): Promise<void>;
-  /** How hard this conversation asks the model to think. Falls back to the app default. `sessionId` as for `setModel`. */
-  setThinking(thinking: ThinkingLevel, sessionId?: string | null): Promise<void>;
+  /**
+   * How hard this conversation asks the model to think. Falls back to the app default. `sessionId` as for `setModel`.
+   * `remember` also makes it the level the "no thinking" switch puts back (`lastThinking`).
+   */
+  setThinking(thinking: ThinkingLevel, sessionId?: string | null, remember?: boolean): Promise<void>;
   /**
    * The image or video model this conversation draws with from its next drawing on; `null` follows
    * the default again. With no conversation yet it is the default itself. `sessionId` as for `setModel`.

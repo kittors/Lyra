@@ -18,7 +18,7 @@ import type { ModelConfig, ThinkingLevel, ThinkingOption } from "@lyra/core";
  * From the leaf, not the barrel: `@lyra/core`'s index reaches the provider transports and a native
  * module the renderer cannot bundle. See `EffortMenu.tsx`.
  */
-import { resolveModelThinkingOptions } from "@lyra/core/thinking-options";
+import { resolveModelThinkingOptions, resolveThinkingOption } from "@lyra/core/thinking-options";
 
 /**
  * Past this many, bars stop being countable at a glance and the meter outgrows its 44pt button.
@@ -33,18 +33,16 @@ const TALLEST = 16;
  * How many bars to draw and how many of them are lit.
  *
  * The level is resolved exactly as `effortLabel` resolves the word, so the meter and the menu can
- * never disagree: a level this model does not offer shows its default, and 「关」 lights nothing. A
- * model without reasoning gets a short dark scale, which is what "off" looks like.
+ * never disagree: a level this model does not offer shows the nearest one it does, and 「关」 lights
+ * nothing — on a model that can turn reasoning off. A model without reasoning gets a short dark
+ * scale, which is what "off" looks like.
  */
 export function effortSteps(level: ThinkingLevel, model?: ModelConfig | null): { bars: number; lit: number } {
 	const options: ThinkingOption[] = resolveModelThinkingOptions(model);
 	const steps = options.filter((option) => option.id !== "off");
 	if (steps.length === 0) return { bars: 3, lit: 0 };
-	let lit = 0;
-	if (level !== "off") {
-		const selected = options.find((option) => option.id === level) ?? options.find((option) => option.isDefault) ?? options[0];
-		lit = selected.id === "off" ? 0 : steps.indexOf(selected) + 1;
-	}
+	const selected = resolveThinkingOption(level, model);
+	const lit = !selected || selected.id === "off" ? 0 : steps.findIndex((step) => step.id === selected.id) + 1;
 	if (steps.length <= MOST_BARS) return { bars: steps.length, lit };
 	// Squeezed, a lit level must still light something: the lowest one is not "off".
 	return { bars: MOST_BARS, lit: lit === 0 ? 0 : Math.max(1, Math.round((lit * MOST_BARS) / steps.length)) };

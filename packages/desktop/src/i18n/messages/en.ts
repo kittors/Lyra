@@ -1198,6 +1198,7 @@ export const en = {
 	"modelMenu.search": "Search models or providers",
 	"modelMenu.noThinkingSession": "Answer without reasoning first — this conversation only",
 	"modelMenu.noThinkingFaster": "Answer without reasoning first — noticeably faster",
+	"modelMenu.noThinkingFloor": "Always reasons — uses {level}",
 	"modelMenu.noThinking": "No thinking",
 	"modelMenu.isDefault": "Already the default for new conversations",
 	"modelMenu.makeDefault": "Make it the default for new conversations",

@@ -95,8 +95,9 @@ async function main() {
 		 * 顺路把 gpt-6-astra 的思考等级也在真窗口里点一遍。
 		 *
 		 * `qa/alpha` 的 modelId 就是 `gpt-6-astra`。它上线那天落在最后一条兜底规则上，于是一个
-		 * 有六档的模型被画成了四档——`xhigh`、`max`、`ultra` 在滑块上根本不存在。滑块能拉到第几格
-		 * 是这件事在界面上唯一的证据。
+		 * 有五档的模型被画成了四档——`xhigh`、`max` 在滑块上根本不存在。滑块能拉到第几格是这件事在
+		 * 界面上唯一的证据。它的接口不收 `none`（400），也不收 `ultra`（那是 Codex 自己的别名），
+		 * 所以这两档都不该出现。
 		 */
 		const levels = await app.evaluate<{ steps: number; labels: string[] }>(`(async () => {
 			const press = ${PRESS};
@@ -180,9 +181,9 @@ async function main() {
 
 		const switched = persisted === "qa/beta" && after.label.includes("Beta") && !after.dialogStillUp;
 		// 界面上的字来自 i18n（`thinking.off` 是「关」），不是 `thinking-options.ts` 里的 label。
-		const graded = levels.steps === 7 && ["关", "低", "中", "高", "超高", "最高", "极致"].every((label, i) => levels.labels[i] === label);
+		const graded = levels.steps === 5 && ["低", "中", "高", "超高", "最高"].every((label, i) => levels.labels[i] === label);
 		console.log(`\n${switched ? "✅ 模型换成功了" : "❌ 模型没换过去"}`);
-		console.log(`${graded ? "✅ gpt-6-astra 的七档都在（关闭 + 六档）" : "❌ gpt-6-astra 的档位不对"}`);
+		console.log(`${graded ? "✅ gpt-6-astra 的五档都在，没有它接口不收的「关」和「极致」" : "❌ gpt-6-astra 的档位不对"}`);
 		if (!switched || !graded) process.exitCode = 1;
 	} finally {
 		await app.stop();
