@@ -4,8 +4,10 @@ import { act, createElement as h } from "react";
 import { BUILTIN_AGENTS, DEFAULT_SETTINGS, type ModelConfig, type Settings } from "@lyra/core";
 import { AgentsSettings } from "../../src/features/settings/AgentsSettings.tsx";
 import { useApp } from "../../src/store/index.ts";
-import { click, mount } from "../helpers/mount.ts";
+import { click, fire, mount } from "../helpers/mount.ts";
 import { I18nProvider } from "../../src/i18n/index.ts";
+import { MESSAGE_CATALOGS, type MessageKey, type ResolvedUiLocale } from "../../src/i18n/messages/index.ts";
+import { translateIn } from "../../src/i18n/translate.ts";
 
 const model: ModelConfig = { id: "qa/model", modelId: "gpt-5.6-sol", providerId: "qa", name: "QA", contextWindow: 128000, maxOutputTokens: 4096, supportsThinking: true, supportsImages: false, supportsTools: true };
 const settings: Settings = { ...DEFAULT_SETTINGS, defaultModelId: model.id, providers: [{ id: "qa", name: "QA", api: "openai-responses", baseUrl: "http://localhost", apiKey: "test", enabled: true, models: [model, { ...model, id: "qa/fast", name: "Fast", supportsThinking: false }] }] };
@@ -72,5 +74,46 @@ test("unavailable profiles stay visibly invalid and a failed save preserves the 
 		assert.match(view.find('[role="alert"]').textContent ?? "", /disk full/);
 		assert.equal(useApp.getState().settings?.subAgentProfiles?.explore.modelId, "removed/model");
 		assert.equal(view.find<HTMLFieldSetElement>("fieldset").disabled, false);
+	} finally { await view.unmount(); }
+});
+
+/** The open menu's rows as read off the screen: each one's name followed by the line under it. */
+const menuRows = () => [...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent);
+/** gpt-5.6-sol's built-in ladder — `NONE_TO_MAX` in core's `thinking-options.ts`. */
+const LADDER = ["off", "low", "medium", "high", "xhigh", "max"] as const;
+
+test("the thinking dropdown speaks the interface language, and follows a switch made while it is on screen", async () => {
+	setup(settings, async (next) => next);
+	const view = await mount(h(I18nProvider, { locale: "zh-CN", children: h(AgentsSettings) }));
+	try {
+		// Re-rendered rather than remounted per language: a fresh tree passes with the subscription unplugged.
+		for (const locale of Object.keys(MESSAGE_CATALOGS) as ResolvedUiLocale[]) {
+			await view.rerender(h(I18nProvider, { locale, children: h(AgentsSettings) }));
+			const say = (key: MessageKey, variables?: Record<string, string>) => translateIn(locale, key, variables);
+			const trigger = view.find(`[aria-label="${say("agents.thinkingFor", { name: "explore" })}"]`);
+			const fallback = say("agents.defaultThinking", { level: say("thinking.medium") });
+			assert.equal(trigger.textContent, fallback, locale);
+			await click(trigger);
+			// Chinese too: core's words for `off` are 「关闭」, the interface's 「关」.
+			assert.deepEqual(menuRows(), [fallback, ...LADDER.map((id) => say(`thinking.${id}`) + say(`thinking.detail.${id}`))], locale);
+			await fire(document.body, new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+			assert.ok(!document.querySelector('[role="menuitem"]'), `${locale}: the menu closed`);
+		}
+	} finally { await view.unmount(); }
+});
+
+test("levels configured on the model keep their own words in an English window, the default included", async () => {
+	const house: ModelConfig = { ...model, id: "qa/house", name: "House", thinkingOptions: [
+		{ id: "adaptive", label: "自适应", detail: "由服务商决定", isDefault: true },
+		{ id: "low", label: "省着点", detail: "自己写的说明" },
+	] };
+	setup({ ...settings, providers: [{ ...settings.providers[0], models: [model, house] }], subAgentProfiles: { explore: { modelId: house.id } } }, async (next) => next);
+	const view = await mount(h(I18nProvider, { locale: "en", children: h(AgentsSettings) }));
+	try {
+		// `medium` is not on this ladder, so the default lands on its nearest level: the configured `low`, by its own name.
+		const trigger = view.find('[aria-label="explore: thinking level"]');
+		assert.equal(trigger.textContent, "Default · 省着点");
+		await click(trigger);
+		assert.deepEqual(menuRows(), ["Default · 省着点", "自适应由服务商决定", "省着点自己写的说明"]);
 	} finally { await view.unmount(); }
 });

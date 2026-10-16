@@ -7,7 +7,6 @@
  * 它短是件好事。要往里加之前先想想，是不是那件事本来就该发生在这个域里面。
  */
 
-export { effortLabel } from "./EffortMenu.tsx";
 export { EffortTrigger } from "./EffortTrigger.tsx";
 export { ModelIcon } from "./ModelIcon.tsx";
 export { MediaModelButton } from "./MediaModelButton.tsx";
@@ -16,3 +15,4 @@ export { formatWindow } from "./ModelMenu.tsx";
 export { ModelSelect } from "./ModelSelect.tsx";
 export { ModelTrigger } from "./ModelTrigger.tsx";
 export { findModel } from "./models.ts";
+export { effortLabel, localizedThinkingOptions } from "./thinking-text.ts";

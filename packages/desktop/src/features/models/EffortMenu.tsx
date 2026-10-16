@@ -1,5 +1,5 @@
 import { translate } from "../../i18n/translate.ts";
-import type { ModelConfig, ThinkingLevel, ThinkingOption } from "@lyra/core";
+import type { ThinkingLevel, ThinkingOption } from "@lyra/core";
 /*
  * From the leaf, not the barrel.
  *
@@ -8,7 +8,7 @@ import type { ModelConfig, ThinkingLevel, ThinkingOption } from "@lyra/core";
  * free (they vanish at compile time); a *value* is not. `thinking-options.ts` has one type import
  * and nothing else.
  */
-import { resolveModelThinkingOptions, resolveThinkingOption } from "@lyra/core/thinking-options";
+import { resolveThinkingOption } from "@lyra/core/thinking-options";
 import { CircleHelp } from "lucide-react";
 import { useState } from "react";
 import { Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
@@ -16,21 +16,8 @@ import { RollingText } from "../../ui/motion/RollingText.tsx";
 import { useApp } from "../../store/index.ts";
 import { useScopedMeta, useScopedSessionId } from "../../app/session-scope.tsx";
 import { sessionThinking } from "../../lib/thinking.ts";
-import { useI18n, type MessageKey } from "../../i18n/index.ts";
-
-type Translate = (key: MessageKey) => string;
-
-/**
- * The word for the level this model actually runs at — the one `resolveReasoningEffort` sends.
- *
- * "Off" only where the model can stop reasoning. On one that cannot, turning thinking off runs its
- * shallowest level, and the composer names that level rather than an "Off" the request does not do.
- */
-export function effortLabel(level: ThinkingLevel, model?: ModelConfig | null, t?: Translate): string {
-	const selected = resolveThinkingOption(level, model);
-	if (!selected) return t?.("thinking.off") ?? translate("common.close");
-	return localizeThinkingOption(selected, model?.thinkingOptions === undefined, t).label;
-}
+import { useI18n } from "../../i18n/index.ts";
+import { localizedThinkingOptions } from "./thinking-text.ts";
 
 /**
  * 一份自己的思考等级，给不发给当前对话的那些输入框。
@@ -64,9 +51,7 @@ export function EffortMenu({ anchor, onClose, selection }: { anchor: Anchor; onC
 		.find((m) => m.id === (selection ? selection.modelId : meta?.modelId ?? settings.defaultModelId));
 	const supported = model?.supportsThinking !== false;
 
-	const options: ThinkingOption[] = resolveModelThinkingOptions(model).map((option) =>
-		localizeThinkingOption(option, model?.thinkingOptions === undefined, t),
-	);
+	const options: ThinkingOption[] = localizedThinkingOptions(model, t);
 	const level = selection ? selection.value : sessionThinking(meta, settings);
 
 	/*
@@ -178,45 +163,6 @@ export function EffortMenu({ anchor, onClose, selection }: { anchor: Anchor; onC
 			</div>
 		</Popover>
 	);
-}
-
-function localizeThinkingOption(option: ThinkingOption, builtin: boolean, t?: Translate): ThinkingOption {
-	if (!builtin || !t) return option;
-	const labelKey = thinkingLabelKey(option.id);
-	const detailKey = thinkingDetailKey(option.id);
-	return {
-		...option,
-		label: labelKey ? t(labelKey) : option.label,
-		detail: detailKey ? t(detailKey) : option.detail,
-	};
-}
-
-function thinkingLabelKey(level: ThinkingLevel): MessageKey | null {
-	switch (level) {
-		case "off": return "thinking.off";
-		case "minimal": return "thinking.minimal";
-		case "low": return "thinking.low";
-		case "medium": return "thinking.medium";
-		case "high": return "thinking.high";
-		case "xhigh": return "thinking.xhigh";
-		case "max": return "thinking.max";
-		case "ultra": return "thinking.ultra";
-		default: return null;
-	}
-}
-
-function thinkingDetailKey(level: ThinkingLevel): MessageKey | null {
-	switch (level) {
-		case "off": return "thinking.detail.off";
-		case "minimal": return "thinking.detail.minimal";
-		case "low": return "thinking.detail.low";
-		case "medium": return "thinking.detail.medium";
-		case "high": return "thinking.detail.high";
-		case "xhigh": return "thinking.detail.xhigh";
-		case "max": return "thinking.detail.max";
-		case "ultra": return "thinking.detail.ultra";
-		default: return null;
-	}
 }
 
 const COLUMNS = 19;

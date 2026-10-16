@@ -11,7 +11,7 @@ import { useApp } from "../../store/index.ts";
 import { useScopedFromMessages, useScopedMeta, useScopedSessionId } from "../../app/session-scope.tsx";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { sessionThinking } from "../../lib/thinking.ts";
-import { effortLabel } from "./EffortMenu.tsx";
+import { effortLabel } from "./thinking-text.ts";
 import { findModel } from "./models.ts";
 import {
 	ambiguousNames,
