@@ -17,7 +17,8 @@ import { useApp } from "../../store/index.ts";
 import { useScopedMeta } from "../../app/session-scope.tsx";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
 import { sessionThinking } from "../../lib/thinking.ts";
-import { EffortMenu, effortLabel, type ThinkingSelection } from "./EffortMenu.tsx";
+import { EffortMenu, type ThinkingSelection } from "./EffortMenu.tsx";
+import { effortLabel } from "./thinking-text.ts";
 import { EffortMeter } from "./EffortMeter.tsx";
 import { findModel } from "./models.ts";
 

@@ -2,7 +2,6 @@ import { translate } from "../../i18n/translate.ts";
 import { BUILTIN_AGENTS } from "@lyra/core/agents-builtin";
 import type { Settings } from "@lyra/core";
 import { agentProfile, withAgentProfile, availableModels, resolveModelRef, type SubAgentProfile } from "@lyra/core/model-roles";
-import { resolveModelThinkingOptions, resolveThinkingOption } from "@lyra/core/thinking-options";
 import { AlertCircle, Brain, Copy, Ellipsis, MessageSquare, Minimize2, Pencil, Plus, RotateCcw, RotateCw, Trash2, Undo2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { AgentCapabilities } from "../../../electron/ipc-types.ts";
@@ -12,7 +11,7 @@ import type { Avatar } from "../../lib/agent-avatar.ts";
 import { AgentAvatar } from "../../ui/avatar/AgentAvatar.tsx";
 import { Button } from "../../ui/primitives/Button.tsx";
 import { InlineSelect } from "./controls.tsx";
-import { ModelSelect } from "../models/index.ts";
+import { ModelSelect, effortLabel, localizedThinkingOptions } from "../models/index.ts";
 import { AgentDefinitionEditor } from "./AgentDefinitionEditor.tsx";
 import { MediaModelRow, SessionControl, SessionMark } from "./SessionRows.tsx";
 import { useAgentDefinitions } from "./useAgentDefinitions.ts";
@@ -251,12 +250,12 @@ function AgentModelControls({ agent, settings, mainModelId, disabled, onChange }
 	const selected = profile.modelId ? models.find(({ model }) => model.id === profile.modelId) : undefined;
 	const inherited = fallback ? resolveModelRef(withAgentProfile(settings, agent.name, {}), agent.model, fallback) : undefined;
 	const current = profile.modelId ? selected : inherited;
-	const levels = resolveModelThinkingOptions(current?.model);
+	const levels = localizedThinkingOptions(current?.model, t);
 	const invalid = profile.modelId && !selected;
 	const invalidThinking = profile.thinking && levels.length > 0 && !levels.some((level) => level.id === profile.thinking);
 	const inheritedThinking = profile.modelId ? settings.thinking : inherited?.thinking ?? settings.thinking;
 	// The level the agent will run at, resolved as `resolveSubAgentModel` resolves it.
-	const defaultThinking = resolveThinkingOption(inheritedThinking, current?.model);
+	const defaultLabel = effortLabel(inheritedThinking, current?.model, t);
 
 	return (
 		<fieldset disabled={disabled} aria-label={t("agents.runConfig", { name: agent.name })} className="m-0 flex min-w-0 flex-1 items-center gap-1 border-0 p-0 disabled:opacity-60 @xl:flex-none">
@@ -268,7 +267,7 @@ function AgentModelControls({ agent, settings, mainModelId, disabled, onChange }
 			<div className="min-w-0 flex-[2_1_0] @xl:w-[124px] @xl:flex-none [&>button]:w-full">
 				{levels.length > 0 ? <InlineSelect quiet set={Boolean(profile.thinking)} ariaLabel={t("agents.thinkingFor", { name: agent.name })} value={profile.thinking ?? ""}
 					options={[
-						{ value: "", label: t("agents.defaultThinking", { level: defaultThinking?.label ?? t("thinking.off") }), icon: <Brain size={14} /> },
+						{ value: "", label: t("agents.defaultThinking", { level: defaultLabel }), icon: <Brain size={14} /> },
 						...(invalidThinking && profile.thinking ? [{ value: profile.thinking, label: t("agents.levelUnavailable") }] : []),
 						...levels.map((level) => ({ value: level.id, label: level.label, detail: level.detail, icon: <Brain size={14} /> })),
 					]} onChange={(thinking) => onChange({ ...profile, thinking: thinking || undefined })} /> :
