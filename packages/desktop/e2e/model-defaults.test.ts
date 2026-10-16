@@ -23,7 +23,7 @@ before(async () => {
 			...DEFAULT_SETTINGS, uiLocale: "zh-CN", disabledPlugins: ["*"],
 			appearance: { ...DEFAULT_SETTINGS.appearance, theme: "light", reduceMotion: "on" },
 			providers: [{ id: "relay", name: "Relay", baseUrl: "https://relay.example/v1", api: "openai-responses", apiKey: "", enabled: true,
-				models: [legacy("gemini-3.7-flash-high"), legacy("deepseek-v4-flash:0731"), legacy("gemini-pro-agent")] }],
+				models: [legacy("gemini-3.7-flash-high"), legacy("deepseek-v4-pro:0731"), legacy("gemini-pro-agent")] }],
 			defaultModelId: "relay/gemini-3.7-flash-high",
 			projects: [{ id: "project", name: "目录验证", path: join(home, "project"), pinned: true, lastOpenedAt: 1 }],
 		};
@@ -146,8 +146,8 @@ test("old relay imports show real prices, limits and text-only model capabilitie
 	assert.equal(values.input, "0.75"); assert.equal(values.priceOut, "3.75"); assert.equal(values.cache, "0.075");
 	assert.match(values.text, /参考估算/); t.diagnostic(JSON.stringify(values)); await shot("relay-model-prices");
 	await label("取消"); await until(`!document.querySelector('[data-ly-modal]')`);
-	await editor("deepseek-v4-flash:0731");
-	await until(`document.querySelector('[data-ly-modal]')?.innerText.includes('deepseek-v4-flash')`);
+	await editor("deepseek-v4-pro:0731");
+	await until(`document.querySelector('[data-ly-modal]')?.innerText.includes('deepseek-v4-pro')`);
 	const images = await app.evaluate<string>(`[...document.querySelectorAll('[data-ly-modal] label')].find(e=>e.textContent.startsWith('支持图片输入')).querySelector('[role="switch"]').getAttribute('aria-checked')`);
 	assert.equal(images, "false");
 	await app.evaluate(`document.querySelector('[data-ly-modal] [role="switch"]').scrollIntoView({block:'center',behavior:'instant'})`);
