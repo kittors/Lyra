@@ -1,96 +1,96 @@
 import type { ModelConfig, ThinkingLevel, ThinkingOption } from "../types/provider.ts";
 
 /**
- * Standard 4-level thinking set (off, low, medium, high).
- * Safe for Google Gemini, MiniMax, and basic 3-level reasoning models.
+ * Every standard level, shallowest first. A level a model does not offer is looked for along this
+ * line — see `resolveThinkingOption`.
  */
-export const STANDARD_3_LEVEL_OPTIONS: ThinkingOption[] = [
-	{ id: "off", label: "关闭", detail: "不推理，直接作答。最快。" },
-	{ id: "low", label: "低", detail: "简单任务够用。" },
-	{ id: "medium", label: "中", detail: "日常编码的默认档。", isDefault: true },
-	{ id: "high", label: "高", detail: "复杂重构、疑难排查。" },
-];
+export const THINKING_LEVELS: readonly ThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
+
+/** The words a built-in level is drawn with. The renderer swaps in the interface language's. */
+const TEXT: Record<string, Pick<ThinkingOption, "label" | "detail">> = {
+	off: { label: "关闭", detail: "不推理，直接作答。最快。" },
+	minimal: { label: "极简", detail: "只做最低限度的思考。" },
+	low: { label: "低", detail: "简单任务够用。" },
+	medium: { label: "中", detail: "日常编码的默认档。" },
+	high: { label: "高", detail: "复杂重构、疑难排查。" },
+	xhigh: { label: "超高", detail: "更深层次的逻辑推演。" },
+	max: { label: "最高", detail: "把预算拉满，最慢也最稳。" },
+	ultra: { label: "极致", detail: "极致推理模式，算力全开。" },
+};
 
 /**
- * Standard 5-level thinking set (off, low, medium, high, xhigh).
- * Standard for GPT-5.4, GPT-5.5, and standard advanced OpenAI/Codex reasoning models.
+ * A model's options from the efforts its API accepts. `vendorDefault` is what the API does when no
+ * effort is sent. A ladder without `off` is a model whose reasoning cannot be turned off.
  */
-export const STANDARD_5_LEVEL_OPTIONS: ThinkingOption[] = [
-	{ id: "off", label: "关闭", detail: "不推理，直接作答。最快。" },
-	{ id: "low", label: "低", detail: "简单任务够用。" },
-	{ id: "medium", label: "中", detail: "日常编码的默认档。", isDefault: true },
-	{ id: "high", label: "高", detail: "复杂重构、疑难排查。" },
-	{ id: "xhigh", label: "超高", detail: "超深度推演，处理高难度任务。" },
-];
+function ladder(levels: readonly ThinkingLevel[], vendorDefault: ThinkingLevel = "medium"): ThinkingOption[] {
+	return levels.map((id) => (id === vendorDefault ? { id, ...TEXT[id], isDefault: true } : { id, ...TEXT[id] }));
+}
+
+/** What nearly every reasoning endpoint accepts. Google's models and unrecognised ids get this. */
+export const DEFAULT_THINKING_OPTIONS: ThinkingOption[] = ladder(["off", "low", "medium", "high"]);
+
+/** `gpt-<rest>` after a non-alphanumeric boundary, so `openai/`, `azure/` and `openai.` prefixes still match. */
+const gpt = (rest: string) => new RegExp(`(?:^|[^a-z0-9])gpt-?${rest}`);
+
+const NONE_TO_MAX = ladder(["off", "low", "medium", "high", "xhigh", "max"]);
+const LOW_TO_MAX = ladder(["low", "medium", "high", "xhigh", "max"]);
+const NONE_TO_XHIGH = ladder(["off", "low", "medium", "high", "xhigh"]);
+const LOW_TO_XHIGH = ladder(["low", "medium", "high", "xhigh"]);
+const PRO = ladder(["medium", "high", "xhigh"]);
+const LOW_TO_HIGH = ladder(["low", "medium", "high"]);
 
 /**
- * GPT-5.6 standard / regular thinking set (off, minimal, low, medium, high, xhigh, max).
- * Standard GPT-5.6 variants where the ceiling is max.
- */
-export const GPT_5_6_STANDARD_OPTIONS: ThinkingOption[] = [
-	{ id: "off", label: "关闭", detail: "不推理，直接作答。最快。" },
-	{ id: "minimal", label: "极简", detail: "只做最低限度的思考。" },
-	{ id: "low", label: "低", detail: "简单任务够用。" },
-	{ id: "medium", label: "中", detail: "日常编码的默认档。", isDefault: true },
-	{ id: "high", label: "高", detail: "复杂重构、疑难排查。" },
-	{ id: "xhigh", label: "超高", detail: "更深层次的逻辑推演。" },
-	{ id: "max", label: "最高", detail: "把预算拉满，最慢也最稳。" },
-];
-
-/**
- * GPT-5.6-sol special thinking options with High, Extra High (xhigh), Max, and Ultra.
- */
-export const GPT_5_6_SOL_OPTIONS: ThinkingOption[] = [
-	{ id: "off", label: "关闭", detail: "不推理，直接作答。最快。" },
-	{ id: "minimal", label: "极简", detail: "轻量预检与快速分析。" },
-	{ id: "low", label: "低", detail: "常规单测与基础修改。" },
-	{ id: "medium", label: "中", detail: "日常编码的默认档。", isDefault: true },
-	{ id: "high", label: "高", detail: "跨模块重构与排障。" },
-	{ id: "xhigh", label: "超高", detail: "深层次推演与复杂架构推导。" },
-	{ id: "max", label: "最高", detail: "算力拉满，极深推演。" },
-	{ id: "ultra", label: "极致", detail: "极致推理模式，算力全开。" },
-];
-
-/**
- * GPT-6-astra: low, medium, high, xhigh, max, ultra — and `low` is where it starts.
+ * OpenAI's models by family, with the efforts each one's API accepts — `off` standing for `none`.
  *
- * Two things separate this from the GPT-5.6-sol set it otherwise resembles.
+ * Source: the `reasoning.effort` line on each model's page at developers.openai.com (read
+ * 2026-10-16), cross-checked against models.dev's `reasoning_options` and the catalogue Codex ships;
+ * the Codex models without a documented line come from Codex's own presets. Codex's lists leave out
+ * `none`, which it never sends, and add `ultra`, which is not an API value: Codex turns it into `max`
+ * before the request and adds sub-agent orchestration of its own (`resolve_reasoning_effort` in
+ * codex-rs). Sent as it is, it is a 400 — so is `none` to GPT-6 Astra and GPT-6.1 Sol.
  *
- * There is no `minimal`. The vendor's own picker offers six levels and that is not one of them, and
- * a level in the menu that the endpoint has never heard of is the failure this file exists to
- * prevent — the same one `gemini` + `minimal` was.
- *
- * And the default is `low`, not `medium`. That is the vendor's choice, not a preference: on this
- * family `low` is already where `medium` used to sit, and the levels above it are priced and paced
- * accordingly — the last two are the ones its own menu warns 「consume usage limits faster」 about.
- * Inheriting `medium` from every other set would quietly start everyone one notch up.
- *
- * Until this existed the family fell through to `STANDARD_3_LEVEL_OPTIONS`, so a model with six
- * levels was offered four, three of them real and `xhigh`/`max`/`ultra` unreachable.
+ * Most specific first: a `-pro` or `-codex` id contains its base family's name.
  */
-export const GPT_6_ASTRA_OPTIONS: ThinkingOption[] = [
-	{ id: "off", label: "关闭", detail: "不推理，直接作答。最快。" },
-	{ id: "low", label: "低", detail: "轻量推理，响应快。这一档是它的默认。", isDefault: true },
-	{ id: "medium", label: "中", detail: "速度与推理深度之间的平衡。" },
-	{ id: "high", label: "高", detail: "复杂问题需要的推理深度。" },
-	{ id: "xhigh", label: "超高", detail: "更深一层的推演，用于难题。" },
-	{ id: "max", label: "最高", detail: "质量比速度重要时用，用量消耗更快。" },
-	{ id: "ultra", label: "极致", detail: "多智能体协同的重活，用量消耗最快。" },
-];
-
-/**
- * GPT-4.1 / fast reasoning 3-level set (off, low, high).
- */
-export const FAST_3_LEVEL_OPTIONS: ThinkingOption[] = [
-	{ id: "off", label: "关闭", detail: "不推理，直接作答。最快。" },
-	{ id: "low", label: "低", detail: "快速推理。" },
-	{ id: "high", label: "高", detail: "深度推理。", isDefault: true },
+const OPENAI_FAMILIES: readonly (readonly [RegExp, ThinkingOption[]])[] = [
+	[gpt("6\\.1-sol"), LOW_TO_MAX],
+	[gpt("6-astra"), LOW_TO_MAX],
+	[gpt("6-(?:sol|luna)"), NONE_TO_MAX],
+	/*
+	 * A GPT-6 member not named above gets what every documented member accepts.
+	 *
+	 * Not the conservative fallback: that set offers `off`, which two of the four documented members
+	 * reject with a 400, and hides `xhigh` and `max`, which all four accept. Leaving the family to
+	 * fall through is how GPT-6.1 Sol was drawn with four levels on the day it shipped.
+	 */
+	[gpt("6(?![0-9])"), LOW_TO_MAX],
+	[gpt("5\\.6(?![0-9])"), NONE_TO_MAX],
+	[gpt("5\\.5-pro"), ladder(["medium", "high", "xhigh"], "high")],
+	[gpt("5\\.5(?![0-9])"), NONE_TO_XHIGH],
+	[gpt("5\\.4-pro"), PRO],
+	[gpt("5\\.4(?![0-9])"), NONE_TO_XHIGH],
+	[gpt("5\\.3-codex"), LOW_TO_XHIGH],
+	[gpt("5\\.2-pro"), PRO],
+	[gpt("5\\.2-codex"), LOW_TO_XHIGH],
+	[gpt("5\\.2-chat"), ladder(["medium"])],
+	[gpt("5\\.2(?![0-9])"), NONE_TO_XHIGH],
+	[gpt("5\\.1-codex-max"), LOW_TO_XHIGH],
+	[gpt("5\\.1-codex-mini"), ladder(["medium", "high"])],
+	[gpt("5\\.1-codex"), LOW_TO_HIGH],
+	[gpt("5\\.1(?![0-9])"), ladder(["off", "low", "medium", "high"])],
+	[gpt("5-pro"), ladder(["high"], "high")],
+	[gpt("5-codex-mini"), ladder(["medium", "high"])],
+	[gpt("5-codex"), LOW_TO_HIGH],
+	// `gpt-5.7` is not GPT-5, and neither is `gpt-5-chat-latest`, ChatGPT's own snapshot.
+	[gpt("5(?![0-9.]|-chat)"), ladder(["minimal", "low", "medium", "high"])],
+	[gpt("oss"), LOW_TO_HIGH],
+	// `o1-mini` and `o1-preview` predate the parameter.
+	[/(?:^|[^a-z0-9])(?:o1(?!-mini|-preview)|o3|o4-mini)(?![a-z0-9.])/, LOW_TO_HIGH],
 ];
 
 /**
  * Resolve effective thinking options for a given model.
  * If the model has explicit options configured, use them.
- * Otherwise, infer the appropriate options dynamically based on model brand/ID.
+ * Otherwise, infer them from the model id.
  */
 export function resolveModelThinkingOptions(model?: ModelConfig | null): ThinkingOption[] {
 	if (!model || model.supportsThinking === false) {
@@ -104,79 +104,56 @@ export function resolveModelThinkingOptions(model?: ModelConfig | null): Thinkin
 	const id = (model.modelId || model.id || "").toLowerCase();
 
 	/*
-	 * The vendor decides first, because the vendor is what the API contract belongs to.
-	 *
-	 * This used to sit third, behind a rule that matched a bare `ultra` anywhere in the id — so
-	 * `gemini-ultra` and `gemini-3.0-ultra`, both real models, were handed GPT-5.6-sol's eight
-	 * levels and offered 「极简」 in the menu. Which is precisely the case the whole exercise was
-	 * for: Google's API rejects `minimal` with an HTTP 400.
-	 *
-	 * The clamp in `resolveReasoningEffort` caught it before it reached the wire, so nothing ever
-	 * failed — but the menu was showing four settings that could not do anything: 极简 and 低 both
-	 * sent `low`, and 超高/最高/极致 all sent `high`. A control that cannot affect what it names is
-	 * worse than a missing one.
+	 * Google before anything that matches on a word inside an id: a rule matching a bare `ultra`
+	 * once reached past this one and offered `gemini-ultra` `minimal`, which Google's API rejects
+	 * with an HTTP 400.
 	 */
 	if (id.includes("gemini") || id.includes("gemma")) {
-		return STANDARD_3_LEVEL_OPTIONS;
-	}
-
-	/*
-	 * GPT-6-astra, ahead of the `gpt-` + `ultra` rule below.
-	 *
-	 * Named variants rather than a bare `gpt-6`: `astra` covers the family that shipped — `-pro`,
-	 * `-fast`, and the `openai/`, `openai.`, `azure/` prefixes relays put in front of it — while a
-	 * later `gpt-6-<something else>` keeps falling through to the conservative set rather than being
-	 * handed six levels on the strength of sharing a version number. Claiming a capability for a
-	 * model nobody has seen yet is how `minimal` reached Gemini.
-	 */
-	if (id.includes("gpt-6-astra") || id.includes("gpt6-astra")) {
-		return GPT_6_ASTRA_OPTIONS;
-	}
-
-	/*
-	 * GPT-5.6-sol and its ultra tier.
-	 *
-	 * `ultra` is qualified by the family rather than matched on its own: it is a word that appears
-	 * in other vendors' model names, and on its own it was reaching past every rule below it.
-	 */
-	if (id.includes("5.6-sol") || id.includes("5.6-terra") || (id.includes("gpt-") && id.includes("ultra"))) {
-		return GPT_5_6_SOL_OPTIONS;
-	}
-
-	/*
-	 * Standard GPT-5.6.
-	 *
-	 * `gpt-5.6` spelled out, not a bare `5.6` — that matched `llama-5.6b` and anything else whose
-	 * name happens to contain those two digits, and handed it a set of levels its API has never
-	 * heard of.
-	 */
-	if (id.includes("gpt-5.6") || id.includes("gpt5.6")) {
-		return GPT_5_6_STANDARD_OPTIONS;
-	}
-
-	// GPT-5.4 / 5.5 models
-	if (id.includes("gpt-5.5") || id.includes("gpt-5.4") || id.includes("gpt-5.3")) {
-		if (id.includes("mini")) {
-			return STANDARD_3_LEVEL_OPTIONS;
-		}
-		return STANDARD_5_LEVEL_OPTIONS;
-	}
-
-	// 5. GPT-4.1 / o3 / o4-mini
-	if (id.includes("gpt-4.1") || id.includes("o3") || id.includes("o4-mini")) {
-		return FAST_3_LEVEL_OPTIONS;
+		return DEFAULT_THINKING_OPTIONS;
 	}
 
 	// Compatibility fallback for unrecognised relay aliases, not a provider capability claim.
-	// Explicit thinkingOptions (including an empty list) always take precedence.
-	return STANDARD_3_LEVEL_OPTIONS;
+	return OPENAI_FAMILIES.find(([pattern]) => pattern.test(id))?.[1] ?? DEFAULT_THINKING_OPTIONS;
 }
 
-/** Use the same capability list as the UI; stale selections inherit its displayed default. */
-export function resolveReasoningEffort(level: ThinkingLevel | undefined, model?: ModelConfig | null): string | undefined {
-	if (!level || level === "off") return undefined;
+/**
+ * The option a chosen level comes to on this model — what the menu shows and what is sent.
+ *
+ * A level the model lacks moves to the nearest one it has, deeper first, then shallower (pi's
+ * `clampThinkingLevel` rule). The level is a person's choice that outlives a model switch: `max`
+ * picked on GPT-6.1 Sol becomes `xhigh` on GPT-5.5 rather than its default `medium`, and is `max`
+ * again on the way back.
+ *
+ * `off` on a model that cannot stop reasoning comes to its shallowest level, which is OpenAI's own
+ * advice for GPT-6 Astra and GPT-6.1 Sol. Sending `none` there is a 400; leaving `reasoning` out runs
+ * the vendor default, `medium` — the opposite of what the "no thinking" switch asked for. Moving up
+ * never lands on `off`: asking for some reasoning is not met by none. Only ids outside the standard
+ * line fall back to the model's default.
+ *
+ * `undefined` is reasoning off: the model has no levels, or `off` was asked of a configured ladder
+ * that does not list it. Such a ladder lists what can be picked while the model reasons — nothing
+ * says it cannot stop, and turning reasoning off is the separate switch it always was. Only a
+ * built-in ladder without `off` is a fact about the API.
+ */
+export function resolveThinkingOption(level: ThinkingLevel | undefined, model?: ModelConfig | null): ThinkingOption | undefined {
 	const options = resolveModelThinkingOptions(model);
-	const selected = options.find((option) => option.id === level)
-		?? options.find((option) => option.isDefault) ?? options[0];
-	return selected?.id === "off" ? undefined : selected?.id;
+	const wanted = level ?? "off";
+	const exact = options.find((option) => option.id === wanted);
+	if (exact) return exact;
+	if (wanted === "off" && model?.thinkingOptions !== undefined) return undefined;
+	const rank = THINKING_LEVELS.indexOf(wanted);
+	if (rank !== -1) {
+		const shallower = THINKING_LEVELS.slice(0, rank).reverse().filter((candidate) => candidate !== "off");
+		for (const candidate of [...THINKING_LEVELS.slice(rank + 1), ...shallower]) {
+			const found = options.find((option) => option.id === candidate);
+			if (found) return found;
+		}
+	}
+	return options.find((option) => option.isDefault) ?? options[0];
+}
+
+/** The effort sent for a chosen level; `undefined` means reasoning off. Always the level the menu shows. */
+export function resolveReasoningEffort(level: ThinkingLevel | undefined, model?: ModelConfig | null): string | undefined {
+	const selected = resolveThinkingOption(level, model);
+	return selected && selected.id !== "off" ? selected.id : undefined;
 }

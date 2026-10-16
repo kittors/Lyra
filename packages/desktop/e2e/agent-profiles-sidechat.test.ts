@@ -201,11 +201,12 @@ test("provider and effort controls persist, align, and adapt to narrow settings"
 		await click('[aria-label="explore 模型"]'); await click('[data-model="secondary/model"] [role="menuitem"]');
 		await until(`document.querySelector('[aria-label="explore 模型"]').dataset.lyTip.includes('第二供应商')`);
 		await click('[aria-label="explore 思考等级"]');
-		await app.evaluate(`(()=>{const e=[...document.querySelectorAll('[role="menuitem"]')].find(e=>e.textContent.startsWith('极致'));if(!e)throw new Error('No ultra');e.setAttribute('data-effort-ultra','');})()`);
-		await click('[data-effort-ultra]');
-		await until(`document.querySelector('[aria-label="explore 思考等级"]').textContent.includes('极致')`);
+		// GPT-5.6 Sol's deepest level is 最高 (`max`); 极致 (`ultra`) is a Codex alias its API does not take.
+		await app.evaluate(`(()=>{const e=[...document.querySelectorAll('[role="menuitem"]')].find(e=>e.textContent.startsWith('最高'));if(!e)throw new Error('No max');e.setAttribute('data-effort-max','');})()`);
+		await click('[data-effort-max]');
+		await until(`document.querySelector('[aria-label="explore 思考等级"]').textContent.includes('最高')`);
 		const saved = JSON.parse(await readFile(join(app.home, "settings.json"), "utf8"));
-		assert.deepEqual(saved.subAgentProfiles.explore, { modelId: "secondary/model", thinking: "ultra" });
+		assert.deepEqual(saved.subAgentProfiles.explore, { modelId: "secondary/model", thinking: "max" });
 		for (const width of [1280, 375]) {
 			await app.send("Emulation.setDeviceMetricsOverride", { width, height: 850, deviceScaleFactor: 1, mobile: false }); await frames(30);
 			const controlHeight = await app.evaluate<number>(`parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ly-control'))`);
@@ -223,12 +224,12 @@ test("provider and effort controls persist, align, and adapt to narrow settings"
 	}
 });
 
-test("a dispatched subagent actually calls the selected provider with ultra reasoning", async (t) => {
+test("a dispatched subagent actually calls the selected provider with max reasoning", async (t) => {
 	await send("MAIN_DELEGATE 派一个子智能体验证模型", '[data-dock-pane="conversation"]');
 	await until(`document.body.innerText.includes('主任务完成')`);
 	const child = requests.find((request) => request.path.startsWith("/secondary"));
 	t.diagnostic(JSON.stringify(requests.map((request) => ({ path: request.path, model: request.body.model, reasoning: request.body.reasoning })))); assert.ok(child);
-	assert.equal(child.body.model, "gpt-5.6-sol"); assert.deepEqual(child.body.reasoning, { effort: "ultra", summary: "auto" });
+	assert.equal(child.body.model, "gpt-5.6-sol"); assert.deepEqual(child.body.reasoning, { effort: "max", summary: "auto" });
 });
 
 test("sidechat restores old answers, queries early history and full tool tails, then survives switching", async () => {

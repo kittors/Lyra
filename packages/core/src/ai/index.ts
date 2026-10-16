@@ -69,12 +69,9 @@ export { toResponsesInput } from "./openai-responses-request.ts";
 export { openaiChatCompletionsProvider } from "./openai-chat-completions.ts";
 export { sanitizeChatCompletionsHistory, toChatCompletionsMessages, toChatCompletionsTools } from "./openai-chat-completions-request.ts";
 export {
+	DEFAULT_THINKING_OPTIONS,
 	resolveModelThinkingOptions,
 	resolveReasoningEffort,
-	STANDARD_3_LEVEL_OPTIONS,
-	STANDARD_5_LEVEL_OPTIONS,
-	GPT_5_6_STANDARD_OPTIONS,
-	GPT_5_6_SOL_OPTIONS,
-	GPT_6_ASTRA_OPTIONS,
-	FAST_3_LEVEL_OPTIONS,
+	resolveThinkingOption,
+	THINKING_LEVELS,
 } from "./thinking-options.ts";

@@ -15,8 +15,9 @@ const explore = BUILTIN_AGENTS.find((agent) => agent.name === "explore");
 assert.ok(explore);
 
 test("local profile selects the exact provider, outranks the definition, and inherits when removed", () => {
-	const chosen = resolveSubAgentModel({ ...settings, subAgentProfiles: { explore: { modelId: "b/same", thinking: "ultra" } } }, explore, fallback);
-	assert.equal(chosen.provider.id, "b"); assert.equal(chosen.model.id, "b/same"); assert.equal(chosen.thinking, "ultra");
+	// GPT-5.6 Sol's API has no `ultra` (that is a Codex alias); `max` is the deepest level it takes.
+	const chosen = resolveSubAgentModel({ ...settings, subAgentProfiles: { explore: { modelId: "b/same", thinking: "max" } } }, explore, fallback);
+	assert.equal(chosen.provider.id, "b"); assert.equal(chosen.model.id, "b/same"); assert.equal(chosen.thinking, "max");
 	assert.equal(resolveSubAgentModel(settings, explore, fallback).provider.id, "a");
 	assert.equal(resolveSubAgentModel(settings, { ...explore, model: "@fast:xhigh" }, fallback).thinking, "xhigh");
 	for (const level of ["minimal", "xhigh", "max", "ultra"]) assert.deepEqual(parseModelRef(`a/same:${level}`), { id: "a/same", thinking: level });
@@ -32,7 +33,8 @@ test("disabled and deleted explicit models fail visibly rather than using a diff
 test("thinking follows model capability, including custom levels and non-reasoning models", () => {
 	const basic: ModelConfig = { ...model, modelId: "gemini-3" };
 	const basicSettings = { ...settings, thinking: "ultra", providers: [{ ...provider, models: [basic] }] };
-	assert.equal(resolveSubAgentModel(basicSettings, explore, { provider, model: basic }).thinking, "medium");
+	// Inherited, a level the model lacks runs the nearest one it has — the deepest, here — not its default.
+	assert.equal(resolveSubAgentModel(basicSettings, explore, { provider, model: basic }).thinking, "high");
 	assert.throws(() => resolveSubAgentModel({ ...basicSettings, subAgentProfiles: { explore: { thinking: "ultra" } } }, explore, fallback), /不支持思考等级/);
 	const custom = { ...model, thinkingOptions: [{ id: "deep-custom", label: "Custom", detail: "Custom effort" }] };
 	assert.equal(resolveSubAgentModel({ ...settings, providers: [{ ...provider, models: [custom] }], subAgentProfiles: { explore: { thinking: "deep-custom" } } }, explore, fallback).thinking, "deep-custom");
@@ -48,9 +50,9 @@ test("normalization retains valid overrides and discards malformed imported sett
 
 test("real dispatch uses configured provider and thinking on the wire configuration", async () => {
 	let seen = false;
-	await runSubAgent({ sessionId: "profile-test", cwd: process.cwd(), settings: { ...settings, subAgentProfiles: { explore: { modelId: "b/same", thinking: "ultra" } } }, tools: [], skills: [], agents: [explore], requestApproval: async () => "once", emit: () => {}, streamFn: async (_context, config) => {
+	await runSubAgent({ sessionId: "profile-test", cwd: process.cwd(), settings: { ...settings, subAgentProfiles: { explore: { modelId: "b/same", thinking: "max" } } }, tools: [], skills: [], agents: [explore], requestApproval: async () => "once", emit: () => {}, streamFn: async (_context, config) => {
 		seen = true;
-		assert.equal(config.provider.id, "b"); assert.equal(config.model.id, "b/same"); assert.equal(config.thinking, "ultra");
+		assert.equal(config.provider.id, "b"); assert.equal(config.model.id, "b/same"); assert.equal(config.thinking, "max");
 		const response: AssistantMessage = { role: "assistant", content: [{ type: "text", text: "Done" }], api: provider.api, provider: "b", model: model.modelId, usage: emptyUsage(), stopReason: "stop", timestamp: 1 };
 		return response;
 	} }, { description: "Read", prompt: "Read", agentType: "explore" }, provider, model, "");
@@ -66,10 +68,10 @@ test("nested dispatch resolves updated preferences without changing the already 
 		seen.push(`${config.provider.id}:${config.thinking}`);
 		const response: AssistantMessage = { role: "assistant", content: [{ type: "text", text: "Done" }], api: config.provider.api, provider: config.provider.id, model: config.model.modelId, usage: emptyUsage(), stopReason: "stop", timestamp: ++turns };
 		if (turns === 1) {
-			current = { ...settings, subAgentProfiles: { explore: { modelId: "b/same", thinking: "ultra" }, boss: { modelId: "b/same", thinking: "high" } } };
+			current = { ...settings, subAgentProfiles: { explore: { modelId: "b/same", thinking: "max" }, boss: { modelId: "b/same", thinking: "high" } } };
 			return { ...response, stopReason: "toolUse", content: [{ type: "toolCall", id: "nested", name: "task", arguments: { description: "Read", prompt: "Read", subagent_type: "explore" } }] };
 		}
 		return response;
 	} }, { description: "Delegate", prompt: "Delegate", agentType: "boss" }, provider, model, "");
-	assert.deepEqual(seen, ["a:low", "b:ultra", "a:low"]);
+	assert.deepEqual(seen, ["a:low", "b:max", "a:low"]);
 });

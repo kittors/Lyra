@@ -22,8 +22,12 @@ test("both OpenAI protocols honour explicit relay levels and the existing terra 
 	for (const adapter of [openaiResponsesProvider, openaiChatCompletionsProvider]) {
 		for (const [config, requested, expected] of [
 			[{ ...model, thinkingOptions: [{ id: "adaptive", label: "自适应", detail: "Provider-defined", isDefault: true }] }, "adaptive", "adaptive"],
-			[{ ...model, modelId: "gpt-5.6-terra" }, "ultra", "ultra"],
-			[{ ...model, modelId: "unknown-relay" }, "ultra", "medium"],
+			// `ultra` is Codex's alias for `max`, never an API value: a stale one goes out as `max`.
+			[{ ...model, modelId: "gpt-5.6-terra" }, "ultra", "max"],
+			[{ ...model, modelId: "gpt-6.1-sol" }, "max", "max"],
+			[{ ...model, modelId: "gpt-6.1-sol" }, "off", "low"],
+			// A level the model lacks is the nearest it has, not its default.
+			[{ ...model, modelId: "unknown-relay" }, "ultra", "high"],
 		] satisfies [ModelConfig, string, string][]) {
 			const body = await payload(adapter, config, requested);
 			assert.deepEqual(adapter.api === "openai-responses" ? body.reasoning : body.reasoning_effort,
@@ -48,7 +52,7 @@ test("with thinking off, both OpenAI protocols leave the reasoning field out for
 });
 
 test("Anthropic uses the same fallback and an explicit budget for custom levels; invalid budgets never reach fetch", async () => {
-	assert.deepEqual((await payload(anthropicMessagesProvider, model, "ultra")).thinking, { type: "enabled", budget_tokens: 12288 });
+	assert.deepEqual((await payload(anthropicMessagesProvider, model, "ultra")).thinking, { type: "enabled", budget_tokens: 24576 });
 	const custom = { ...model, thinkingOptions: [{ id: "adaptive", label: "自适应", detail: "", budgetTokens: 2048 }] };
 	assert.deepEqual((await payload(anthropicMessagesProvider, custom, "adaptive")).thinking, { type: "enabled", budget_tokens: 2048 });
 	assert.equal((await payload(anthropicMessagesProvider, custom, "off")).thinking, undefined);

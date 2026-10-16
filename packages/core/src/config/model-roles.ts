@@ -12,7 +12,7 @@
  */
 
 import type { ModelConfig, ProviderConfig, ThinkingLevel } from "../types.ts";
-import { resolveModelThinkingOptions } from "../ai/thinking-options.ts";
+import { resolveModelThinkingOptions, resolveThinkingOption } from "../ai/thinking-options.ts";
 import type { Settings } from "./settings.ts";
 /*
  * 从 `models.ts` 而不是 `settings.ts`。
@@ -165,6 +165,7 @@ export function resolveSubAgentModel(
 	const requested = profile?.thinking ?? chosen.thinking ?? settings.thinking;
 	const supported = levels.find((level) => level.id === requested);
 	if (profile?.thinking && levels.length > 0 && !supported) throw new Error(`子智能体 ${definition.name} 的模型不支持思考等级 ${profile.thinking}，请重新选择。`);
-	const thinking = levels.length === 0 ? "off" : supported?.id ?? levels.find((level) => level.isDefault)?.id ?? levels[0].id;
+	// An inherited level the model lacks runs the nearest one it has, as it would in the main conversation.
+	const thinking = resolveThinkingOption(requested, chosen.model)?.id ?? "off";
 	return { ...chosen, thinking };
 }

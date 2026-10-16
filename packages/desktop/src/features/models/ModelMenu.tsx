@@ -1,5 +1,6 @@
 import { Box, ChevronRight, Star } from "lucide-react";
 import { isMediaModel, type MediaKind } from "@lyra/core/image-models";
+import { resolveThinkingOption } from "@lyra/core/thinking-options";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ModelIcon } from "./ModelIcon.tsx";
 import { RollingText } from "../../ui/motion/RollingText.tsx";
@@ -10,6 +11,8 @@ import { useApp } from "../../store/index.ts";
 import { useScopedFromMessages, useScopedMeta, useScopedSessionId } from "../../app/session-scope.tsx";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { sessionThinking } from "../../lib/thinking.ts";
+import { effortLabel } from "./EffortMenu.tsx";
+import { findModel } from "./models.ts";
 import {
 	ambiguousNames,
 	favouriteRows,
@@ -132,6 +135,15 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 	 */
 	const searchable = total >= SEARCH_FROM;
 	const fastMode = sessionThinking(meta, settings) === "off";
+	/*
+	 * The level this switch turns on, where it is not "none".
+	 *
+	 * GPT-6 Astra, GPT-6.1 Sol and the Codex models cannot stop reasoning, so "off" runs their
+	 * shallowest level instead. The switch still gets the fastest answer they have; its line has to
+	 * say which, or it promises an answer without reasoning that the request does not ask for.
+	 */
+	const currentModel = findModel(settings, current);
+	const floor = resolveThinkingOption("off", currentModel);
 	const isDefault = settings?.defaultModelId === current;
 
 	/*
@@ -290,7 +302,9 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 			footer={selection ? undefined :
 				<MenuFooter>
 					<MenuItem
-						detail={meta ? t("modelMenu.noThinkingSession") : t("modelMenu.noThinkingFaster")}
+						detail={floor && floor.id !== "off"
+							? t("modelMenu.noThinkingFloor", { level: effortLabel("off", currentModel, t) })
+							: meta ? t("modelMenu.noThinkingSession") : t("modelMenu.noThinkingFaster")}
 						trailing={
 							/*
 							 * Indicator, not a control: the whole row is the switch. A real Toggle here
