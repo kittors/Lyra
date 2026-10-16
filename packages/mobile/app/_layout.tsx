@@ -3,11 +3,15 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { mobileTranslator } from "../src/i18n";
 import { useMobile } from "../src/store";
 import "../global.css";
 
 export default function RootLayout() {
 	const hydrate = useMobile((s) => s.hydrate);
+	// In the phone's language like the screens under them: these two were written in Chinese, so an
+	// English phone opened an English page under a Chinese title.
+	const t = mobileTranslator();
 
 	useEffect(() => {
 		void hydrate();
@@ -27,7 +31,7 @@ export default function RootLayout() {
 					}}
 				>
 					<Stack.Screen name="index" options={{ title: "Lyra" }} />
-					<Stack.Screen name="pair" options={{ title: "连接桌面端", presentation: "modal" }} />
+					<Stack.Screen name="pair" options={{ title: t("pair.title"), presentation: "modal" }} />
 					{/*
 					 * Full screen, and no header: the viewfinder is the instruction, and a title bar
 					 * over a camera reads as a form that happens to have a picture in it.
@@ -39,7 +43,7 @@ export default function RootLayout() {
 					 * native title bar above it would be the app announcing itself twice.
 					 */}
 					<Stack.Screen name="desk" options={{ headerShown: false }} />
-					<Stack.Screen name="scan" options={{ title: "扫码连接", headerShown: false, presentation: "fullScreenModal" }} />
+					<Stack.Screen name="scan" options={{ title: t("pair.scan"), headerShown: false, presentation: "fullScreenModal" }} />
 				</Stack>
 			</SafeAreaProvider>
 		</GestureHandlerRootView>
