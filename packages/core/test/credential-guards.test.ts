@@ -20,10 +20,17 @@ import { assessRead } from "../src/tools/read-access.ts";
 import { bashTool } from "../src/tools/bash.ts";
 import type { ApprovalRequest, ToolResult } from "../src/types.ts";
 
-function gate(remembered: string[] = []) {
+/**
+ * A question waits as long as a permission here, unless the test is about it expiring.
+ *
+ * A test that answers a card races the card's timer. At the 40ms the expiry test needs, that race was
+ * lost on a loaded machine (`pnpm check` runs every package at once): the card had already been
+ * refused when `resolve` was reached.
+ */
+function gate(remembered: string[] = [], questionTimeoutMs = 5000) {
 	const asked: string[] = [];
 	const instance = new ApprovalGate(
-		{ mode: () => "full", cwd: () => "/", ask: async (pending) => void asked.push(pending.id), remember: (subject) => void remembered.push(subject), questionTimeoutMs: 40, unattendedTimeoutMs: 5000 },
+		{ mode: () => "full", cwd: () => "/", ask: async (pending) => void asked.push(pending.id), remember: (subject) => void remembered.push(subject), questionTimeoutMs, unattendedTimeoutMs: 5000 },
 		[],
 	);
 	return { instance, asked, remembered };
@@ -44,7 +51,7 @@ test("凭据卡片：完全访问模式下照样出卡片，只认「已提交�
 });
 
 test("凭据卡片按「问题」等，不按五分钟的授权：没人答就是拒绝", async () => {
-	const { instance } = gate();
+	const { instance } = gate([], 40);
 	assert.equal(await instance.request(CARD), "reject", "the question timeout (40ms here), not the 5s permission one");
 });
 

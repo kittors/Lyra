@@ -63,6 +63,12 @@ after(async () => {
 	await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 });
 
+/** Polls until `done` holds, for five seconds at most; the assertion after it says what never happened. */
+async function until(done: () => boolean): Promise<void> {
+	const deadline = Date.now() + 5000;
+	while (!done() && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 5));
+}
+
 async function project(name: string, config: unknown): Promise<string> {
 	const dir = join(root, name);
 	await mkdir(join(dir, ".lyra"), { recursive: true });
@@ -135,12 +141,17 @@ test("改全局设置不会把项目层默默清掉", async () => {
 	 */
 	const cwd = await project("sticky", { defaultModelId: "project/cheap" });
 	const { session } = await sessionIn(cwd);
+	const live = session as unknown as { settings: Settings };
 
 	session.updateSettings({ ...GLOBAL, retryAttempts: 9 });
-	// `updateSettings` 是同步的，项目层在它之后自己叠回来。
-	await new Promise((resolve) => setTimeout(resolve, 50));
+	/*
+	 * `updateSettings` is synchronous and lays the project layer back on afterwards, behind a disk read
+	 * it does not wait for. A fixed 50ms ran out before that read did when `pnpm check` had the machine
+	 * loaded, so this waits for the layer instead.
+	 */
+	await until(() => live.settings.defaultModelId === "project/cheap");
 
-	const used = (session as unknown as { settings: Settings }).settings;
+	const used = live.settings;
 	assert.equal(used.defaultModelId, "project/cheap", "项目的模型还在");
 	assert.equal(used.retryAttempts, 9, "全局的新值也进来了");
 });
