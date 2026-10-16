@@ -19,7 +19,7 @@
 
 import assert from "node:assert/strict";
 import { act, createElement as h } from "react";
-import { test } from "node:test";
+import { test, type TestContext } from "node:test";
 import { useFollowBottom, type FollowBottom } from "../../src/ui/scroll/useFollowBottom.ts";
 import { writeFollow, readFollow } from "../../src/ui/scroll/memory.ts";
 import { mount, type Mounted } from "../helpers/mount.ts";
@@ -110,6 +110,27 @@ async function arrives(view: Mounted, id: string, n: number, pixels = 300) {
  * still follows wait for it before asserting a position.
  */
 const slid = () => act(() => new Promise<void>((resolve) => setTimeout(resolve, 400)));
+
+/**
+ * Holds the clock a slide is timed by, so where it is "after 120ms" is the test's to say.
+ *
+ * Frames still run on their timer; only the time they read stands still until moved. Against the real
+ * clock a test slept 120ms and looked for the middle of a 240ms slide, and on a loaded machine (`pnpm
+ * check` runs every package at once) the sleep came back after the slide had ended.
+ */
+function holdClock(t: TestContext): (ms: number) => void {
+	let now = performance.now();
+	t.mock.method(performance, "now", () => now);
+	return (ms) => {
+		now += ms;
+	};
+}
+
+/** Lets frames run until `done` holds, for five seconds at most; the assertion after it says what never happened. */
+async function painted(done: () => boolean) {
+	const deadline = Date.now() + 5000;
+	while (!done() && Date.now() < deadline) await act(() => new Promise<void>((resolve) => setTimeout(resolve, 16)));
+}
 
 /**
  * A scroll this hook did not write: anchoring, clamping, the tail of a fling.
@@ -251,14 +272,19 @@ test("a viewport shrinking under a composer that grew keeps following", async ()
 	await view.unmount();
 });
 
-test("一张工具卡那么大的长高缓出滑到底；超过一屏的一步到位", async () => {
+test("一张工具卡那么大的长高缓出滑到底；超过一屏的一步到位", async (t) => {
 	const { view, el } = await open("sweep");
+	const advance = holdClock(t);
 	await arrives(view, "sweep", 1, 300);
 	await act(async () => controls.onResize(el));
 	assert.ok(el.scrollTop < bottom(), "三百像素不当场跳过去");
-	await act(() => new Promise<void>((resolve) => setTimeout(resolve, 120)));
+	const start = el.scrollTop;
+	advance(120);
+	await painted(() => el.scrollTop !== start);
 	assert.ok(el.scrollTop > bottom() - 300 && el.scrollTop < bottom(), `正在滑，实际 ${el.scrollTop}/${bottom()}`);
-	await slid();
+	// The 400ms `slid` gives every other slide in this file.
+	advance(400);
+	await painted(() => el.scrollTop === bottom());
 	assert.equal(el.scrollTop, bottom(), "滑到底");
 
 	await arrives(view, "sweep", 2, 600);
