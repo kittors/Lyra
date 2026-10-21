@@ -5,6 +5,80 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.32](https://github.com/kittors/Lyra/releases/tag/v0.9.32) - 2026-10-21
+
+<!-- lyra:notes en -->
+
+### Improvements & Fixes
+
+- **DeepSeek can use Max reasoning.** V4 Flash, V4 Pro and V4.1 Flash were limited to Off/Low/Medium/High, and a saved Max setting was sent as High. They now offer Off/Low/High/Max, with High as the default. Model names with provider prefixes or relay suffixes use the same levels.
+
+<!-- lyra:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 优化与修复
+
+- **DeepSeek 的推理强度可以选「最高」了。** V4 Flash、V4 Pro 和 V4.1 Flash 之前只有「关／低／中／高」，已保存的「最高」也会被降成「高」发送。现在按模型支持的档位显示「关／低／高／最高」，默认「高」。带供应商前缀或中转后缀的同族模型也能识别。
+
+</details>
+
+<!-- lyra:notes zh-TW -->
+
+<details>
+<summary>中文（繁體）</summary>
+
+### 改善與修正
+
+- **DeepSeek 現在可以選擇「最高」推理強度。** V4 Flash、V4 Pro 和 V4.1 Flash 原本只列出「關／低／中／高」，已儲存的「最高」也會以「高」送出。現在顯示模型支援的「關／低／高／最高」，預設為「高」。模型名稱帶有供應商前綴或中轉後綴時，也會套用相同檔位。
+
+</details>
+
+<!-- lyra:notes ja -->
+
+<details>
+<summary>日本語</summary>
+
+### 改善と修正
+
+- **DeepSeekで推論の強度を「最大」に設定できるようになりました。** V4 Flash、V4 Pro、V4.1 Flashには「オフ／低／中／高」しか表示されず、保存済みの「最大」も「高」として送信されていました。選択肢はモデルに合わせて「オフ／低／高／最大」、標準は「高」になります。プロバイダーの接頭辞や中継サービスの接尾辞が付いたモデル名にも対応します。
+
+</details>
+
+<!-- lyra:notes ko -->
+
+<details>
+<summary>한국어</summary>
+
+### 개선 및 수정
+
+- **DeepSeek에서 추론 단계를 최대로 설정할 수 있습니다.** V4 Flash, V4 Pro, V4.1 Flash에는 끔/낮음/중간/높음만 표시됐고, 저장해 둔 최대 설정도 높음으로 전송됐습니다. 이제 모델이 지원하는 끔/낮음/높음/최대를 표시하며 기본값은 높음입니다. 공급자 접두사나 중계 서비스 접미사가 붙은 모델 이름에도 같은 단계가 적용됩니다.
+
+</details>
+
+<!-- lyra:notes fr -->
+
+<details>
+<summary>Français</summary>
+
+### Améliorations et corrections
+
+- **Le raisonnement de DeepSeek peut désormais être réglé sur Maximum.** V4 Flash, V4 Pro et V4.1 Flash ne proposaient que Désactivé/Faible/Moyen/Élevé, et un réglage Maximum déjà enregistré était envoyé comme Élevé. Les choix sont maintenant Désactivé/Faible/Élevé/Maximum, avec Élevé par défaut. Les noms comportant un préfixe de fournisseur ou un suffixe de relais sont également reconnus.
+
+</details>
+
+<!-- lyra:notes ru -->
+
+<details>
+<summary>Русский</summary>
+
+### Улучшения и исправления
+
+- **В DeepSeek теперь можно выбрать глубину рассуждений «Максимум».** Для V4 Flash, V4 Pro и V4.1 Flash предлагались только «Выкл./Низкая/Средняя/Высокая», а сохранённый «Максимум» отправлялся как «Высокая». Теперь доступны «Выкл./Низкая/Высокая/Максимум», по умолчанию «Высокая». Имена моделей с префиксом поставщика или суффиксом посредника получают те же уровни.
+
+</details>
+
 ## [0.9.31](https://github.com/kittors/Lyra/releases/tag/v0.9.31) - 2026-10-16
 <!-- lyra:notes en -->
 
