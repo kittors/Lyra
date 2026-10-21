@@ -38,6 +38,7 @@ const NONE_TO_XHIGH = ladder(["off", "low", "medium", "high", "xhigh"]);
 const LOW_TO_XHIGH = ladder(["low", "medium", "high", "xhigh"]);
 const PRO = ladder(["medium", "high", "xhigh"]);
 const LOW_TO_HIGH = ladder(["low", "medium", "high"]);
+const DEEPSEEK_V4 = ladder(["off", "low", "high", "max"], "high");
 
 /**
  * OpenAI's models by family, with the efforts each one's API accepts — `off` standing for `none`.
@@ -110,6 +111,12 @@ export function resolveModelThinkingOptions(model?: ModelConfig | null): Thinkin
 	 */
 	if (id.includes("gemini") || id.includes("gemma")) {
 		return DEFAULT_THINKING_OPTIONS;
+	}
+
+	// DeepSeek's /models declares low/high/max, default high (2026-10-21); none also disables
+	// reasoning in live Chat Completions checks. Keep legacy V3/R1 and lookalike names on the fallback.
+	if (/(?:^|[^a-z0-9])deepseek-(?:v4-(?:flash|pro)|v4\.1-flash|flash)(?=$|[^a-z0-9])/.test(id)) {
+		return DEEPSEEK_V4;
 	}
 
 	// Compatibility fallback for unrecognised relay aliases, not a provider capability claim.
