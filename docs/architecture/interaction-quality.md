@@ -411,6 +411,10 @@ macOS 跳过；桌面构建、Markdown 链接检查和 `git diff --check` 通过
 推理选项优先使用 ModelConfig.thinkingOptions（显式空数组表示没有选项），其次按模型名认 OpenAI
 各家族的档位表（`ai/thinking-options.ts` 的 `OPENAI_FAMILIES`：取自 developers.openai.com 各模型页的
 `reasoning.effort` 一行，与 models.dev 的 `reasoning_options`、Codex 自带的模型目录交叉核对过），
+DeepSeek V4 Flash、V4 Pro、V4.1 Flash 及 `deepseek-flash` 别名使用关/低/高/最高，默认高：
+DeepSeek `/models` 声明 `low/high/max`、默认 `high`，真实 Chat Completions 请求也确认了 `none`
+关闭推理、`max` 返回推理内容。带供应商前缀、日期或中转后缀的同族名称使用相同档位，旧 V3/R1
+不据此扩展能力；显式配置仍优先。
 未知 relay 别名使用兼容兜底（关/低/中/高）。请求参数与界面读取同一能力列表，支持的档位保持原值；
 模型没有的档位落到它有的最近一档（先往深、再往浅，往浅不落到「关」）——「最高」换到 GPT-5.5 上是
 「超高」，换回来仍是「最高」。内置档位表里没有「关」的模型（GPT-6 Astra、GPT-6.1 Sol、Codex 系列、
