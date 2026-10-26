@@ -98,7 +98,7 @@
 		"@types/react": "19.2.18",
 		"@types/react-dom": "19.2.5",
 		"@types/ws": "8.18.1",
-		"@vitejs/plugin-react": "6.1.1",
+		"@vitejs/plugin-react": "6.1.2",
 		"electron": "43.4.1",
 		"electron-builder": "26.15.3",
 		"electron-vite": "5.0.0",
@@ -109,7 +109,7 @@
 		"tailwindcss": "4.3.3",
 		"tsx": "^4.23.13",
 		"typescript": "5.9.3",
-		"vite": "8.2.2",
+		"vite": "8.3.5",
 		"zustand": "5.0.14"
 	}
 }
