@@ -190,7 +190,7 @@ test("translated terminal tabs stay clipped before the fixed controls and revers
 					 * ——裁剪不能把标签裁到一个不剩。
 					 */
 					const titleVisible=tabs.some(t=>t.wide);
-					samples.push({hit:[...actions.querySelectorAll('button')].every(b=>{const r=b.getBoundingClientRect();return [.15,.5,.85].every(x=>[.15,.5,.85].every(y=>b.contains(document.elementFromPoint(r.x+r.width*x,r.y+r.height*y))))}),boundary:boundary&&slot.getBoundingClientRect().right<=edge,noDrag:getComputedStyle(title.firstElementChild).getPropertyValue('-webkit-app-region')==='no-drag',titleVisible,width:r.width,height:r.height,round:i,frame:j,tabs,strip:{left:Math.round(strip.left),right:Math.round(strip.right)},edge:Math.round(edge),paneWidth:Math.round(pane.getBoundingClientRect().width)});
+					samples.push({hit:[...actions.querySelectorAll('button')].every(b=>{const r=b.getBoundingClientRect();return [.15,.5,.85].every(x=>[.15,.5,.85].every(y=>b.contains(document.elementFromPoint(r.x+r.width*x,r.y+r.height*y))))}),boundary:boundary&&slot.getBoundingClientRect().right<=edge,noDrag:[...title.querySelectorAll('[data-tab]'),title.querySelector('button[aria-label="新建终端"]')].every(e=>{for(let n=e;n;n=n.parentElement){const v=getComputedStyle(n).getPropertyValue('-webkit-app-region');if(v==='drag')return false;if(v==='no-drag')return true}return !!e}),titleVisible,width:r.width,height:r.height,round:i,frame:j,tabs,strip:{left:Math.round(strip.left),right:Math.round(strip.right)},edge:Math.round(edge),paneWidth:Math.round(pane.getBoundingClientRect().width)});
 				}
 			}
 			for(let i=0;i<30;i++)await frame();return {samples,deltas,retained:original===pane.querySelector('.xterm-screen')};
@@ -205,6 +205,11 @@ test("translated terminal tabs stay clipped before the fixed controls and revers
 		 *
 		 * 握把也挂 data-dock-heading，好跟着几何动画走；它在卡片正中、顶边，300px 的 Windows
 		 * 面板上那个中心已经越过操作键。标题必须让开，握把不必。
+		 *
+		 * noDrag 量的是能按的东西——每个标签和「新建终端」——离它最近的那个 app-region 不是
+		 * drag，而不是整条标签条。整条都 no-drag 的时候，弹成独立窗口的终端整条标题栏都拖不动
+		 * （Windows 真机上 82 个点只有 4 个是 HTCAPTION），标签后面的空白现在留给拖窗口，那一半
+		 * 由 panel-window-chrome 守着。
 		 */
 		const bad = report.samples.find(s => !(s.hit && s.boundary && s.noDrag && s.titleVisible && s.width === 20 && s.height === 20));
 		assert.ok(!bad, `terminal tabs remain visible without covering or scaling pane actions — ${JSON.stringify({ theme, width, bad })}`);
