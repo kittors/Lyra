@@ -19,6 +19,7 @@ import { freezeMotion } from "../../ui/motion/freeze.ts";
 import { GRIP_SPAN, SPLITTER_HIT, SPLITTER_STEP } from "./geometry.ts";
 import { shareFromPointer, type SplitterBox } from "./layout.ts";
 import { pct } from "./css.ts";
+import { resizeCursor } from "../../ui/layout/resize-cursor.ts";
 
 export function Splitter({
 	handle,
@@ -89,7 +90,7 @@ export function Splitter({
 	 */
 	useEffect(() => {
 		if (!active) return;
-		document.body.style.cursor = row ? "col-resize" : "row-resize";
+		document.body.style.cursor = resizeCursor(row ? "columns" : "rows");
 		// Freezes the panes' own transitions, so they track the pointer instead of easing towards
 		// each intermediate share and never arriving — and refuses the text selection a drag across
 		// the panes would otherwise start. Both by naming things rather than by a flag above the

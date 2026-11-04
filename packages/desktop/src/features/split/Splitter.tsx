@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from "react";
 import { freezeMotion } from "../../ui/motion/freeze.ts";
 import { GRIP_SPAN, SPLITTER_HIT, SPLITTER_STEP, pct, shareFromPointer, type SplitterBox } from "./layout.ts";
 import { holdSplitPersist } from "./persist.ts";
+import { resizeCursor } from "../../ui/layout/resize-cursor.ts";
 
 export function Splitter({
 	handle,
@@ -37,7 +38,7 @@ export function Splitter({
 
 	useEffect(() => {
 		if (!active) return;
-		document.body.style.cursor = row ? "col-resize" : "row-resize";
+		document.body.style.cursor = resizeCursor(row ? "columns" : "rows");
 		const thaw = freezeMotion();
 		const release = holdSplitPersist();
 		document.documentElement.dataset.resizing = "";

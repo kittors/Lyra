@@ -369,3 +369,19 @@ html:not([data-layout="compact"]) [data-dock-content="conversation"] {
 		--ly-content: min(calc(100cqw - 416px), 1120px);
 	}
 }
+
+/*
+ * Windows: the system's resize cursors on every boundary handle.
+ *
+ * `col-resize` and `row-resize` are Chromium's own monochrome bitmaps there (←‖→), drawn by XOR and
+ * close to invisible on a mid-grey surface, unlike every other split on Windows, which shows ↔ and
+ * ↕ — `ew-resize` and `ns-resize`. Windows only, so macOS keeps its column cursor exactly as it
+ * was. The body's cursor during a drag is set inline and follows `ui/layout/resize-cursor.ts`.
+ */
+:root[data-ly-platform="win32"] .ly-splitter[aria-orientation="vertical"],
+:root[data-ly-platform="win32"] .ly-resize-handle {
+  cursor: ew-resize;
+}
+:root[data-ly-platform="win32"] .ly-splitter[aria-orientation="horizontal"] {
+  cursor: ns-resize;
+}
