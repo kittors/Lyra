@@ -13,8 +13,12 @@
  * there are — an unbounded strip pushed the last tab underneath the buttons, where it could be
  * seen and not clicked.
  *
- * `no-drag` throughout: this sits in the header, which is what moves the window, and a strip you
- * cannot click because the window slid out from under you is worse than no strip.
+ * `no-drag` on what can be pressed, not on the strip: this sits in a header that moves the window,
+ * and a tab you cannot click because the window slid out from under you is worse than no strip —
+ * but the strip is `flex-1`, so marking all of it `no-drag` also took every pixel of empty header.
+ * Popped out into its own window that header is the title bar, and on Windows 4 of 82 points
+ * along it still moved the window; the rest was this strip. The tabs, "+" and the scroll arrows
+ * stay pressable; the gaps between and after them stay the title bar.
  */
 
 import { translate } from "../../i18n/translate.ts";
@@ -68,7 +72,7 @@ export function TerminalTabs() {
 
 	return (
 		// The header owns the space left by the grip and native controls; do not halve it again.
-		<div className="no-drag flex min-w-0 flex-1 items-center gap-0.5">
+		<div className="flex min-w-0 flex-1 items-center gap-0.5">
 			{/* 滚、渐隐、两头的方向键，都在这一个壳里——见 `Sideways`。 */}
 			<Sideways
 				trackRef={strip}
@@ -81,7 +85,7 @@ export function TerminalTabs() {
 						<div
 							key={tab.id}
 							data-tab={tab.id}
-							className={`group/tab flex shrink-0 items-center gap-1 rounded-md pr-0.5 pl-2 transition-colors duration-[var(--ly-t-quick)] ${
+							className={`no-drag group/tab flex shrink-0 items-center gap-1 rounded-md pr-0.5 pl-2 transition-colors duration-[var(--ly-t-quick)] ${
 								current ? "bg-card-hover text-ink" : "text-ink-faint hover:text-ink"
 							}`}
 						>
@@ -120,7 +124,7 @@ export function TerminalTabs() {
 				aria-label={translate("terminal.new")}
 				data-ly-tip={translate("terminal.new")}
 				onClick={() => void openAnother()}
-				className="shrink-0 rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
+				className="no-drag shrink-0 rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
 			>
 				<Plus size={13} strokeWidth={2} />
 			</button>
