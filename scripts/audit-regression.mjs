@@ -356,19 +356,24 @@ const CHECKS = [
 	},
 	{
 		id: "LAYOUT-narrow-window",
-		what: "跑起来的桌面端里，窗口缩到半屏（768×784）和四分之一屏（768×440）：侧栏浮起来不再推开内容，四个面板只能挤成条时改画成标签，对话和侧边聊天的发送键都在屏内；变宽后侧栏和原来的排列都回来",
+		what: "跑起来的桌面端里，视口模拟成半屏（768×816）、四分之一屏（768×440）和默认的 980×680：前两档侧栏浮起来不再推开内容，没有面板被压到最小尺寸以下，对话和侧边聊天的发送键都画在屏内；980 和更宽时侧栏推开、原来的排列回来",
 		window: true,
 		run: ["node", ["--experimental-strip-types", "--test", "packages/desktop/e2e/narrow-window.test.ts"]],
 	},
 	{
 		id: "LAYOUT-narrow-rules",
-		what: "窄窗口的规则：1000px 以下侧栏浮起、不改写存下的偏好、Esc 和遮罩收起；dock 放不下最小尺寸或转向后一列超过两个就画成标签，保存的排列不动",
+		what: "窄窗口的规则：760–900px 侧栏浮起（默认 980 的窗口照旧推开）、不改写存下的偏好、Esc 和遮罩收起；dock 高度放不下、宽度差出半个面板以上或转向后一列超过两个才画成标签，只差几十像素的一行照旧保持一行，保存的排列不动",
 		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/nav-overlay.test.ts", "test/dock-crowded.test.ts"]],
 	},
 	{
 		id: "POPOUT-handover-spare",
 		what: "弹出面板：新窗口显示之前面板留在原处并盖一层说明，窗口没开出来就原样不动；预先建好的备用窗口生下来没有面板，被取走时画出分到的那一个",
 		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/popout-handover.test.ts", "test/ui/spare-panel-window.test.ts", "test/ui/dock-no-auto-popout.test.ts"]],
+	},
+	{
+		id: "SIDECHAT-summon-press",
+		what: "快捷键打开侧边聊天后点回对话：慢机器上输入框晚挂上，召唤不能把焦点再抢回去；打开它的那次按下不算",
+		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/summon-press.test.ts"]],
 	},
 	{
 		id: "MENU-transcript",
