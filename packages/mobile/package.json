@@ -1,6 +1,6 @@
 {
 	"name": "@lyra/mobile",
-	"version": "0.9.32",
+	"version": "0.9.33",
 	"private": true,
 	"main": "expo-router/entry",
 	"scripts": {

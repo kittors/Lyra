@@ -5,6 +5,220 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.33](https://github.com/kittors/Lyra/releases/tag/v0.9.33) - 2026-11-04
+
+<!-- lyra:notes en -->
+
+### New
+
+- **Pictures are made smaller before they go to the model.** A 4K screenshot is several megabytes, a phone photo about as much, and every request carries every picture in the conversation again. Thirteen of them made each request 25 MB; over a 15 KB/s upload that is about 28 minutes a turn. A 6.8 MB screenshot was over the 5 MB per-picture limit some providers enforce, and the request was refused — then the next one too, because the picture stayed in the history. A HEIC photo from an iPhone never reached the model at all: it was swapped for a line saying the format is not supported.
+  - A picture is fitted once, when it enters the conversation: at most 2000 px on the long side, about 512 KB where possible. That covers the three message boxes, pasting, marked-up pictures, photos from the phone, and pictures tools bring back — a picture file the agent opens, an MCP server, a browser screenshot. Screenshots stay PNG when they fit and otherwise become JPEG with small text still readable; photos go as JPEG. On macOS, HEIC is converted.
+  - The same thirteen pictures now make a 3 MB first request and about 2 MB after that.
+  - A request carries the latest 10 pictures (4 MB at most) as they are. Older ones go as small copies, then as a line telling the model it can no longer see them. The conversation itself keeps every picture.
+  - Dropping thirteen pictures in at once takes 3.0 s instead of 2.4 s.
+- **Menus work from the keyboard.** ↑ and ↓ move, Home and End jump to either end, Enter chooses, → opens a submenu and ← closes it. After opening a menu with the mouse, ↓ goes to its first item. In menus with a search box, typing stays in the box and the arrows move the highlight.
+- **New shortcuts:** Ctrl+N (⌘N) for a New chat, Ctrl+, (⌘,) for Settings, Ctrl+Tab and Ctrl+Shift+Tab (⌃Tab on macOS) to step through recent conversations, and Ctrl/⌘ with = - 0 to zoom. While the terminal has the keyboard, these keys still go to the shell.
+- **Alt-click (⌥-click) a conversation in the sidebar to open it in Split view** next to the one you are in, as in Claude's desktop app.
+- **Right-click in a reply** to copy the selected text, Copy link, Copy image, or save the image with Save as….
+- **In Split view you can see which pane has the keyboard:** the other panes' titles and icons are one step dimmer.
+
+### Improvements & Fixes
+
+- **On Windows, a terminal opened in its own window could not be moved, and double-clicking its title bar did nothing.** Only the first 10 px of the bar could be grabbed; the row of tabs took the rest. The empty part of the bar now drags the window, and a double-click maximizes it.
+- **On Windows, Ctrl+W hid the whole window in the tray.** Windows 11 keeps new tray icons behind ^, so it looked as though Lyra had quit. Ctrl+W now closes the panel in front, then the split pane, and never the window; in the terminal it still deletes the previous word. The first time closing the window leaves Lyra running in the notification area, a notification says so and how to bring it back. It appears once.
+- **Snapping the window to half the screen squeezed everything.** At 768 × 816 the sidebar left about 470 px for the rest: the terminal, Git and Side chat were stacked in 150 px strips, and Side chat's send button was below the bottom of the screen. Between 760 and 900 px the sidebar now opens over the content (Esc or a click beside it closes it, and your sidebar setting is left alone), panels that do not fit become tabs, and Side chat always keeps room for its box and send button.
+- **Opening a panel in a new window left nothing on screen for about three seconds.** The panel vanished from the main window at once, and the new window came up later with a splash screen. The panel now stays where it is, marked "Moving to a new window…", until the new window is showing. On the test machine that takes 0.39 s the first time. After that, Lyra keeps one window ready in the background and the next one takes 0.06 s; the ready window is a hidden page of about 80 MB that only exists once you have used this, and it closes with the main window.
+- **On Windows, the pointer over dividers was hard to see.** It was Chromium's own ←‖→, which almost disappears on grey. Dividers and the sidebar handle use the system ↔ and ↕ pointers now.
+- **The terminal's scrollbar was a 14 px grey block.** It is the same thin rounded bar as everywhere else.
+- **After opening Side chat with its shortcut you could not type straight away** — the keys went nowhere until you clicked the box. The box has the focus now.
+- **Dragging a conversation to the right edge to make a split, the card under the pointer went off the window.** Near the edges it moves to the other side of the pointer.
+
+<!-- lyra:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 新功能
+
+- **图片先压缩，再发给模型。** 一张 4K 截图就有好几 MB，手机照片也差不多，而每个请求都要把对话里所有的图重新带一遍。13 张这样的图，每一轮请求体 25 MB；中转上行只有 15 KB/s 的时候，一轮光上传就要 28 分钟左右。一张 6.8 MB 的截图超过了部分供应商 5 MB 的单图上限，请求被整条拒收，而且图留在历史里，之后每一轮都发不出去。iPhone 的 HEIC 照片根本到不了模型，只换成一句「格式不支持」。
+  - 图片进对话时缩一次：长边最多 2000 像素，尽量压到 512 KB 以内。三个输入框、粘贴、标注过的图、手机传来的照片，还有工具带回来的图（智能体打开的图片文件、MCP 服务、浏览器截图）都走这一步。截图放得下就保持 PNG，放不下转 JPEG，小字照样看得清；照片一律 JPEG。macOS 上 HEIC 会先转换。
+  - 同样 13 张图，第一轮请求体 3 MB，之后每轮 2 MB 左右。
+  - 每个请求原样带最近的 10 张（合计最多 4 MB）。更早的先换成小图，再换成一句话，告诉模型这张图它已经看不到了。对话记录里的图一张不少。
+  - 一次拖进 13 张图，从 2.4 秒变成 3.0 秒。
+- **菜单能用键盘操作。** ↑ ↓ 移动，Home、End 跳到两头，Enter 选中，→ 打开子菜单，← 收回。用鼠标打开菜单后，按 ↓ 就进到第一项。带搜索框的菜单，字照样打进框里，方向键移动高亮。
+- **新快捷键：** Ctrl+N（⌘N）新对话，Ctrl+,（⌘,）打开设置，Ctrl+Tab、Ctrl+Shift+Tab（macOS 上是 ⌃Tab）按最近的顺序切换会话，Ctrl/⌘ 加 = - 0 缩放界面。焦点在终端里时，这些键照旧交给 shell。
+- **按住 Alt（⌥）点侧栏里的会话，会在当前会话旁边以分屏打开**，和 Claude 桌面版一样。
+- **回复正文可以右键了：** 复制选中的文字、复制链接、复制图片，或者把图片另存为。
+- **分屏时看得出键盘在哪一屏：** 其余几屏的标题和图标淡一档。
+
+### 优化与修复
+
+- **Windows 上，在新窗口中打开的终端拖不动，双击标题栏也没反应。** 标题栏只有最左边 10 像素左右抓得住，剩下的都被那一排标签占了。现在标题栏空白处可以拖，双击就最大化。
+- **Windows 上按 Ctrl+W，整个窗口收进了托盘。** Windows 11 把新的托盘图标藏在「^」里，看上去就像 Lyra 退出了。现在 Ctrl+W 先关前面的面板，再关这一屏，不会关窗口；在终端里它仍然是删掉前一个词。第一次关窗口、Lyra 留在通知区域时，会弹一条通知说明它还在运行、怎么叫回来，只弹这一次。
+- **窗口贴到半屏，界面挤成一团。** 768×816 的窗口里，侧栏推开后只剩 470 像素左右，终端、Git、侧边聊天被压成 150 像素的细条，侧边聊天的发送键掉到了屏幕下边。现在窗口宽度在 760 到 900 像素之间时，侧栏浮在内容上面（按 Esc 或点旁边就收起，你设好的侧栏偏好不变），放不下的面板收成标签，侧边聊天始终留得下输入框和发送键。
+- **在新窗口中打开面板时，屏幕上有三秒左右什么都没有。** 面板当场从主窗口消失，新窗口过一会儿才带着启动画面出来。现在面板留在原处，标着「正在移到新窗口…」，等新窗口显示出来才离开。测试机上第一次 0.39 秒；用过一次之后，Lyra 会在后台备好一扇窗口，下一次只要 0.06 秒。备着的那扇是一个约 80 MB 的隐藏页面，只有用过这个功能才会有，关主窗口时一起关掉。
+- **Windows 上，分隔条上的光标几乎看不见。** 那是 Chromium 自己画的 ←‖→，在灰底上快要隐形。分隔条和侧栏的拖动手柄现在用系统的 ↔、↕ 光标。
+- **终端的滚动条是一个 14 像素的灰色方块。** 现在和别处一样，是细细的圆角滚动条。
+- **用快捷键打开侧边聊天后不能直接打字**，按键哪儿也没去，得先点一下输入框。现在打开后光标就在输入框里。
+- **把会话拖到右边缘分屏时，跟着指针的那张小卡片跑到了窗口外面。** 现在靠近边缘时，它会换到指针的另一侧。
+
+</details>
+
+<!-- lyra:notes zh-TW -->
+
+<details>
+<summary>中文（繁體）</summary>
+
+### 新功能
+
+- **圖片會先縮小，再送給模型。** 一張 4K 截圖就有好幾 MB，手機照片也差不多，而每次請求都要把對話裡所有的圖重新帶上。13 張這樣的圖，每一輪請求就是 25 MB；如果中轉的上傳只有 15 KB/s，光上傳一輪就要將近 28 分鐘。一張 6.8 MB 的截圖超過部分供應商 5 MB 的單張上限，整個請求被拒收，而且圖還留在歷史裡，之後每一輪都送不出去。iPhone 的 HEIC 照片則根本到不了模型，只被換成一句「格式不支援」。
+  - 圖片進入對話時會縮一次：長邊最多 2000 像素，盡量在 512 KB 以內。三個輸入框、貼上、標註過的圖、手機傳來的照片，以及工具帶回來的圖（智慧體開啟的圖片檔、MCP 服務、瀏覽器截圖）都一樣。截圖放得下就維持 PNG，放不下改成 JPEG，小字依然看得清楚；照片一律 JPEG。在 macOS 上，HEIC 會先轉檔。
+  - 同樣 13 張圖，第一輪請求變成 3 MB，之後每輪約 2 MB。
+  - 每次請求原樣帶上最近的 10 張（合計最多 4 MB）。更早的先換成小圖，再換成一句話，告訴模型這張圖它已經看不到了。對話紀錄裡的圖一張都不會少。
+  - 一次拖進 13 張圖，從 2.4 秒變成 3.0 秒。
+- **選單可以用鍵盤操作了。** ↑ ↓ 移動，Home、End 跳到最前和最後，Enter 選取，→ 打開子選單，← 收回。用滑鼠打開選單後，按 ↓ 就會進到第一項。有搜尋框的選單，文字照樣打在框裡，方向鍵移動反白。
+- **新的快捷鍵：** Ctrl+N（⌘N）新對話，Ctrl+,（⌘,）開啟設定，Ctrl+Tab、Ctrl+Shift+Tab（macOS 上是 ⌃Tab）依最近使用的順序切換對話，Ctrl/⌘ 加 = - 0 縮放畫面。焦點在終端機裡時，這些鍵仍然交給 shell。
+- **按住 Alt（⌥）點側邊欄裡的對話，就會在目前的對話旁以分屏開啟**，和 Claude 桌面版一樣。
+- **回覆內文可以按右鍵了：** 複製選取的文字、複製連結、複製圖片，或把圖片另存為。
+- **分屏時看得出鍵盤在哪一格：** 其他幾格的標題和圖示會淡一階。
+
+### 改善與修正
+
+- **在 Windows 上，以新視窗開啟的終端機拖不動，雙擊標題列也沒有反應。** 標題列只有最左邊約 10 像素抓得到，其餘都被那一排分頁佔走了。現在標題列的空白處可以拖曳，雙擊就會放到最大。
+- **在 Windows 上按 Ctrl+W，整個視窗會縮進系統匣。** Windows 11 把新的圖示收在「^」裡，看起來就像 Lyra 結束了。現在 Ctrl+W 會先關前面的面板，再關這一格分屏，不會關掉視窗；在終端機裡它仍然是刪除前一個字。第一次關閉視窗、Lyra 留在通知區域時，會跳出一則通知，說明它還在執行、要怎麼叫回來，只會出現這一次。
+- **視窗貼齊半個螢幕時，畫面全擠在一起。** 768×816 的視窗裡，側邊欄推開後只剩約 470 像素，終端機、Git、側邊聊天被壓成 150 像素的細條，側邊聊天的送出鍵還掉到螢幕下面。現在視窗寬度在 760 到 900 像素之間時，側邊欄會浮在內容上方（按 Esc 或點旁邊就收起，你設定好的側邊欄偏好不變），放不下的面板會收成分頁，側邊聊天也一定留得下輸入框和送出鍵。
+- **把面板移到新視窗時，螢幕上大約有三秒什麼都沒有。** 面板一按就從主視窗消失，新視窗過一陣子才帶著啟動畫面出現。現在面板會留在原處，標示「正在移到新視窗…」，等新視窗顯示出來才離開。測試機上第一次是 0.39 秒；用過一次之後，Lyra 會在背景先備好一扇視窗，下一次只要 0.06 秒。備用的那扇是約 80 MB 的隱藏頁面，用過這個功能才會有，主視窗關閉時一起關掉。
+- **在 Windows 上，分隔線上的游標幾乎看不見。** 那是 Chromium 自己畫的 ←‖→，在灰色背景上快要隱形。分隔線和側邊欄的拖曳把手現在改用系統的 ↔、↕ 游標。
+- **終端機的捲軸是一塊 14 像素的灰色方塊。** 現在和其他地方一樣，是細細的圓角捲軸。
+- **用快捷鍵開啟側邊聊天後沒辦法直接打字**，按鍵沒有落到任何地方，得先點一下輸入框。現在開啟後游標就在輸入框裡。
+- **把對話拖到右邊緣建立分屏時，跟著指標的小卡片跑到了視窗外。** 現在靠近邊緣時，它會換到指標的另一側。
+
+</details>
+
+<!-- lyra:notes ja -->
+
+<details>
+<summary>日本語</summary>
+
+### 新機能
+
+- **画像はモデルに送る前に縮小するようになりました。** 4K のスクリーンショットは 1 枚で数 MB、スマートフォンの写真も同じくらいあり、しかもリクエストのたびに会話中の画像がすべて送り直されます。13 枚あると毎回 25 MB になり、中継の上りが 15 KB/s しかない環境では 1 往復に約 28 分かかっていました。6.8 MB のスクリーンショットは一部のプロバイダーが設けている 1 枚 5 MB の上限を超えていて、リクエストごと拒否されます。画像は履歴に残るので、その後のリクエストもすべて通りませんでした。iPhone の HEIC 写真はモデルに届かず、「対応していない形式」という一文に置き換えられていました。
+  - 画像は会話に入るときに一度だけ縮小します。長辺は最大 2000 px、できるだけ 512 KB 以内です。3 つの入力欄、貼り付け、注釈を付けた画像、スマートフォンからの写真、ツールが持ち帰る画像（エージェントが開いた画像ファイル、MCP サーバー、ブラウザのスクリーンショット）が対象です。スクリーンショットは収まれば PNG のまま、収まらなければ JPEG にしますが、小さな文字も読めるままです。写真は JPEG で送ります。macOS では HEIC も変換します。
+  - 同じ 13 枚で、最初のリクエストは 3 MB、以降は 2 MB 前後になりました。
+  - 1 回のリクエストで元のまま送るのは直近の 10 枚（合計 4 MB まで）です。それより古い画像はまず小さな版に、次に「この画像はもう見えない」とモデルに伝える一文に置き換えます。会話の記録には画像がすべて残ります。
+  - 13 枚をまとめてドロップしたときの待ち時間は 2.4 秒から 3.0 秒になりました。
+- **メニューをキーボードで操作できるようになりました。** ↑ ↓ で移動、Home と End で先頭と末尾へ、Enter で選択、→ でサブメニューを開き ← で閉じます。マウスでメニューを開いたあとは ↓ で最初の項目に入ります。検索欄のあるメニューでは、文字は欄に入ったまま矢印でハイライトが動きます。
+- **ショートカットを追加しました：** Ctrl+N（⌘N）で新しい会話、Ctrl+,（⌘,）で設定、Ctrl+Tab と Ctrl+Shift+Tab（macOS では ⌃Tab）で最近使った順に会話を切り替え、Ctrl/⌘ と = - 0 で表示倍率を変更。ターミナルにフォーカスがあるときは、これらのキーは従来どおりシェルに渡ります。
+- **サイドバーの会話を Alt（⌥）を押しながらクリックすると、今の会話の隣に分割表示で開きます。** Claude のデスクトップ版と同じ操作です。
+- **回答の本文で右クリックできるようになりました。** 選択した文字のコピー、リンクをコピー、画像をコピー、画像を別名で保存ができます。
+- **分割表示でキーボードがどのペインにあるか分かるようになりました。** ほかのペインのタイトルとアイコンが一段淡くなります。
+
+### 改善と修正
+
+- **Windows で、新しいウィンドウで開いたターミナルを動かせず、タイトルバーをダブルクリックしても反応しませんでした。** つかめるのはタイトルバー左端の 10 px ほどだけで、残りはタブの列が占めていました。今はタイトルバーの空いている所でドラッグでき、ダブルクリックで最大化します。
+- **Windows で Ctrl+W を押すと、ウィンドウ全体がトレイに隠れていました。** Windows 11 は新しいトレイアイコンを「^」の奥にしまうので、Lyra が終了したように見えます。今は Ctrl+W で手前のパネル、次にそのペインを閉じ、ウィンドウは閉じません。ターミナルでは従来どおり直前の単語を削除します。ウィンドウを閉じて Lyra が初めて通知領域に残ったときは、まだ動いていることと呼び戻し方を通知で一度だけ知らせます。
+- **ウィンドウを画面の半分にスナップすると、画面全体が窮屈になっていました。** 768×816 ではサイドバーが残りを約 470 px まで押し縮め、ターミナル、Git、サイドチャットが 150 px の帯に積み重なり、サイドチャットの送信ボタンは画面の下にはみ出していました。今は幅が 760〜900 px のとき、サイドバーは内容の上に重ねて開き（Esc か外側のクリックで閉じます。サイドバーの設定は変わりません）、収まらないパネルはタブにまとめ、サイドチャットには入力欄と送信ボタンの場所を必ず残します。
+- **パネルを新しいウィンドウで開くと、3 秒ほど画面のどこにも表示されませんでした。** パネルはその場でメインウィンドウから消え、新しいウィンドウは少し遅れて起動画面付きで現れていました。今はパネルが「新しいウィンドウに移動中…」と表示したまま元の場所に残り、新しいウィンドウが表示されてから移ります。テスト機では初回 0.39 秒です。一度使うと Lyra が裏で 1 枚ウィンドウを用意しておくので、次からは 0.06 秒です。用意しておくウィンドウは約 80 MB の非表示ページで、この機能を使ったことがある場合にだけ作られ、メインウィンドウを閉じると一緒に閉じます。
+- **Windows で、区切り線の上のカーソルがほとんど見えませんでした。** Chromium が独自に描く ←‖→ で、灰色の上ではほぼ消えていました。区切り線とサイドバーのつまみは、システムの ↔ と ↕ のカーソルを使うようになりました。
+- **ターミナルのスクロールバーが 14 px の灰色の四角でした。** ほかの場所と同じ、細い角丸のバーになりました。
+- **ショートカットでサイドチャットを開いても、すぐには入力できませんでした。** 入力欄をクリックするまでキーがどこにも届いていませんでした。今は開いた時点で入力欄にフォーカスがあります。
+- **会話を右端までドラッグして分割しようとすると、ポインターに付いてくるカードがウィンドウの外に出ていました。** 端に近づくとポインターの反対側に回り込みます。
+
+</details>
+
+<!-- lyra:notes ko -->
+
+<details>
+<summary>한국어</summary>
+
+### 새 기능
+
+- **이미지를 줄인 다음 모델에 보냅니다.** 4K 스크린숏 한 장이 몇 MB이고 휴대폰 사진도 비슷한데, 요청할 때마다 대화 속 이미지를 전부 다시 보냅니다. 이런 이미지가 13장이면 요청 하나가 매번 25 MB였고, 릴레이 업로드가 15 KB/s일 때는 한 번 주고받는 데 28분 가까이 걸렸습니다. 6.8 MB짜리 스크린숏은 일부 공급자가 정한 장당 5 MB 한도를 넘어 요청이 통째로 거부됐고, 이미지가 기록에 남아 있어서 그 뒤의 요청도 모두 실패했습니다. iPhone의 HEIC 사진은 모델에 닿지도 못하고 '지원하지 않는 형식'이라는 한 줄로 바뀌었습니다.
+  - 이미지는 대화에 들어올 때 한 번 줄입니다. 긴 변은 최대 2000 px, 가능하면 512 KB 이내입니다. 입력창 세 곳, 붙여넣기, 표시를 단 이미지, 휴대폰에서 온 사진, 도구가 가져오는 이미지(에이전트가 연 이미지 파일, MCP 서버, 브라우저 스크린숏)가 모두 해당됩니다. 스크린숏은 한도 안에 들면 PNG 그대로, 넘으면 JPEG로 바꾸되 작은 글자도 읽을 수 있게 남깁니다. 사진은 JPEG로 보냅니다. macOS에서는 HEIC도 변환합니다.
+  - 같은 13장으로 첫 요청은 3 MB, 이후는 2 MB 안팎이 됐습니다.
+  - 요청마다 최근 10장(합계 최대 4 MB)만 원래대로 보냅니다. 그보다 오래된 이미지는 먼저 작은 사본으로, 다음에는 이 이미지를 더는 볼 수 없다고 모델에 알리는 한 줄로 바뀝니다. 대화 기록에는 이미지가 모두 남습니다.
+  - 13장을 한꺼번에 끌어 놓을 때 2.4초 걸리던 것이 3.0초 걸립니다.
+- **메뉴를 키보드로 다룰 수 있습니다.** ↑ ↓로 이동, Home과 End로 처음과 끝, Enter로 선택, →로 하위 메뉴를 열고 ←로 닫습니다. 마우스로 메뉴를 연 뒤 ↓를 누르면 첫 항목으로 들어갑니다. 검색창이 있는 메뉴에서는 글자는 검색창에 그대로 들어가고 화살표로 강조 표시만 움직입니다.
+- **새 단축키:** Ctrl+N(⌘N) 새 대화, Ctrl+,(⌘,) 설정, Ctrl+Tab과 Ctrl+Shift+Tab(macOS는 ⌃Tab)으로 최근 순서대로 대화 전환, Ctrl/⌘와 = - 0으로 화면 배율 조절. 터미널에 포커스가 있을 때는 이 키들이 그대로 셸로 갑니다.
+- **사이드바의 대화를 Alt(⌥)를 누른 채 클릭하면 지금 대화 옆에 분할 보기로 열립니다.** Claude 데스크톱 앱과 같은 방식입니다.
+- **답변 본문에서 오른쪽 클릭이 됩니다.** 선택한 글자 복사, 링크 복사, 이미지 복사, 이미지를 다른 이름으로 저장할 수 있습니다.
+- **분할 보기에서 키보드가 어느 칸에 있는지 보입니다.** 나머지 칸의 제목과 아이콘이 한 단계 흐려집니다.
+
+### 개선 및 수정
+
+- **Windows에서 새 창에서 연 터미널을 옮길 수 없었고, 제목 표시줄을 더블클릭해도 반응이 없었습니다.** 잡을 수 있는 곳은 제목 표시줄 왼쪽 끝 10 px 정도뿐이었고 나머지는 탭 줄이 차지했습니다. 이제 제목 표시줄의 빈 곳을 끌어 창을 옮기고, 더블클릭하면 최대화됩니다.
+- **Windows에서 Ctrl+W를 누르면 창 전체가 트레이로 숨었습니다.** Windows 11은 새 트레이 아이콘을 '^' 안쪽에 넣어 두기 때문에 Lyra가 종료된 것처럼 보였습니다. 이제 Ctrl+W는 앞에 있는 패널을, 그다음 그 분할 칸을 닫고 창은 닫지 않습니다. 터미널에서는 여전히 앞 단어를 지웁니다. 창을 닫아 Lyra가 처음으로 알림 영역에 남을 때는 아직 실행 중이라는 것과 다시 여는 방법을 알림으로 한 번만 알려 줍니다.
+- **창을 화면 절반에 맞추면 화면 전체가 비좁아졌습니다.** 768×816에서는 사이드바가 나머지를 약 470 px로 밀어내 터미널, Git, 사이드 챗이 150 px짜리 띠로 쌓였고, 사이드 챗의 보내기 버튼은 화면 아래로 빠졌습니다. 이제 너비가 760~900 px이면 사이드바가 내용 위에 떠서 열리고(Esc나 바깥 클릭으로 닫히며, 사이드바 설정은 그대로입니다), 들어가지 않는 패널은 탭으로 묶이며, 사이드 챗은 입력창과 보내기 버튼 자리를 항상 남겨 둡니다.
+- **패널을 새 창에서 열면 3초쯤 화면 어디에도 보이지 않았습니다.** 패널은 메인 창에서 바로 사라지고, 새 창은 조금 뒤에 시작 화면과 함께 나타났습니다. 이제 패널이 '새 창으로 옮기는 중…'이라고 표시한 채 제자리에 남아 있다가 새 창이 보이면 옮겨 갑니다. 테스트 기기에서 처음에는 0.39초입니다. 한 번 쓰고 나면 Lyra가 뒤에서 창 하나를 미리 준비해 두어 다음부터는 0.06초입니다. 준비해 두는 창은 약 80 MB의 숨은 페이지로, 이 기능을 쓴 적이 있을 때만 만들어지고 메인 창을 닫으면 함께 닫힙니다.
+- **Windows에서 구분선 위의 커서가 거의 보이지 않았습니다.** Chromium이 따로 그리는 ←‖→ 모양이라 회색 바탕에서는 거의 사라졌습니다. 구분선과 사이드바 손잡이는 이제 시스템의 ↔, ↕ 커서를 씁니다.
+- **터미널의 스크롤바가 14 px짜리 회색 사각형이었습니다.** 이제 다른 곳과 같은 얇은 둥근 막대입니다.
+- **단축키로 사이드 챗을 열어도 바로 입력할 수 없었습니다.** 입력창을 클릭하기 전까지 키가 아무 데도 가지 않았습니다. 이제 열자마자 입력창에 포커스가 있습니다.
+- **대화를 오른쪽 가장자리로 끌어 분할하려 하면 포인터를 따라오던 카드가 창 밖으로 나갔습니다.** 가장자리에 가까워지면 포인터의 반대쪽으로 옮겨 갑니다.
+
+</details>
+
+<!-- lyra:notes fr -->
+
+<details>
+<summary>Français</summary>
+
+### Nouveautés
+
+- **Les images sont réduites avant de partir vers le modèle.** Une capture d'écran 4K pèse plusieurs mégaoctets, une photo de téléphone à peu près autant, et chaque requête renvoie toutes les images de la conversation. Avec treize d'entre elles, chaque requête faisait 25 Mo ; avec un relais limité à 15 Ko/s en envoi, comptez environ 28 minutes par échange. Une capture de 6,8 Mo dépassait la limite de 5 Mo par image fixée par certains fournisseurs : la requête était refusée, puis la suivante aussi, puisque l'image restait dans l'historique. Une photo HEIC d'iPhone n'arrivait jamais au modèle : elle était remplacée par une ligne disant que le format n'est pas pris en charge.
+  - Une image est ajustée une seule fois, à son entrée dans la conversation : 2000 px au plus sur le grand côté, environ 512 Ko quand c'est possible. Cela vaut pour les trois zones de saisie, le collage, les images annotées, les photos venues du téléphone et les images que rapportent les outils — un fichier image ouvert par l'agent, un serveur MCP, une capture du navigateur. Les captures d'écran restent en PNG quand elles tiennent, sinon elles passent en JPEG sans que le petit texte devienne illisible ; les photos partent en JPEG. Sur macOS, le HEIC est converti.
+  - Les mêmes treize images donnent maintenant une première requête de 3 Mo, puis environ 2 Mo.
+  - Une requête envoie telles quelles les 10 images les plus récentes (4 Mo au plus). Les plus anciennes partent en version réduite, puis sous forme d'une ligne qui dit au modèle qu'il ne les voit plus. La conversation, elle, garde toutes ses images.
+  - Déposer treize images d'un coup prend 3,0 s au lieu de 2,4 s.
+- **Les menus se pilotent au clavier.** ↑ et ↓ pour se déplacer, Début et Fin pour aller aux extrémités, Entrée pour choisir, → pour ouvrir un sous-menu et ← pour le refermer. Après avoir ouvert un menu à la souris, ↓ mène au premier élément. Dans les menus qui ont un champ de recherche, la saisie reste dans le champ et les flèches déplacent la surbrillance.
+- **Nouveaux raccourcis :** Ctrl+N (⌘N) pour une Nouvelle discussion, Ctrl+, (⌘,) pour les Réglages, Ctrl+Tab et Ctrl+Maj+Tab (⌃Tab sur macOS) pour passer d'une conversation récente à l'autre, et Ctrl/⌘ avec = - 0 pour le zoom. Quand le terminal a le clavier, ces touches vont toujours au shell.
+- **Un clic avec Alt (⌥) sur une conversation de la barre latérale l'ouvre en Vue scindée** à côté de celle où vous êtes, comme dans l'application de bureau de Claude.
+- **Clic droit dans une réponse** : copier le texte sélectionné, Copier le lien, Copier l'image, ou l'enregistrer avec Enregistrer sous….
+- **En Vue scindée, on voit quel volet a le clavier** : les titres et les icônes des autres volets sont un cran plus pâles.
+
+### Améliorations et corrections
+
+- **Sous Windows, un terminal ouvert dans une nouvelle fenêtre ne se déplaçait pas, et un double-clic sur sa barre de titre ne faisait rien.** Seuls les 10 premiers pixels de la barre se laissaient attraper ; la rangée d'onglets occupait le reste. La partie vide de la barre déplace maintenant la fenêtre, et un double-clic l'agrandit.
+- **Sous Windows, Ctrl+W cachait toute la fenêtre dans la barre d'état système.** Windows 11 range les nouvelles icônes derrière ^, si bien que Lyra semblait avoir quitté. Ctrl+W ferme maintenant le panneau au premier plan, puis le volet, jamais la fenêtre ; dans le terminal, il efface toujours le mot précédent. La première fois que la fenêtre se ferme en laissant Lyra dans la zone de notification, une notification le dit et explique comment la rouvrir. Elle n'apparaît qu'une fois.
+- **Ancrer la fenêtre sur une moitié d'écran écrasait tout.** En 768 × 816, la barre latérale ne laissait qu'environ 470 px au reste : le terminal, Git et la Discussion latérale s'empilaient en bandes de 150 px, et le bouton d'envoi de la Discussion latérale passait sous le bas de l'écran. Entre 760 et 900 px, la barre latérale s'ouvre désormais par-dessus le contenu (Échap ou un clic à côté la referme, et votre réglage de barre latérale ne change pas), les panneaux qui ne tiennent pas deviennent des onglets, et la Discussion latérale garde toujours la place pour sa zone de saisie et son bouton d'envoi.
+- **Ouvrir un panneau dans une nouvelle fenêtre ne laissait rien à l'écran pendant environ trois secondes.** Le panneau disparaissait aussitôt de la fenêtre principale, et la nouvelle fenêtre arrivait plus tard avec un écran de démarrage. Le panneau reste maintenant à sa place, avec la mention « Passage dans une nouvelle fenêtre… », jusqu'à ce que la nouvelle fenêtre s'affiche. Sur la machine de test, cela prend 0,39 s la première fois. Ensuite, Lyra garde une fenêtre prête en arrière-plan et la suivante prend 0,06 s ; cette fenêtre prête est une page masquée d'environ 80 Mo, qui n'existe qu'une fois la fonction utilisée et se ferme avec la fenêtre principale.
+- **Sous Windows, le pointeur au-dessus des séparateurs se voyait à peine.** C'était le ←‖→ dessiné par Chromium, presque invisible sur du gris. Les séparateurs et la poignée de la barre latérale utilisent maintenant les pointeurs ↔ et ↕ du système.
+- **La barre de défilement du terminal était un bloc gris de 14 px.** C'est désormais la même barre fine et arrondie que partout ailleurs.
+- **Après avoir ouvert la Discussion latérale par son raccourci, on ne pouvait pas taper tout de suite** : les touches n'allaient nulle part tant qu'on n'avait pas cliqué dans la zone de saisie. Celle-ci a maintenant le focus.
+- **En faisant glisser une conversation vers le bord droit pour scinder la vue, la carte sous le pointeur sortait de la fenêtre.** Près des bords, elle passe de l'autre côté du pointeur.
+
+</details>
+
+<!-- lyra:notes ru -->
+
+<details>
+<summary>Русский</summary>
+
+### Новое
+
+- **Изображения уменьшаются, прежде чем уйти к модели.** Снимок экрана в 4K весит несколько мегабайт, фото с телефона — примерно столько же, а каждый запрос заново несёт все изображения из беседы. С тринадцатью такими картинками каждый запрос весил 25 МБ; если ретранслятор отдаёт наружу 15 КБ/с, один обмен занимал около 28 минут. Снимок экрана на 6,8 МБ превышал лимит в 5 МБ на изображение, который ставят некоторые провайдеры: запрос отклонялся, а за ним и все следующие, потому что картинка оставалась в истории. Фото HEIC с iPhone до модели вообще не доходило — вместо него подставлялась строка о неподдерживаемом формате.
+  - Изображение подгоняется один раз, когда попадает в беседу: не больше 2000 px по длинной стороне и по возможности около 512 КБ. Это касается трёх полей ввода, вставки из буфера, изображений с пометками, фото с телефона и картинок, которые приносят инструменты, — файла, открытого агентом, MCP-сервера, снимка браузера. Снимки экрана остаются в PNG, если укладываются, а иначе переходят в JPEG так, что мелкий текст по-прежнему читается; фото уходят в JPEG. На macOS HEIC конвертируется.
+  - Те же тринадцать картинок дают теперь первый запрос на 3 МБ, а дальше — около 2 МБ.
+  - В каждом запросе как есть идут 10 последних изображений (не больше 4 МБ вместе). Более старые сначала заменяются уменьшенными копиями, а потом строкой, которая сообщает модели, что этого изображения она больше не видит. В самой беседе все изображения остаются.
+  - Перетаскивание тринадцати картинок разом занимает 3,0 с вместо 2,4 с.
+- **Меню управляются с клавиатуры.** ↑ и ↓ — перемещение, Home и End — к началу и концу, Enter — выбор, → открывает подменю, ← закрывает его. Если меню открыто мышью, ↓ переводит к первому пункту. В меню с полем поиска текст по-прежнему набирается в поле, а стрелки двигают подсветку.
+- **Новые сочетания клавиш:** Ctrl+N (⌘N) — новая беседа, Ctrl+, (⌘,) — настройки, Ctrl+Tab и Ctrl+Shift+Tab (⌃Tab на macOS) — переход по недавним беседам, Ctrl/⌘ с = - 0 — масштаб. Когда фокус в терминале, эти клавиши по-прежнему достаются оболочке.
+- **Щелчок с Alt (⌥) по беседе на боковой панели открывает её в разделённом виде** рядом с текущей — так же, как в настольном приложении Claude.
+- **Правый щелчок в ответе:** скопировать выделенный текст, «Копировать ссылку», «Копировать изображение» или сохранить его через «Сохранить как…».
+- **В разделённом виде видно, у какой панели клавиатура:** заголовки и значки остальных панелей на ступень бледнее.
+
+### Улучшения и исправления
+
+- **В Windows терминал, открытый в новом окне, нельзя было сдвинуть, а двойной щелчок по заголовку ничего не делал.** Ухватиться можно было только за первые 10 px заголовка, остальное занимал ряд вкладок. Теперь окно перетаскивается за пустую часть заголовка, а двойной щелчок разворачивает его.
+- **В Windows Ctrl+W прятал всё окно в системный трей.** Windows 11 убирает новые значки за «^», и казалось, что Lyra закрылась. Теперь Ctrl+W закрывает панель на переднем плане, затем саму часть разделённого вида, но никогда не окно; в терминале он по-прежнему стирает предыдущее слово. Когда после закрытия окна Lyra впервые остаётся в области уведомлений, приходит уведомление о том, что она работает, и как её вернуть. Оно показывается один раз.
+- **При прикреплении окна к половине экрана всё сжималось.** В окне 768 × 816 боковая панель оставляла остальному около 470 px: терминал, Git и боковая беседа складывались в полосы по 150 px, а кнопка отправки боковой беседы уходила за нижний край экрана. Теперь при ширине от 760 до 900 px боковая панель открывается поверх содержимого (закрывается по Esc или щелчку рядом, а ваша настройка боковой панели не меняется), панели, которые не помещаются, становятся вкладками, а боковой беседе всегда хватает места для поля ввода и кнопки отправки.
+- **При открытии панели в новом окне около трёх секунд на экране не было ничего.** Панель сразу пропадала из главного окна, а новое окно появлялось позже, с заставкой. Теперь панель остаётся на месте с надписью «Переносится в новое окно…», пока новое окно не покажется. На тестовой машине в первый раз это 0,39 с. После первого раза Lyra держит одно окно наготове в фоне, и следующее открывается за 0,06 с; это скрытая страница примерно на 80 МБ, которая появляется только у тех, кто пользовался функцией, и закрывается вместе с главным окном.
+- **В Windows указатель над разделителями был почти не виден.** Это был собственный ←‖→ Chromium, который на сером фоне почти исчезает. Разделители и ручка боковой панели теперь используют системные указатели ↔ и ↕.
+- **Полоса прокрутки терминала была серым квадратом шириной 14 px.** Теперь это такая же тонкая скруглённая полоса, как везде.
+- **После открытия боковой беседы сочетанием клавиш нельзя было сразу печатать** — нажатия никуда не попадали, пока не щёлкнешь по полю ввода. Теперь фокус сразу в нём.
+- **При перетаскивании беседы к правому краю, чтобы разделить вид, карточка под указателем уходила за пределы окна.** У краёв она теперь перескакивает на другую сторону указателя.
+
+</details>
+
 ## [0.9.32](https://github.com/kittors/Lyra/releases/tag/v0.9.32) - 2026-10-21
 
 <!-- lyra:notes en -->
