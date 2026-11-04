@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { DEFAULT_SETTINGS, SessionStore, AgentSession, type AgentEvent } from "@lyra/core";
+import { DEFAULT_SETTINGS, SessionStore, AgentSession, useImageCodec, type AgentEvent } from "@lyra/core";
 import { createStoredSession } from "../electron/create-session.ts";
 import { initialPrompt, promptContent, promptOptions } from "../electron/prompt-input.ts";
 import { sessionThinking } from "../src/lib/thinking.ts";
@@ -230,4 +230,22 @@ test("建会话时给了标题就用它：白名单收字符串、压空白、�
 		const untitled = await createStoredSession(store, DEFAULT_SETTINGS, root, "", initialPrompt({ content }));
 		assert.equal(untitled.meta.titleSetByUser, undefined, "a conversation nobody named is still named after its first message");
 	} finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("an opening message's pictures are fitted before it is written — it does not pass through AgentSession.prompt", async () => {
+	const root = await mkdtemp(join(tmpdir(), "lyra-create-fit-"));
+	const shrunk = Buffer.from("fitted-jpeg-bytes");
+	useImageCodec({ shrink: async (input) => ({ data: new Uint8Array(shrunk), mimeType: "image/jpeg", width: 1600, height: 1200, original: { width: 4032, height: 3024 }, changed: input.mimeType === "image/heic" }) });
+	try {
+		const store = new SessionStore(join(root, "sessions"));
+		const heic = { type: "image" as const, data: Buffer.from("not-really-heic").toString("base64"), mimeType: "image/heic" };
+		const saved = await createStoredSession(store, DEFAULT_SETTINGS, root, "", { content: [heic, { type: "text", text: "这张照片" }] });
+		const [picture] = saved.messages[0].content;
+		assert.deepEqual(picture, { type: "image", data: shrunk.toString("base64"), mimeType: "image/jpeg" }, "the snapshot the window draws");
+		const stored = (await store.load(saved.meta.projectId, saved.meta.id))?.messages[0].content[0];
+		assert.equal(stored?.type === "image" ? stored.mimeType : "", "image/jpeg", "and what the store keeps");
+	} finally {
+		useImageCodec(null);
+		await rm(root, { recursive: true, force: true });
+	}
 });

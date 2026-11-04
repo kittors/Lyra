@@ -11,6 +11,7 @@ import type {
 import { anthropicMessagesProvider } from "./anthropic-messages.ts";
 import { openaiResponsesProvider } from "./openai-responses.ts";
 import { openaiChatCompletionsProvider } from "./openai-chat-completions.ts";
+import { hasRequestImages, prepareRequestImages } from "../images/request-images.ts";
 
 /**
  * The adapters this module falls back to.
@@ -52,14 +53,26 @@ export function getProvider(api: ApiFormat): Provider {
 	return provider;
 }
 
-/** Stream one assistant turn. Yields incremental events and returns the final message. */
+/**
+ * Stream one assistant turn. Yields incremental events and returns the final message.
+ *
+ * Every request passes here — the agent loop, compaction's summary, a connection test — so this is
+ * where the pictures a request carries are decided (`images/request-images.ts`): fitted to the model
+ * and budgeted across the history. The caller's context is not modified.
+ */
 export function streamAssistant(
 	providerConfig: ProviderConfig,
 	model: ModelConfig,
 	context: LlmContext,
 	options: RequestOptions = {},
 ): AsyncGenerator<StreamEvent, AssistantMessage> {
-	return getProvider(providerConfig.api).stream(providerConfig, model, context, options);
+	const provider = getProvider(providerConfig.api);
+	if (!hasRequestImages(context.messages)) return provider.stream(providerConfig, model, context, options);
+	return (async function* () {
+		// A failure here must not cost the turn: the unprepared request is what was always sent.
+		const prepared = await prepareRequestImages(context, model).catch(() => context);
+		return yield* provider.stream(providerConfig, model, prepared, options);
+	})();
 }
 
 export { anthropicMessagesProvider } from "./anthropic-messages.ts";

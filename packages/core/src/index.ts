@@ -79,6 +79,9 @@ export { API_FORMATS, getProvider, streamAssistant, useLlmRegistry } from "./ai/
 export type { AgentEvent, AgentEventSink, CommandRun, QueuedTask } from "./agent/events.ts";
 export type { TodoItem } from "./tools/todo.ts";
 export { imageDimensions } from "./images/dimensions.ts";
+export { codecFromEngine, imageCodec, useImageCodec, type ImageCodec } from "./images/codec.ts";
+export { fitEntryImages } from "./images/fit-entry.ts";
+export type { Encoding, RasterEngine, ShrinkTarget, ShrunkImage } from "./images/shrink.ts";
 export { generateImages } from "./images/generate.ts";
 export {
 	imageModelRows,

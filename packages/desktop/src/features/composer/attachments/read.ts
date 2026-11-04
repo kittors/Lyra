@@ -19,6 +19,7 @@
 import { translate } from "../../../i18n/translate.ts";
 import { bridge } from "../../../services/index.ts";
 import { useApp } from "../../../store/index.ts";
+import { bytesToBase64, fitPicture, pictureMimeType } from "../../../lib/image-shrink.ts";
 import { fileKind, isReadableAsText, looksBinary, type FileKind } from "./file-kind.ts";
 import { LEGACY_READ_LIMIT, uploadFromPhone } from "./phone-upload.ts";
 import type { PickedFile } from "./picked.ts";
@@ -64,6 +65,13 @@ export interface DraftAttachment {
 const MAX_FILES = 8;
 
 /**
+ * A picture larger than this is not decoded here: reading it whole is what crashed phones before
+ * (`phone-upload.ts`). It goes on the way it always did — uploaded from a phone, read as it is on a
+ * desktop — and the main process fits it.
+ */
+const FIT_READ_LIMIT = 32 * 1024 * 1024;
+
+/**
  * `owner` names the composer asking, so that a phone's uploads are drawn in the composer they were
  * dropped on and not in the other two — see `uploads.ts`.
  */
@@ -81,6 +89,19 @@ export async function readPickedFiles(picked: PickedFile[], owner = ""): Promise
 		const kind = fileKind(file.name, file.type);
 		// 每一条出口都要带上它，所以在这里摊平一次——漏在某一条分支上，那一类附件就打不开了。
 		const from = path ? { path } : {};
+
+		/*
+		 * A picture is fitted before anything else is decided — see `lib/image-shrink.ts`. A fitted picture
+		 * rides in the prompt, on a phone too: a 12 MP photo is a few hundred KB once fitted, where it used
+		 * to cross the link whole as an upload. One this page cannot decode (HEIC, TIFF) goes the old way.
+		 */
+		if (kind === "image" && file.size <= FIT_READ_LIMIT) {
+			const fitted = await fitPicture(new Uint8Array(await file.arrayBuffer()), pictureMimeType(file.name, file.type));
+			if (fitted) {
+				next.push({ id, name: file.name, mimeType: fitted.mimeType, data: bytesToBase64(fitted.data), isText: false, kind, ...from });
+				continue;
+			}
+		}
 
 		// On a phone, a file that should not ride inside the prompt is streamed to the desktop first.
 		const sent = await uploadFromPhone(file, kind, isReadableAsText(kind, file.name), owner);
@@ -100,7 +121,7 @@ export async function readPickedFiles(picked: PickedFile[], owner = ""): Promise
 
 		if (kind === "image") {
 			const buffer = await file.arrayBuffer();
-			next.push({ id, name: file.name, mimeType: file.type, data: bytesToBase64(new Uint8Array(buffer)), isText: false, kind, ...from });
+			next.push({ id, name: file.name, mimeType: pictureMimeType(file.name, file.type), data: bytesToBase64(new Uint8Array(buffer)), isText: false, kind, ...from });
 			continue;
 		}
 
@@ -158,26 +179,4 @@ export async function readPickedFiles(picked: PickedFile[], owner = ""): Promise
 
 	if (scanned.length > 0) useApp.getState().notify(scanned.join("\n"), "warn");
 	return next;
-}
-
-/** btoa cannot take a raw byte array; chunk it so large images do not blow the call stack. */
-function bytesToBase64(bytes: Uint8Array): string {
-	let binary = "";
-	const chunk = 0x8000;
-	for (let i = 0; i < bytes.length; i += chunk) {
-		binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-	}
-	return btoa(binary);
-}
-
-/**
- * Split an annotated `data:` URL back into the shape an attachment is stored in.
- *
- * The annotator always hands back PNG, whatever went in — flattening a JPEG with marks on it and
- * calling it a JPEG would re-compress the original a second time.
- */
-export function fromDataUrl(dataUrl: string, previous: { mimeType: string }): { data: string; mimeType: string } {
-	const match = /^data:([^;]+);base64,(.*)$/s.exec(dataUrl);
-	if (!match) return { data: "", mimeType: previous.mimeType };
-	return { mimeType: match[1], data: match[2] };
 }

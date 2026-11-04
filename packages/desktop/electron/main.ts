@@ -23,6 +23,7 @@ import {
 	useAgentLoop,
 	useApprovalPolicy,
 	useCompaction,
+	useImageCodec,
 	useLlmRegistry,
 	useSandbox,
 	useScheduler,
@@ -103,6 +104,7 @@ import {
 import { registerWindowsIpc } from "./ipc/windows.ts";
 import { MEDIA_SCHEME, PREVIEW_SCHEME, registerPreviewProtocols } from "./preview-protocol.ts";
 import { nameMediaDownloads } from "./media-downloads.ts";
+import { electronImageCodec } from "./image-codec.ts";
 import { guardWebviews, installPermissionHandlers } from "./window-security.ts";
 import { registerGitIpc } from "./ipc/git.ts";
 import { registerCredentialsIpc } from "./ipc/credentials.ts";
@@ -576,6 +578,8 @@ app.whenReady().then(async () => {
 		return createContext(DEFAULT_PLUGINS);
 	});
 	useLlmRegistry(kernel.require<LlmRegistry>(LLM));
+	// Pictures are fitted in this process too: what tools return, and what the window could not decode.
+	useImageCodec(electronImageCodec);
 	useToolRegistry(kernel.require<ToolRegistry>(TOOLS));
 	useSandbox(kernel.require<Sandbox>(SANDBOX));
 	store = observeSessionStorage(kernel.require<SessionStorage>(STORAGE), (change) => {
@@ -932,6 +936,7 @@ app.on("before-quit", async () => {
 	await stopSync();
 	// Unwinds every capability the plugins installed, in the reverse of the order they arrived.
 	useLlmRegistry(null);
+	useImageCodec(null);
 	useToolRegistry(null);
 	useSandbox(null);
 	useCompaction(null);

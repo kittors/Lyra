@@ -21,6 +21,7 @@
 		"./agents-builtin": "./src/agents-builtin.ts",
 		"./model-catalog": "./src/model-catalog.ts",
 		"./image-models": "./src/images/models.ts",
+		"./image-shrink": "./src/images/shrink.ts",
 		"./commands-builtin": "./src/commands/builtin.ts",
 		"./rules-condition": "./src/rules/condition.ts",
 		"./install-record": "./src/plugins/install-record.ts",

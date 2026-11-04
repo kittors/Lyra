@@ -6,12 +6,22 @@ import { snapshotTag } from "./hunk.ts";
 import { charWindow, coversChars, formatCharWindow, longLineFooter, MAX_LINE_CHARS, mergeCharRanges } from "./long-line.ts";
 import { outline, outlineFooter } from "./outline.ts";
 import { displayPath, imageMimeType, looksBinary } from "./paths.ts";
+import { imageCodec } from "../images/codec.ts";
+import { ENTRY_LIMITS } from "../images/shrink.ts";
 import { authorizeRead } from "./read-access.ts";
 import { decodeText } from "./text-layout.ts";
 import { EXTRACTABLE, extractDocumentText } from "../files/document-text.ts";
 
 const DEFAULT_LIMIT = 2000;
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+/**
+ * The largest picture `read` takes in.
+ *
+ * Where a codec is bound (the desktop) a picture is fitted on its way into the history
+ * (`images/fit-entry.ts`), so a 12 MP photo or a 4K screenshot is fine to read; the cap only stops a
+ * file that would take seconds to decode. opencode and oh-my-pi stop at the same 20 MiB. Without a
+ * codec nothing can shrink it, so the limit is what can be sent: 5 MiB once encoded as base64.
+ */
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 
 interface ReadArgs {
 	path: string;
@@ -203,8 +213,9 @@ export const readTool: Tool<ReadArgs> = {
 
 		const mime = imageMimeType(absolute);
 		if (mime) {
-			if (info.size > MAX_IMAGE_BYTES) {
-				return errorResult(`Image is ${(info.size / 1024 / 1024).toFixed(1)} MB, above the 5 MB limit.`);
+			const limit = imageCodec() ? MAX_IMAGE_BYTES : ENTRY_LIMITS.maxBytes;
+			if (info.size > limit) {
+				return errorResult(`Image is ${(info.size / 1024 / 1024).toFixed(1)} MB, above the ${(limit / 1024 / 1024).toFixed(2).replace(/\.?0+$/, "")} MB limit.`);
 			}
 			const data = await readFile(absolute);
 			markRead(ctx, absolute);

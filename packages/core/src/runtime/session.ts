@@ -35,6 +35,7 @@ import type { Settings } from "../config/settings.ts";
 import { describeSettingsProblem, layerProjectSettings, resolveModel, settingsProblem } from "../config/settings.ts";
 import type { MediaKind } from "../images/models.ts";
 import type { ConversationPicks } from "../images/picks.ts";
+import { fitEntryImages } from "../images/fit-entry.ts";
 import { SESSIONS_KEY, type SessionLookup } from "../resources/more-handlers.ts";
 import { saveRule, type RuleDestination } from "../rules/save.ts";
 import type { Boundary, SessionMeta } from "../session/store.ts";
@@ -891,6 +892,7 @@ export class AgentSession {
 			 */
 			if (options.deliver === "followUp" || !this.steerable) {
 				this.pending.push({ message, thinking: options.thinking });
+				this.fitWhileQueued(message);
 				/*
 				 * 正卡在收尾上的话，把那一段叫停。
 				 *
@@ -904,6 +906,7 @@ export class AgentSession {
 				if (options.fromPerson && this.settling) this.settleController?.abort();
 			} else {
 				this.steering.push(message);
+				this.fitWhileQueued(message);
 				/*
 				 * 人开口了，父会话别再干等子代理。
 				 *
@@ -921,6 +924,12 @@ export class AgentSession {
 		const epoch = this.abortEpoch;
 		const accept = async () => {
 			await this.cancelPendingPrompt();
+			/*
+			 * Pictures are fitted before the message is written, so the store, the window and every later
+			 * request hold the copy that is sent — see `images/fit-entry.ts`. Here and not at the top of
+			 * `prompt`: the turn is reserved above without waiting on anything, and fitting waits.
+			 */
+			message = await this.fitted(message);
 			await this.log.commit(message);
 			await this.emit({ type: "message_start", message });
 			await this.emit({ type: "message_end", message });
@@ -933,6 +942,30 @@ export class AgentSession {
 		this.activePrompt = accept();
 		try { await this.activePrompt; }
 		finally { this.activePrompt = null; this.acceptingPrompt = false; void this.tasks.drain(); }
+	}
+
+	/** A person's message with its pictures fitted; the same object when there was nothing to fit. */
+	private async fitted(message: Message): Promise<Message> {
+		if (message.role !== "user") return message;
+		const content = await fitEntryImages(message.content);
+		return content === message.content ? message : { ...message, content };
+	}
+
+	/**
+	 * A queued message's pictures, fitted while it waits — swapped in place in its queue, so its order
+	 * stands. If the loop takes it first, it goes as it came: the request boundary fits what is sent.
+	 */
+	private fitWhileQueued(message: Message): void {
+		if (message.role !== "user" || !message.content.some((part) => part.type === "image" && part.data)) return;
+		void this.fitted(message)
+			.then((fitted) => {
+				if (fitted === message) return;
+				const at = this.steering.indexOf(message);
+				if (at >= 0) this.steering[at] = fitted;
+				const queued = this.pending.find((entry) => entry.message === message);
+				if (queued) queued.message = fitted;
+			})
+			.catch(() => {});
 	}
 
 	/** 一个放了手的子代理跑完了：先攒着，一小会儿之后连同前后脚跑完的一起送。 */

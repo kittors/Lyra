@@ -11,15 +11,18 @@
 
 import { translate } from "../../i18n/translate.ts";
 import { useApp } from "../../store/index.ts";
+import { fitDataUrl } from "../../lib/image-shrink.ts";
 
 /** `from` is the drawn picture being marked up, by `session-media` name, so its history carries on through the copy. */
 export function attachToComposer(sessionId: string | null, from?: string): (dataUrl: string) => void {
 	return (dataUrl) => {
-		const comma = dataUrl.indexOf(",");
-		const mimeType = /^data:([^;,]+)/.exec(dataUrl)?.[1] ?? "image/png";
-		useApp.getState().setComposerDraft("", {
-			sessionId,
-			attachments: [{ id: crypto.randomUUID(), name: translate("annotate.attachmentName"), mimeType, kind: "image", isText: false, data: dataUrl.slice(comma + 1), ...(from ? { markedFrom: from } : {}) }],
+		// Fitted like any picture put on a composer (`lib/image-shrink.ts`): the annotator returns full size.
+		void fitDataUrl(dataUrl).then((fitted) => {
+			if (!fitted) return;
+			useApp.getState().setComposerDraft("", {
+				sessionId,
+				attachments: [{ id: crypto.randomUUID(), name: translate("annotate.attachmentName"), mimeType: fitted.mimeType, kind: "image", isText: false, data: fitted.data, ...(from ? { markedFrom: from } : {}) }],
+			});
 		});
 	};
 }
