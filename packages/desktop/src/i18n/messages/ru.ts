@@ -2177,6 +2177,8 @@ export const ru = {
 	"memoryFiles.none": "Ни инструкции проекта, ни его память не загружены",
 	"codeBlock.runInTerminal": "Выполнить в терминале",
 	"messageActions.copyThis": "Копировать это сообщение",
+	"transcriptMenu.copyLink": "Копировать ссылку",
+	"transcriptMenu.imageNotCopied": "Не удалось скопировать изображение",
 	"messageActions.spanTip": { one: "Этот ход занял {total}, из них {model} отвечала модель за {n} запрос", few: "Этот ход занял {total}, из них {model} отвечала модель за {n} запроса", many: "Этот ход занял {total}, из них {model} отвечала модель за {n} запросов", other: "Этот ход занял {total}, из них {model} отвечала модель за {n} запроса" },
 	"messageActions.rateTip": { one: "{n} токен ÷ {decode} генерации", few: "{n} токена ÷ {decode} генерации", many: "{n} токенов ÷ {decode} генерации", other: "{n} токена ÷ {decode} генерации" },
 	"question.otherThought": "Другое",

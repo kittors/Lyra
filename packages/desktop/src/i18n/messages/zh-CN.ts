@@ -2366,6 +2366,8 @@ export const zhCN = {
 	"memoryFiles.none": "当前未加载项目指令或项目记忆",
 	"codeBlock.runInTerminal": "在终端运行",
 	"messageActions.copyThis": "复制这条消息",
+	"transcriptMenu.copyLink": "复制链接",
+	"transcriptMenu.imageNotCopied": "图片没能复制",
 	"messageActions.spanTip": "这一轮 {total}，模型应答 {model}，{n} 次请求",
 	"messageActions.rateTip": "{n} tokens ÷ 纯出字 {decode}",
 	"question.otherThought": "其他想法",

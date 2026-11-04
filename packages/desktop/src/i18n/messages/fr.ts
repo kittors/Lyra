@@ -2177,6 +2177,8 @@ export const fr = {
 	"memoryFiles.none": "Aucune instruction ni mémoire de projet n'est chargée",
 	"codeBlock.runInTerminal": "L'exécuter dans le terminal",
 	"messageActions.copyThis": "Copier ce message",
+	"transcriptMenu.copyLink": "Copier le lien",
+	"transcriptMenu.imageNotCopied": "Impossible de copier l’image",
 	"messageActions.spanTip": { one: "Ce tour a duré {total}, dont {model} de réponse du modèle sur {n} requête", other: "Ce tour a duré {total}, dont {model} de réponse du modèle sur {n} requêtes" },
 	"messageActions.rateTip": { one: "{n} token ÷ {decode} de génération", other: "{n} tokens ÷ {decode} de génération" },
 	"question.otherThought": "Autre chose",

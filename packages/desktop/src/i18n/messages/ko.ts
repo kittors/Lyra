@@ -2177,6 +2177,8 @@ export const ko = {
 	"memoryFiles.none": "프로젝트 지시도 기억도 불러오지 않았습니다",
 	"codeBlock.runInTerminal": "터미널에서 실행",
 	"messageActions.copyThis": "이 메시지 복사",
+	"transcriptMenu.copyLink": "링크 복사",
+	"transcriptMenu.imageNotCopied": "이미지를 복사하지 못했습니다",
 	"messageActions.spanTip": "이번 턴 {total}, 그중 모델 응답 {model}, 요청 {n}회",
 	"messageActions.rateTip": "{n} tokens ÷ 출력 시간 {decode}",
 	"question.otherThought": "다른 생각",

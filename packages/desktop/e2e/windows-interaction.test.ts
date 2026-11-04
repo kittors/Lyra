@@ -9,15 +9,55 @@
  */
 
 import assert from "node:assert/strict";
+import { readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { after, before, test } from "node:test";
+import { crc32, deflateSync } from "node:zlib";
 import { startApp, type RunningApp } from "./app.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 
 const MAC = process.platform === "darwin";
 let app: RunningApp;
 
+/** A 64×64 PNG, solid colour: big enough to be a picture rather than an icon in the transcript menu. */
+function picture(): string {
+	const chunk = (type: string, data: Buffer) => {
+		const body = Buffer.concat([Buffer.from(type, "latin1"), data]);
+		const out = Buffer.alloc(body.length + 8);
+		out.writeUInt32BE(data.length, 0);
+		body.copy(out, 4);
+		out.writeUInt32BE(crc32(body), body.length + 4);
+		return out;
+	};
+	const header = Buffer.alloc(13);
+	header.writeUInt32BE(64, 0);
+	header.writeUInt32BE(64, 4);
+	header.set([8, 2, 0, 0, 0], 8);
+	const row = Buffer.concat([Buffer.from([0]), Buffer.from(Array.from({ length: 64 }, () => [40, 120, 200]).flat())]);
+	const pixels = deflateSync(Buffer.concat(Array.from({ length: 64 }, () => row)));
+	const png = Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", header), chunk("IDAT", pixels), chunk("IEND", Buffer.alloc(0))]);
+	return `data:image/png;base64,${png.toString("base64")}`;
+}
+
+/** The interaction fixture, plus a conversation whose reply has a link and a picture in it. */
+async function seed(home: string): Promise<void> {
+	await seedInteractions(home);
+	const index = join(home, "sessions", "index.json");
+	const metas = JSON.parse(await readFile(index, "utf8")) as { id: string; projectId: string }[];
+	const base = metas.find((meta) => meta.id === "qa-short");
+	if (!base) throw new Error("the fixture has no qa-short");
+	const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
+	const messages = [
+		{ role: "user", content: [{ type: "text", text: "发布前要看哪份文档？" }], timestamp: 1 },
+		{ role: "assistant", content: [{ type: "text", text: `看[发布指南](https://example.com/release-guide)，按顺序做。\n\n![流程图](${picture()})` }], api: "anthropic-messages", provider: "qa", model: "qa", usage, stopReason: "stop", timestamp: 2 },
+	];
+	const meta = { ...base, id: "qa-links", title: "qa-links", messageCount: messages.length, seq: messages.length + 1 };
+	await writeFile(join(home, "sessions", base.projectId, "qa-links.jsonl"), [JSON.stringify({ type: "meta", meta, seq: 0, ts: 1 }), ...messages.map((message, i) => JSON.stringify({ type: "message", message, seq: i + 1, ts: 1 })), JSON.stringify({ type: "meta", meta, seq: meta.seq, ts: 2 })].join("\n") + "\n");
+	await writeFile(index, JSON.stringify([...metas, meta]));
+}
+
 before(async () => {
-	app = await startApp({ port: 9663, inspectPort: 9664, seed: seedInteractions });
+	app = await startApp({ port: 9663, inspectPort: 9664, seed });
 	await until(`document.querySelector('[data-ly-row="qa-short"] > button')`);
 	await app.evaluate(`document.querySelector('[data-ly-row="qa-short"] > button').click()`);
 	await until(`document.querySelector('[data-dock-pane="conversation"] textarea')`);
@@ -179,6 +219,52 @@ test("after one pop-out, the next takes a window that was built while nobody wai
 	} finally {
 		await app.main(`(async () => { for (const w of process._linkedBinding('electron_browser_window').BrowserWindow.getAllWindows()) { const b = await w.webContents.executeJavaScript('window.lyra?.bootWindow'); if (b?.kind === 'panel') w.close(); } return true; })()`);
 		await app.evaluate(`new Promise((resolve) => setTimeout(resolve, 600))`);
+	}
+});
+
+test("right-click in a reply: 复制 the selection, 复制链接, 复制图片", async () => {
+	// Measured on the Windows test machine: right-clicking anywhere in a reply did nothing at all.
+	const clipboard = (read: string) => app.main(`new Promise((resolve) => setTimeout(() => resolve(process._linkedBinding('electron_common_clipboard').${read}), 200))`);
+	const LINK = '[data-ly-transcript-rows] a[href^="https://example.com"]';
+	const IMAGE = "[data-ly-transcript-rows] img.ly-md-image";
+	const ROWS = `[...document.querySelectorAll('[role=menu] [role=menuitem]')]`;
+	const label = `(row) => row.textContent.trim().replace(/(⌘|Ctrl\\+)C$/, '')`;
+	const mouse = async (at: { x: number; y: number }, button: "left" | "right") => {
+		for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) await app.send("Input.dispatchMouseEvent", { type, x: at.x, y: at.y, button, clickCount: 1 });
+	};
+	const rightClick = async (selector: string) => {
+		await mouse(await app.evaluate(`(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return { x: r.x + Math.min(r.width / 2, 20), y: r.y + r.height / 2 }; })()`), "right");
+		await until(`document.querySelector('[role=menu] [role=menuitem]')`, 3000);
+	};
+	const rows = () => app.evaluate<string[]>(`${ROWS}.map(${label})`);
+	const pick = async (name: string) => {
+		await mouse(await app.evaluate(`(() => { const b = ${ROWS}.find((row) => (${label})(row) === ${JSON.stringify(name)}).getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; })()`), "left");
+		await until(`!document.querySelector('[role=menu]')`, 3000);
+	};
+	try {
+		await clickAt('[data-ly-row="qa-links"] > button');
+		await until(`document.querySelector(${JSON.stringify(LINK)}) && document.querySelector(${JSON.stringify(IMAGE)})?.complete`, 15_000);
+
+		await rightClick(LINK);
+		assert.deepEqual(await rows(), ["复制链接"], "a link offers its address");
+		await pick("复制链接");
+		assert.equal(await clipboard("readText()"), "https://example.com/release-guide");
+
+		await app.evaluate(`(getSelection().selectAllChildren(document.querySelector(${JSON.stringify(LINK)}).closest('p')), true)`);
+		await rightClick(LINK);
+		assert.deepEqual(await rows(), ["复制", "复制链接"]);
+		await pick("复制");
+		assert.match(String(await clipboard("readText()")), /按顺序做/, "the selection, copied as Ctrl+C copies it");
+
+		await rightClick(IMAGE);
+		assert.deepEqual(await rows(), ["复制图片", "另存为"]);
+		await pick("复制图片");
+		assert.deepEqual(await clipboard("readImage().getSize()"), { width: 64, height: 64 }, "the picture itself, not its address");
+	} finally {
+		await press("Escape", "Escape", 27, 0);
+		await app.evaluate(`(getSelection().removeAllRanges(), true)`);
+		await clickAt('[data-ly-row="qa-short"] > button');
+		await until(`document.querySelector('[data-dock-pane="conversation"] textarea')`);
 	}
 });
 

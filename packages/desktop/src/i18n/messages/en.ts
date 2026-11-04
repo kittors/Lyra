@@ -2177,6 +2177,8 @@ export const en = {
 	"memoryFiles.none": "No project instructions or project memory are loaded",
 	"codeBlock.runInTerminal": "Run it in the terminal",
 	"messageActions.copyThis": "Copy this message",
+	"transcriptMenu.copyLink": "Copy link",
+	"transcriptMenu.imageNotCopied": "Couldn’t copy the image",
 	"messageActions.spanTip": { one: "This turn took {total}; the model answered for {model} over {n} request", other: "This turn took {total}; the model answered for {model} over {n} requests" },
 	"messageActions.rateTip": { one: "{n} token ÷ {decode} of streaming", other: "{n} tokens ÷ {decode} of streaming" },
 	"question.otherThought": "Something else",

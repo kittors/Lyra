@@ -17,6 +17,7 @@ import { revealInWorkspace, watchSessionWindows } from "../features/split/index.
 import { ToolbarScreenTitle, ToolbarScreenTools } from "../features/split/SplitChrome.tsx";
 import { ImageViewer } from "../features/image/index.ts";
 import { InputMenu } from "../features/composer/index.ts";
+import { TranscriptMenu } from "../features/conversation/index.ts";
 import { SkeletonBar, SkeletonGrid, SkeletonList } from "../ui/primitives/Skeleton.tsx";
 import { Toaster } from "../features/toast/index.ts";
 import { Sidebar } from "../features/sidebar/index.ts";
@@ -175,6 +176,8 @@ export function App() {
 			 * here rather than attached to the fields one at a time.
 			 */}
 			<InputMenu />
+			{/* Copy, copy link, copy and save a picture — in every transcript, in every window. */}
+			<TranscriptMenu />
 			{/*
 			 * Last, and outside the shell.
 			 *

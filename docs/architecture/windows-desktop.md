@@ -106,6 +106,13 @@ Chromium 自带的单色 `←‖→`，按 XOR 画，中灰底上几乎看不见
 `ui/layout/resize-cursor.ts`。macOS 不变。真机用 `GetCursorInfo` 对照系统光标句柄量过：`ew-resize`
 是 `IDC_SIZEWE`，`ns-resize` 是 `IDC_SIZENS`，`col-resize`、`row-resize`、`grab` 都不是系统光标。
 
+正文里右键：落在选区上是「复制」（`execCommand`，和 Ctrl+C 一样带格式，复制的是右键那一刻的选区），
+链接是「复制链接」，图片是「复制图片 / 另存为」（`TranscriptMenu`）。从前右键什么都没有，链接地址拿不到。
+有自己菜单的东西（文件路径、附件标记、交付的文件）照旧弹自己的；头像、图标这种 40px 以下的图不算图片。
+剪贴板只收 PNG/JPEG，WebP、GIF 先在画布上转一道；`ly-media:` 的图对页面是另一个源，走
+`files.mediaDataUrl` 取字节。另存为的对话框由主进程给标题和文件名（`media-save-dialog.ts`）：Electron
+默认拿下载地址当标题，回复里内嵌的图是几 KB 长的 data URL，Windows 上整条铺在对话框顶上。
+
 终端的滚动条和对话区一样是 6px 圆角、离边 2px，悬停加宽到 9px（`scroll.css`）。xterm 5.6 自带的是
 VS Code 那种 14px 方块滑块，几何是内联样式，所以覆盖规则带 `!important`；何时显示仍由 xterm 决定。
 

@@ -2177,6 +2177,8 @@ export const ja = {
 	"memoryFiles.none": "プロジェクトの指示も記憶も読み込まれていません",
 	"codeBlock.runInTerminal": "ターミナルで実行",
 	"messageActions.copyThis": "このメッセージをコピー",
+	"transcriptMenu.copyLink": "リンクをコピー",
+	"transcriptMenu.imageNotCopied": "画像をコピーできませんでした",
 	"messageActions.spanTip": "このターンは {total}、うちモデルの応答が {model}（{n} 回のリクエスト）",
 	"messageActions.rateTip": "{n} tokens ÷ 出力時間 {decode}",
 	"question.otherThought": "ほかの考え",

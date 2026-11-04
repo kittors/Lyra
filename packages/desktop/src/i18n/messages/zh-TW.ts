@@ -2177,6 +2177,8 @@ export const zhTW = {
 	"memoryFiles.none": "目前未載入專案指令或專案記憶",
 	"codeBlock.runInTerminal": "在終端機執行",
 	"messageActions.copyThis": "複製這條訊息",
+	"transcriptMenu.copyLink": "複製連結",
+	"transcriptMenu.imageNotCopied": "圖片沒能複製",
 	"messageActions.spanTip": "這一輪 {total}，模型應答 {model}，{n} 次請求",
 	"messageActions.rateTip": "{n} tokens ÷ 純輸出 {decode}",
 	"question.otherThought": "其他想法",

@@ -334,7 +334,7 @@ const CHECKS = [
 	},
 	{
 		id: "WIN-interaction-window",
-		what: "跑起来的桌面端里：快捷键打开侧边聊天后能直接打字、恢复布局不抢焦点；Windows 上分隔条是系统 ↔；终端滚动条是 6px 圆角；弹出的面板在新窗口显示之前留在原处，第二次弹出用预先建好的窗口、一秒内显示；拖会话到右边缘卡片在窗口内；Windows/Linux 上 Ctrl+W 先关面板、不动窗口",
+		what: "跑起来的桌面端里：快捷键打开侧边聊天后能直接打字、恢复布局不抢焦点；Windows 上分隔条是系统 ↔；终端滚动条是 6px 圆角；弹出的面板在新窗口显示之前留在原处，第二次弹出用预先建好的窗口、一秒内显示；正文右键能复制选区、链接和图片；拖会话到右边缘卡片在窗口内；Windows/Linux 上 Ctrl+W 先关面板、不动窗口",
 		window: true,
 		run: ["node", ["--experimental-strip-types", "--test", "packages/desktop/e2e/windows-interaction.test.ts"]],
 	},
@@ -369,6 +369,11 @@ const CHECKS = [
 		id: "POPOUT-handover-spare",
 		what: "弹出面板：新窗口显示之前面板留在原处并盖一层说明，窗口没开出来就原样不动；预先建好的备用窗口生下来没有面板，被取走时画出分到的那一个",
 		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/popout-handover.test.ts", "test/ui/spare-panel-window.test.ts", "test/ui/dock-no-auto-popout.test.ts"]],
+	},
+	{
+		id: "MENU-transcript",
+		what: "正文右键菜单：落在选区上给「复制」（带格式、按右键那一刻的选区），链接给「复制链接」，图片给「复制图片 / 另存为」；头像大小的图、输入框、有自己菜单的路径和正文以外的地方都不弹",
+		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/transcript-menu.test.ts"]],
 	},
 ];
 
