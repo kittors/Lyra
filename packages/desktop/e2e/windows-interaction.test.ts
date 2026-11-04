@@ -118,11 +118,18 @@ test("opening the side chat with its shortcut leaves the keyboard in its field",
 });
 
 test("a side chat that was already in the layout does not take the keyboard", async () => {
-	// Only an `open` moves focus: re-drawing a dock that contains it must not.
+	/*
+	 * Only an `open` moves focus, and a press somewhere else after it wins.
+	 *
+	 * Red on the Windows CI runner: slow enough that the side chat's composer mounted after the click
+	 * below, and its summons pulled the keyboard back out of the conversation. The press now drops the
+	 * summons (`test/ui/summon-press.test.ts` holds that without depending on how slow the machine is).
+	 */
 	try {
 		await setPanel("chat", true, sideChatKey);
 		await clickAt('[data-dock-pane="conversation"] textarea');
-		await app.evaluate(`new Promise((resolve) => setTimeout(resolve, 600))`);
+		// Longer than a summons lasts (SUMMON_FRESH_MS), so a late one would have landed.
+		await app.evaluate(`new Promise((resolve) => setTimeout(resolve, 2500))`);
 		assert.equal(await app.evaluate(`document.activeElement === document.querySelector('[data-dock-pane="conversation"] textarea')`), true);
 	} finally {
 		await setPanel("chat", false, sideChatKey);

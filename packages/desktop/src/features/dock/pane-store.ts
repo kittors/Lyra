@@ -580,3 +580,21 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
  * would notice, because it is the one they just made.
  */
 if (typeof window !== "undefined") window.addEventListener("beforeunload", flushTree);
+
+/*
+ * A press anywhere after an `open` is somewhere else being chosen, and drops the summons.
+ *
+ * On a slow machine the pane can draw after that press: on the Windows CI runner the side chat's
+ * composer mounted after a click in the conversation, and its summons then pulled the keyboard back
+ * out of the field just clicked. A press that opens the pane — the toolbar button, a menu row —
+ * comes before there is a summons, so it drops nothing.
+ */
+if (typeof window !== "undefined") {
+	window.addEventListener(
+		"pointerdown",
+		() => {
+			if (usePaneDock.getState().summoned) usePaneDock.setState({ summoned: null });
+		},
+		{ capture: true },
+	);
+}
