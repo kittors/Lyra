@@ -23,6 +23,20 @@
 
 import type { MenuItemConstructorOptions } from "electron";
 
+/*
+ * Zoom, which left with the View menu: Ctrl/⌘ with = - 0, as in every browser and in Codex and VS Code.
+ *
+ * The roles' own accelerator for zooming in is CmdOrCtrl+Plus, which on a US or Chinese keyboard
+ * is Ctrl+Shift+= — the default menu of a development run showed it: Ctrl+- zoomed out and Ctrl+=
+ * did nothing. So the keys are spelled out. A focused terminal keeps them: a menu accelerator only
+ * fires for a key the page did not handle, and xterm takes Ctrl+- as readline's undo.
+ */
+const ZOOM: MenuItemConstructorOptions[] = [
+	{ role: "zoomIn", accelerator: "CommandOrControl+=" },
+	{ role: "zoomOut", accelerator: "CommandOrControl+-" },
+	{ role: "resetZoom", accelerator: "CommandOrControl+0" },
+];
+
 export function applicationMenuTemplate(options: {
 	platform: string;
 	packaged: boolean;
@@ -43,6 +57,7 @@ export function applicationMenuTemplate(options: {
 					{ role: "minimize" },
 					{ role: "zoom" },
 					{ role: "togglefullscreen" },
+					...ZOOM,
 					{ type: "separator" },
 					// ⌘W, which lived in the default File menu.
 					{ role: "close" },
@@ -69,7 +84,7 @@ export function applicationMenuTemplate(options: {
 		 */
 		{
 			role: "windowMenu",
-			submenu: [{ role: "togglefullscreen" }, { accelerator: "Ctrl+W", click: (_item, win) => options.closeAuxiliary?.(win) }],
+			submenu: [{ role: "togglefullscreen" }, ...ZOOM, { accelerator: "Ctrl+W", click: (_item, win) => options.closeAuxiliary?.(win) }],
 		},
 	];
 }

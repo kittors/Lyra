@@ -10,7 +10,7 @@ export { SessionCarryGhost } from "./SessionCarryGhost.tsx";
 export { useSplit } from "./store.ts";
 export { SplitMoveItems } from "./SplitMoveItems.tsx";
 export { offerSessionDrag, dropSessionDrag } from "./session-drag.ts";
-export { openInPane, openInNewWindow, revealInWorkspace, splitWith, paneAtPoint, canOfferSplit, closePane } from "./actions.ts";
+export { openInPane, openInNewWindow, revealInWorkspace, splitWith, paneAtPoint, canOfferSplit, closePane, openBeside, stepConversation } from "./actions.ts";
 export { frontToClose } from "./close-in-front.ts";
 export { layoutPanes } from "./layout.ts";
 export { paneKey } from "./pane-key.ts";

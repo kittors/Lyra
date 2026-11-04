@@ -89,6 +89,20 @@ for (const platform of ["win32", "linux"]) {
 	});
 }
 
+for (const platform of ["darwin", "win32", "linux"]) {
+	/*
+	 * Zoom went with the View menu. The roles' own zoom-in key is CmdOrCtrl+Plus — Ctrl+Shift+= on a
+	 * US or Chinese keyboard, so in a development run Ctrl+- zoomed out and Ctrl+= did nothing.
+	 */
+	test(`a packaged build on ${platform} zooms with Ctrl/⌘ and = - 0`, () => {
+		const all = items(applicationMenuTemplate({ platform, packaged: true }) as Item[]);
+		const key = (role: string) => all.find((item) => item.role === role)?.accelerator;
+		assert.equal(key("zoomIn"), "CommandOrControl+=");
+		assert.equal(key("zoomOut"), "CommandOrControl+-");
+		assert.equal(key("resetZoom"), "CommandOrControl+0");
+	});
+}
+
 test("⌘M still minimises on macOS, where it is the system's own shortcut", () => {
 	assert.ok(roles(applicationMenuTemplate({ platform: "darwin", packaged: true }) as Item[]).includes("minimize"));
 });

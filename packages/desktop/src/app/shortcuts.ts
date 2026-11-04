@@ -15,7 +15,8 @@
 import { useEffect } from "react";
 import { currentScope, panelsOf, toggleScopedPanel, usePaneDock } from "../features/dock/index.ts";
 import type { PaneKind, PanelKind } from "../features/dock/index.ts";
-import { closePane, frontToClose, layoutPanes, paneKey, useSplit } from "../features/split/index.ts";
+import { closePane, frontToClose, layoutPanes, paneKey, stepConversation, useSplit } from "../features/split/index.ts";
+import { useApp } from "../store/index.ts";
 import { composingKey, macKeyboard, shortcutLetter } from "../ui/keyboard.ts";
 
 /**
@@ -145,6 +146,16 @@ export function useShortcuts(deps: ShortcutDeps): void {
 				closeInFront();
 				return;
 			}
+			/*
+			 * Ctrl+Tab and Ctrl+Shift+Tab — ⌃Tab on a Mac as well: the next or previous conversation by
+			 * recency, into the screen being worked in, as pressing its row would. A focused terminal
+			 * keeps the key: xterm takes it before it gets here.
+			 */
+			if (event.ctrlKey && !event.metaKey && !event.altKey && event.key === "Tab") {
+				event.preventDefault();
+				stepConversation(event.shiftKey ? -1 : 1);
+				return;
+			}
 			// ⌃` is what every terminal-bearing editor uses, and it is not a ⌘ shortcut.
 			if (event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && event.code === "Backquote") {
 				event.preventDefault();
@@ -176,4 +187,37 @@ export function useShortcuts(deps: ShortcutDeps): void {
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);
 	}, [enabled, compact, navOpen, toggleNav, dismissNav, activeSessionId, workspace]);
+}
+
+/**
+ * Keys that mean the same on every screen of the main window, settings included: a new
+ * conversation and the settings themselves.
+ *
+ * Ctrl+N and Ctrl+, on Windows and Linux, ⌘N and ⌘, on a Mac — the chords Codex, VS Code and the
+ * browsers use, and none of them did anything here. Reached for rather than passed in, as the tray's
+ * own 新对话 and 设置… are (`tray-commands.ts`). A focused terminal keeps Ctrl+N, readline's
+ * next-history: xterm takes it before it gets here (`terminal-keys.ts`).
+ */
+export function useAppKeys(): void {
+	useEffect(() => {
+		const onKey = (event: KeyboardEvent) => {
+			if (event.defaultPrevented || event.repeat || composingKey(event) || event.altKey || event.shiftKey) return;
+			const primary = macKeyboard() ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
+			if (!primary) return;
+			if (event.key === "," || event.code === "Comma") {
+				event.preventDefault();
+				useApp.getState().setView("settings");
+				return;
+			}
+			if (shortcutLetter(event) === "n") {
+				event.preventDefault();
+				// Switch first, then create, as the tray does: the other order shows the new conversation over the old screen.
+				const app = useApp.getState();
+				app.setView("chat");
+				void app.newSession();
+			}
+		};
+		window.addEventListener("keydown", onKey);
+		return () => window.removeEventListener("keydown", onKey);
+	}, []);
 }

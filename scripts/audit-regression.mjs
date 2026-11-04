@@ -338,6 +338,22 @@ const CHECKS = [
 		window: true,
 		run: ["node", ["--experimental-strip-types", "--test", "packages/desktop/e2e/windows-interaction.test.ts"]],
 	},
+	{
+		id: "KEYS-menu-shortcuts",
+		what: "菜单能用方向键走（↑↓、Home/End、→ 进子菜单、← 回父项，带搜索框的菜单移动高亮、Enter 选中），不抢输入框自己的方向键；Ctrl/⌘+N、Ctrl/⌘+, 在任何页面都能用，终端已消费的键不接；Ctrl+Tab 按最近顺序切会话；打包版菜单有 Ctrl/⌘ = - 0 缩放",
+		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/menu-keys.test.ts", "test/ui/app-keys.test.ts"]],
+	},
+	{
+		id: "KEYS-menu-shortcuts-unit",
+		what: "Ctrl+Tab 的最近顺序（跳过归档、循环）与打包版菜单的缩放键",
+		run: ["node", ["--experimental-strip-types", "--test", "packages/desktop/test/recency.test.ts", "packages/desktop/test/app-menu.test.ts"]],
+	},
+	{
+		id: "KEYS-habits-window",
+		what: "跑起来的桌面端里：鼠标打开的菜单用方向键走、→ 进「打开方式」、Enter 选「分屏」；模型菜单搜索框里方向键移动高亮；Ctrl/⌘+, 开设置、Ctrl/⌘+N 新对话；Ctrl+Tab 切会话；Alt/⌥+点击侧栏会话开分屏",
+		window: true,
+		run: ["node", ["--experimental-strip-types", "--test", "packages/desktop/e2e/keyboard-habits.test.ts"]],
+	},
 ];
 
 const pass = [];

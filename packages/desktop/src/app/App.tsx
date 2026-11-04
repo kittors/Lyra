@@ -27,7 +27,7 @@ import { SessionWindow } from "./window/SessionWindow.tsx";
 import { PanelWindow } from "./window/PanelWindow.tsx";
 import { watchPanelWindows } from "../features/dock/index.ts";
 import { LayoutProvider, NavPane, useLayout, useSidebarFit } from "./layout.tsx";
-import { useShortcuts } from "./shortcuts.ts";
+import { useAppKeys, useShortcuts } from "./shortcuts.ts";
 import { useSide } from "../features/dock/index.ts";
 import { useApp } from "../store/index.ts";
 import { useTrayCommands } from "./window/tray-commands.ts";
@@ -528,6 +528,8 @@ function ChatShell({ settings }: { settings: boolean }) {
 	// transcript to keep its place — but ⌘P for a file pane nobody can see, or Escape unmaximising
 	// one, is not what those keys mean on that screen.
 	useShortcuts({ enabled: !settings, compact, navOpen, activeSessionId, workspace, toggleNav, dismissNav });
+	// New conversation and settings, from any screen including settings itself.
+	useAppKeys();
 
 	useEffect(() => watchSessionWindows(), []);
 	useEffect(() => watchPanelWindows(), []);

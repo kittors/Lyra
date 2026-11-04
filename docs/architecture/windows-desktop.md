@@ -72,6 +72,19 @@ Windows/Linux 上关主窗口而托盘存在时，窗口收进托盘；第一次
 后台、怎么叫回和怎么退出（`notifyStillRunning`），之后再也不弹。标记存在 profile 下的
 `hints.json`，不进设置。
 
+菜单都能用键盘走（`ui/overlay/menu-keys.ts`，挂在 `Popover` 的按键监听上）：↑↓ 在菜单项间移动并循环，
+Home/End 到两头，→ 打开带 `submenu` 的项的子菜单并进到第一项，← 关掉子菜单回到父项，Enter/空格是按钮
+自己的。用鼠标打开时焦点还在触发按钮上，按 ↓ 进第一项。处理按键的是焦点所在的那一层菜单，焦点不在
+任何菜单里时是最里层。带搜索框的菜单（模型菜单，8 个模型起）焦点留在输入框，方向键移动 `data-ly-active`
+高亮，Enter 选它。焦点在菜单外的可编辑区域时（输入框自己的斜杠、@ 列表）一律不接。从前菜单只认 Esc。
+
+常用快捷键：Ctrl+N 新对话、Ctrl+, 设置（macOS 是 ⌘N、⌘,），在设置页也能用（`useAppKeys`）；Ctrl+Tab /
+Ctrl+Shift+Tab 按最近顺序切会话（`updatedAt`，跳过归档，macOS 也是 ⌃Tab），落在焦点屏，和点侧栏一样；
+打包版菜单补上 Ctrl/⌘ 加 = - 0 缩放（角色自带的放大键是 CmdOrCtrl+Plus，中文、美式键盘上要按 Shift，
+所以写明 `=`）。这些都在页面层或菜单加速键上，终端聚焦时 xterm 先消费 Ctrl+字母（Ctrl+N 是 readline
+的下一条历史、Ctrl+- 是撤销），照 `terminal-keys.ts` 的规则不抢。没有做的：Ctrl+/ 没有快捷键列表页可绑，
+Ctrl+F 没有会话内搜索可接。
+
 终端里 Windows 的普通 Ctrl+V 是粘贴，和 Windows Terminal 一致（PowerShell 的 PSReadLine 本来
 就会读剪贴板，cmd、Git Bash、WSL 和各种 REPL 里则只会出现 `^V`）；Linux 仍是 Ctrl+Shift+V，
 Ctrl+V 留给 readline 的 quoted-insert。打包版的 Windows/Linux 菜单不带 `minimize` 角色：菜单栏
