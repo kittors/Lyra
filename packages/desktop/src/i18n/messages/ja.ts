@@ -1732,6 +1732,7 @@ export const ja = {
 	"pane.fullScreenOne": "全画面：{label}",
 	"pane.closeOne": "{label} を閉じる",
 	"pane.openInNewWindow": "新しいウィンドウで開く",
+	"pane.movingToWindow": "新しいウィンドウに移動中…",
 	"pane.tabs": "パネルのタブ",
 	"pane.addTab": "パネルを追加",
 	"pane.restoreToDock": "元の位置に戻す",

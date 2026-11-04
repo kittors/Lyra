@@ -18,7 +18,7 @@
 
 import { create } from "zustand";
 import { flushSync } from "react-dom";
-import { bridge } from "../../services/index.ts";
+import { bootWindow, bridge } from "../../services/index.ts";
 import { applyFilePanelState, filePanelSnapshot } from "../../store/file-panel-handoff.ts";
 import { useOpenFile } from "../../store/openFile.ts";
 import { paneFloor } from "./geometry.ts";
@@ -35,6 +35,8 @@ interface PanelWindowRef {
 	kind: string;
 	scope: string;
 	sessionId?: string | null;
+	/** On screen yet. Absent from a main process that does not say, which then counts as shown. */
+	shown?: boolean;
 }
 
 interface Home {
@@ -91,7 +93,30 @@ const homes = {
 
 const homeKey = (scope: string, kind: string): string => `${scope}:${kind}`;
 
-export const usePanelWindows = create<{ panels: PanelWindowRef[]; opening: PanelWindowRef[] }>(() => ({ panels: [], opening: [] }));
+/**
+ * `leaving`: panels still drawn here, inert, while the window they are moving to is built and shown.
+ * See `popOutPanel`.
+ */
+export const usePanelWindows = create<{ panels: PanelWindowRef[]; opening: PanelWindowRef[]; leaving: PanelWindowRef[] }>(() => ({ panels: [], opening: [], leaving: [] }));
+
+const samePanel = (a: PanelWindowRef, b: PanelWindowRef) => a.scope === b.scope && a.kind === b.kind;
+
+/** Until the panel's own window is on screen — or, if it never says so, a while. */
+function untilShown(panel: PanelWindowRef, ms = 10_000): Promise<void> {
+	return new Promise((resolve) => {
+		const shown = () => usePanelWindows.getState().panels.some((each) => samePanel(each, panel) && each.shown !== false);
+		if (shown()) return resolve();
+		const finish = () => {
+			window.clearTimeout(timer);
+			stop();
+			resolve();
+		};
+		const timer = window.setTimeout(finish, ms);
+		const stop = usePanelWindows.subscribe(() => {
+			if (shown()) finish();
+		});
+	});
+}
 
 function isPopped(scope: string, kind: string): boolean {
 	const { panels, opening } = usePanelWindows.getState();
@@ -154,15 +179,33 @@ export async function popOutPanel(input: { scope: string; kind: PanelKind; sessi
 		rest: remove(tree, input.kind),
 	};
 	homes.set(homeKey(input.scope, input.kind), home);
-	// Commit the ownership transfer before another document can attach the same browser tab.
+	/*
+	 * The panel stays where it is until its window is on screen.
+	 *
+	 * It used to be closed here, before the window was asked for — right for a browser tab, which two
+	 * documents must never attach at once, but browsers do not pop out (`detach: "none"`). On the
+	 * Windows test machine the window then took 2.8s to appear, and for all of that the panel was
+	 * nowhere: gone from here, not yet there, the click apparently lost. Now it waits here, inert
+	 * under a short note, and leaves the moment the window is shown. Every panel that can move copes
+	 * with the overlap: a terminal shows the same shell twice, the file panel hands over a snapshot
+	 * that an inert panel cannot change, the side chat's state lives in the main process.
+	 */
 	flushSync(() => {
-		usePanelWindows.setState((state) => ({ opening: [...state.opening, input] }));
-		usePaneDock.getState().close(input.scope, input.kind);
+		usePanelWindows.setState((state) => ({ opening: [...state.opening, input], leaving: [...state.leaving, input] }));
 	});
+	const leave = () =>
+		flushSync(() => {
+			usePanelWindows.setState((state) => ({ leaving: state.leaving.filter((panel) => !samePanel(panel, input)) }));
+		});
 	let opened = false;
 	try {
 		opened = (await bridge.windows.openPanel({ kind: input.kind, scope: input.scope, sessionId: input.sessionId, ...(input.kind === "file" ? { fileState: filePanelSnapshot() } : {}) })).ok;
+		if (opened) {
+			await untilShown(input);
+			flushSync(() => usePaneDock.getState().close(input.scope, input.kind));
+		}
 	} finally {
+		leave();
 		if (!opened) {
 			usePanelWindows.setState((state) => ({ opening: state.opening.filter((panel) => panel.scope !== input.scope || panel.kind !== input.kind) }));
 			// Rollback is a transaction, not a new placement request: a failed window must not lose its pane.
@@ -302,7 +345,7 @@ export function openScopedPanel(kind: PanelKind, beside?: { kind: PaneKind; side
  * whatever file it already had, or on nothing.
  */
 function inMain(kind: PanelKind, beside: { kind: PaneKind; side: DropSide; share?: number } | undefined, target: string | undefined) {
-	const scope = target ?? bridge.bootWindow?.panelScope ?? undefined;
+	const scope = target ?? bootWindow()?.panelScope ?? undefined;
 	const path = kind === "file" ? filePanelSnapshot().path : null;
 	return {
 		kind,

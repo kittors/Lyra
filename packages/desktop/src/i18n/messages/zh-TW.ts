@@ -1732,6 +1732,7 @@ export const zhTW = {
 	"pane.fullScreenOne": "全螢幕：{label}",
 	"pane.closeOne": "關閉{label}",
 	"pane.openInNewWindow": "在新視窗中開啟",
+	"pane.movingToWindow": "正在移到新視窗…",
 	"pane.tabs": "面板分頁",
 	"pane.addTab": "新增面板",
 	"pane.restoreToDock": "回到原來的位置",

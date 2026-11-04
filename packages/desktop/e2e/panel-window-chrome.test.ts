@@ -74,7 +74,8 @@ async function panelWindow(kind: string): Promise<AppWindow> {
 }
 
 async function closePanel(kind: string): Promise<void> {
-	await app.main(`(async () => { for (const w of process._linkedBinding('electron_browser_window').BrowserWindow.getAllWindows()) { const b = await w.webContents.executeJavaScript('window.lyra?.bootWindow'); if (b?.kind === 'panel' && b.panelKind === ${JSON.stringify(kind)}) { w.close(); break; } } })()`);
+	// By what the window draws: a spare window's argv says no panel even after it was given one.
+	await app.main(`(async () => { for (const w of process._linkedBinding('electron_browser_window').BrowserWindow.getAllWindows()) { const held = await w.webContents.executeJavaScript('document.querySelector("[data-ly-panel-window]")?.getAttribute("data-ly-panel-window") ?? null'); if (held === ${JSON.stringify(kind)}) { w.close(); break; } } })()`);
 	const end = Date.now() + 10_000;
 	while (Date.now() < end && (await app.windows()).some((w) => w.boot.kind === "panel" && w.boot.panelKind === kind)) await new Promise((resolve) => setTimeout(resolve, 150));
 }

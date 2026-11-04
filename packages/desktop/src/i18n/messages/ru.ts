@@ -1732,6 +1732,7 @@ export const ru = {
 	"pane.fullScreenOne": "На весь экран: {label}",
 	"pane.closeOne": "Закрыть {label}",
 	"pane.openInNewWindow": "Открыть в новом окне",
+	"pane.movingToWindow": "Переносится в новое окно…",
 	"pane.tabs": "Вкладки панелей",
 	"pane.addTab": "Добавить панель",
 	"pane.restoreToDock": "Вернуть на место",

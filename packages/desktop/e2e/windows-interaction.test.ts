@@ -120,6 +120,68 @@ test("the terminal's scrollbar is the app's 6px rounded mark", async () => {
 	}
 });
 
+test("a panel popped out stays in the main window until its own window is shown", async () => {
+	// Measured on the Windows test machine: closed at the click, its window shown 2.8s later — nowhere in between.
+	try {
+		await setPanel("terminal", true, terminalKey);
+		await until(`document.querySelector('[data-ly-pop-out="terminal"]')`, 20_000);
+		// 'ready-to-show' is where main calls show(); its 'show' event can be dispatched a few ms after the window is already visible.
+		await app.main(`(() => { globalThis.__shown = null; const B = process._linkedBinding('electron_browser_window').BrowserWindow; const seen = new Set(B.getAllWindows().map((w) => w.id)); const poll = setInterval(() => { for (const w of B.getAllWindows()) if (!seen.has(w.id)) { seen.add(w.id); if (w.isVisible()) globalThis.__shown ??= Date.now(); else w.once('ready-to-show', () => { globalThis.__shown ??= Date.now(); }); } }, 2); setTimeout(() => clearInterval(poll), 15000); return true; })()`);
+		await app.evaluate(`(() => { window.__left = null; window.__note = null; const watch = () => { if (!window.__note && document.querySelector('[data-ly-pane-leaving]')) window.__note = Date.now(); if (!window.__left && !document.querySelector('[data-dock-pane="terminal"]:not([inert])')) window.__left = Date.now(); }; window.__watch = new MutationObserver(watch); window.__watch.observe(document.body, { subtree: true, childList: true, attributes: true }); return true; })()`);
+		await clickAt('[data-ly-pop-out="terminal"]');
+		await until(`window.__left !== null`, 20_000);
+		const left = await app.evaluate<number>(`(window.__watch.disconnect(), window.__left)`);
+		const note = await app.evaluate<number | null>(`window.__note`);
+		const shown = await app.main<number | null>(`globalThis.__shown`);
+		assert.ok(shown, "the panel's window was shown");
+		assert.ok(note !== null, "the panel said it was moving while it waited");
+		assert.ok(left >= shown, `the panel left ${shown - left}ms before its window was shown`);
+	} finally {
+		await app.main(`(async () => { for (const w of process._linkedBinding('electron_browser_window').BrowserWindow.getAllWindows()) { const b = await w.webContents.executeJavaScript('window.lyra?.bootWindow'); if (b?.kind === 'panel') w.close(); } return true; })()`);
+		await app.evaluate(`new Promise((resolve) => setTimeout(resolve, 600))`);
+	}
+});
+
+test("after one pop-out, the next takes a window that was built while nobody waited for it", async () => {
+	// Measured on the Windows test machine: every pop-out window painted 3.0s after the click and drew its terminal at 5.2s.
+	const spares = async () => (await app.windows()).filter((w) => w.boot.kind === "panel" && !w.boot.panelKind).map((w) => w.boot.id);
+	const waitForSpare = async (other?: string) => {
+		const end = Date.now() + 20_000;
+		while (Date.now() < end) {
+			const found = (await spares()).find((id) => id !== other);
+			if (found) return found;
+			await new Promise((resolve) => setTimeout(resolve, 200));
+		}
+		throw new Error("no spare panel window was built");
+	};
+	try {
+		await setPanel("terminal", true, terminalKey);
+		await until(`document.querySelector('[data-ly-pop-out="terminal"]')`, 20_000);
+		await clickAt('[data-ly-pop-out="terminal"]');
+		const spare = await waitForSpare();
+
+		await setPanel("tasks", true, tasksKey);
+		await until(`document.querySelector('[data-ly-pop-out="tasks"]')`, 20_000);
+		await app.main(`(() => { globalThis.__shown = null; for (const w of process._linkedBinding('electron_browser_window').BrowserWindow.getAllWindows()) if (!w.isVisible()) w.once('show', () => { globalThis.__shown ??= Date.now(); }); globalThis.__clicked = Date.now(); return true; })()`);
+		await clickAt('[data-ly-pop-out="tasks"]');
+		let holder: Awaited<ReturnType<typeof app.windows>>[number] | undefined;
+		for (const end = Date.now() + 10_000; !holder && Date.now() < end; await new Promise((resolve) => setTimeout(resolve, 100))) {
+			holder = (await app.windows()).find((w) => w.boot.panelKind === "tasks");
+		}
+		assert.ok(holder, "the tasks panel has a window");
+		assert.equal(holder.boot.id, spare, "and it is the window that was waiting");
+		const timing = await app.main<{ shown: number | null; clicked: number }>(`({ shown: globalThis.__shown, clicked: globalThis.__clicked })`);
+		assert.ok(timing.shown, "the window was shown");
+		assert.ok(timing.shown - timing.clicked < 1000, `shown ${timing.shown - timing.clicked}ms after the click`);
+		const drawn = await holder.evaluate<boolean>(`new Promise((resolve) => { const end = performance.now() + 5000; (function tick() { if (document.querySelector('[data-ly-panel-window="tasks"] [data-ly-panel-window-title]')?.textContent.trim()) resolve(true); else if (performance.now() > end) resolve(false); else requestAnimationFrame(tick); })(); })`);
+		assert.ok(drawn, "it draws the tasks panel it was given");
+		assert.notEqual(await waitForSpare(spare), spare, "and another is built for the pop-out after");
+	} finally {
+		await app.main(`(async () => { for (const w of process._linkedBinding('electron_browser_window').BrowserWindow.getAllWindows()) { const b = await w.webContents.executeJavaScript('window.lyra?.bootWindow'); if (b?.kind === 'panel') w.close(); } return true; })()`);
+		await app.evaluate(`new Promise((resolve) => setTimeout(resolve, 600))`);
+	}
+});
+
 test("the chip carried to the right edge stays inside the window", async () => {
 	// Measured: at the right edge the chip sat at x 1357.6 in a 1364px window, wholly off screen.
 	const row = await app.evaluate<{ x: number; y: number }>(`(() => { const r = document.querySelector('[data-ly-row="qa-long"]').getBoundingClientRect(); return { x: r.x + 40, y: r.y + r.height / 2 }; })()`);

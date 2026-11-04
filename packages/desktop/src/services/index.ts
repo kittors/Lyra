@@ -8,3 +8,4 @@
 
 export { bridge } from "./bridge.ts";
 export { available, hostPlatform, onPhone } from "./host.ts";
+export { bootWindow, useBootWindow, watchPanelAssignment } from "./boot-window.ts";

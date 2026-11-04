@@ -7,7 +7,7 @@
  * that panel.
  */
 
-import { bridge } from "../../services/index.ts";
+import { bootWindow } from "../../services/index.ts";
 import { useLayout } from "../../app/layout.tsx";
 import { useDockScope } from "../../app/session-scope.tsx";
 import { emptyDockTree, usePaneDock } from "./pane-store.ts";
@@ -31,11 +31,8 @@ export function usePaneOnScreen(kind: PaneKind): boolean {
 	const tab = usePaneDock((state) => (scope ? state.tab[scope] : undefined));
 	const tabbed = usePanelLayout() === "tabs";
 	if (!scope || !tree) {
-		try {
-			return bridge.bootWindow?.kind === "panel" && bridge.bootWindow.panelKind === kind;
-		} catch {
-			return false;
-		}
+		const boot = bootWindow();
+		return boot?.kind === "panel" && boot.panelKind === kind;
 	}
 	// In the tabs layout a background tab is open but not on screen.
 	if (tabbed && !compact && kind !== "conversation" && activeTab(tree, tab) !== kind) return false;

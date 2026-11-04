@@ -334,7 +334,7 @@ const CHECKS = [
 	},
 	{
 		id: "WIN-interaction-window",
-		what: "跑起来的桌面端里：快捷键打开侧边聊天后能直接打字、恢复布局不抢焦点；Windows 上分隔条是系统 ↔；终端滚动条是 6px 圆角；拖会话到右边缘卡片在窗口内；Windows/Linux 上 Ctrl+W 先关面板、不动窗口",
+		what: "跑起来的桌面端里：快捷键打开侧边聊天后能直接打字、恢复布局不抢焦点；Windows 上分隔条是系统 ↔；终端滚动条是 6px 圆角；弹出的面板在新窗口显示之前留在原处，第二次弹出用预先建好的窗口、一秒内显示；拖会话到右边缘卡片在窗口内；Windows/Linux 上 Ctrl+W 先关面板、不动窗口",
 		window: true,
 		run: ["node", ["--experimental-strip-types", "--test", "packages/desktop/e2e/windows-interaction.test.ts"]],
 	},
@@ -364,6 +364,11 @@ const CHECKS = [
 		id: "LAYOUT-narrow-rules",
 		what: "窄窗口的规则：1000px 以下侧栏浮起、不改写存下的偏好、Esc 和遮罩收起；dock 放不下最小尺寸或转向后一列超过两个就画成标签，保存的排列不动",
 		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/nav-overlay.test.ts", "test/dock-crowded.test.ts"]],
+	},
+	{
+		id: "POPOUT-handover-spare",
+		what: "弹出面板：新窗口显示之前面板留在原处并盖一层说明，窗口没开出来就原样不动；预先建好的备用窗口生下来没有面板，被取走时画出分到的那一个",
+		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/popout-handover.test.ts", "test/ui/spare-panel-window.test.ts", "test/ui/dock-no-auto-popout.test.ts"]],
 	},
 ];
 

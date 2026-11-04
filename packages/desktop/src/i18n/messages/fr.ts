@@ -1732,6 +1732,7 @@ export const fr = {
 	"pane.fullScreenOne": "Plein écran : {label}",
 	"pane.closeOne": "Fermer {label}",
 	"pane.openInNewWindow": "Ouvrir dans une nouvelle fenêtre",
+	"pane.movingToWindow": "Passage dans une nouvelle fenêtre…",
 	"pane.tabs": "Onglets des panneaux",
 	"pane.addTab": "Ajouter un panneau",
 	"pane.restoreToDock": "Revenir à son emplacement",

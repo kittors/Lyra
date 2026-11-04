@@ -55,6 +55,22 @@ function paintBootTheme(): void {
 	if (!document.documentElement) document.addEventListener("readystatechange", apply, { once: true });
 }
 
+/*
+ * Which panel a spare panel window has been given, kept from the moment it arrives.
+ *
+ * The main process takes a spare once it has painted (`takeSpare` in `window.ts`), and its first
+ * paint can be the boot screen, before the page has subscribed to anything. A message nobody was
+ * listening for is gone, and the window would show with no panel in it; a late subscriber is told
+ * the last assignment at once instead.
+ */
+type PanelAssignment = Parameters<Parameters<LyraApi["windows"]["onAssignPanel"]>[0]>[0];
+let panelAssignment: PanelAssignment | null = null;
+const assignmentHandlers = new Set<(state: PanelAssignment) => void>();
+ipcRenderer.on("windows:assign-panel", (_event, state: PanelAssignment) => {
+	panelAssignment = state;
+	for (const handler of assignmentHandlers) handler(state);
+});
+
 function markWindowKind(): void {
 	const kind = process.argv.some((arg) => arg.includes("ly-kind=session"))
 		? "session"
@@ -231,6 +247,13 @@ const extras = {
 			const listener = () => handler();
 			ipcRenderer.on("windows:close-panel", listener);
 			return () => ipcRenderer.removeListener("windows:close-panel", listener);
+		},
+		onAssignPanel: (handler) => {
+			assignmentHandlers.add(handler);
+			if (panelAssignment) handler(panelAssignment);
+			return () => {
+				assignmentHandlers.delete(handler);
+			};
 		},
 	},
 	settings: {

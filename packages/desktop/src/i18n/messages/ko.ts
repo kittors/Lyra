@@ -1732,6 +1732,7 @@ export const ko = {
 	"pane.fullScreenOne": "전체 화면: {label}",
 	"pane.closeOne": "{label} 닫기",
 	"pane.openInNewWindow": "새 창에서 열기",
+	"pane.movingToWindow": "새 창으로 옮기는 중…",
 	"pane.tabs": "패널 탭",
 	"pane.addTab": "패널 추가",
 	"pane.restoreToDock": "원래 위치로 되돌리기",

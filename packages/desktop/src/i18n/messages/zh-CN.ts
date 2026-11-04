@@ -1923,6 +1923,7 @@ export const zhCN = {
 	"pane.tabs": "面板标签",
 	"pane.addTab": "添加面板",
 	"pane.openInNewWindow": "在新窗口中打开",
+	"pane.movingToWindow": "正在移到新窗口…",
 	"pane.restoreToDock": "回到原来的位置",
 	"prRow.unseen": "上次打开之后有新动静",
 	"prRow.lineCount": "改动行数",

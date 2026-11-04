@@ -1734,6 +1734,7 @@ export const en = {
 	"pane.tabs": "Panel tabs",
 	"pane.addTab": "Add panel",
 	"pane.openInNewWindow": "Open in a new window",
+	"pane.movingToWindow": "Moving to a new window…",
 	"pane.restoreToDock": "Return to its place",
 	"prRow.unseen": "Something has moved since you last looked",
 	"prRow.lineCount": "Lines changed",

@@ -32,7 +32,7 @@ import { DockPane } from "./DockPane.tsx";
 import { PaneGrip } from "./PaneGrip.tsx";
 import { Splitter } from "./Splitter.tsx";
 import { crowded, fitTree, layoutPanes, layoutSplitters, type Box, type SplitterBox } from "./layout.ts";
-import { popOutPanel } from "./popout.ts";
+import { popOutPanel, usePanelWindows } from "./popout.ts";
 import { emptyDockTree, usePaneDock } from "./pane-store.ts";
 import { DockScope } from "../../app/session-scope.tsx";
 import { canToggleMaximized } from "./visibility.ts";
@@ -155,6 +155,8 @@ export function DockView({
 	const rememberedTab = usePaneDock((s) => s.tab[scope]);
 	const tabShare = usePaneDock((s) => s.tabShare);
 	const tabsChosen = usePanelLayout() === "tabs";
+	// Panels on their way to a window of their own, still drawn here until it is shown.
+	const leaving = usePanelWindows((s) => s.leaving.filter((panel) => panel.scope === scope).map((panel) => panel.kind).join("\n"));
 	const { compact } = useLayout();
 	const definitions = usePanelDefinitions();
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -392,6 +394,7 @@ export function DockView({
 								 * lifted out of the tree and is positioned against the window.
 								 */
 								hidden={compact ? kind !== focusedPane : !placed && !moving}
+								leaving={leaving.split("\n").includes(kind)}
 								draggable={draggable}
 								onDragStart={onDragStart}
 								onMove={onMove}
