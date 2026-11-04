@@ -321,6 +321,23 @@ const CHECKS = [
 		window: true,
 		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/avatar-pile-demo.ts", "/tmp/regression-avatar-pile"]],
 	},
+	{
+		id: "WIN-keys-menu",
+		what: "Windows/Linux 的打包版菜单没有 close 角色、Ctrl+W 只关小窗口，主窗口里逐层关面板再关分屏；第一次收进托盘只弹一次系统通知；拖动卡片靠边翻面；Windows 的调整大小光标是系统的",
+		run: ["node", ["--experimental-strip-types", "--test", "packages/desktop/test/app-menu.test.ts", "packages/desktop/test/notify.test.ts", "packages/desktop/test/close-in-front.test.ts", "packages/desktop/test/carry-chip.test.ts", "packages/desktop/test/resize-cursor.test.ts"]],
+	},
+	{
+		id: "WIN-panel-titlebar-window",
+		what: "跑起来的桌面端里，九种可弹出的面板各开一扇独立窗口：标题栏至少六成能拖、每个按钮都点得到（终端标签条曾把 Windows 上的标题栏吃光，82 个点只剩 4 个能拖）",
+		window: true,
+		run: ["node", ["--experimental-strip-types", "--test", "packages/desktop/e2e/panel-window-chrome.test.ts"]],
+	},
+	{
+		id: "WIN-interaction-window",
+		what: "跑起来的桌面端里：快捷键打开侧边聊天后能直接打字、恢复布局不抢焦点；Windows 上分隔条是系统 ↔；终端滚动条是 6px 圆角；拖会话到右边缘卡片在窗口内；Windows/Linux 上 Ctrl+W 先关面板、不动窗口",
+		window: true,
+		run: ["node", ["--experimental-strip-types", "--test", "packages/desktop/e2e/windows-interaction.test.ts"]],
+	},
 ];
 
 const pass = [];

@@ -32,6 +32,13 @@ macOS 上高 `MAIN_TOOLBAR_HEIGHT`（40px），红绿灯在其中居中，顶部
 下面，不再为窗口的角让位。会话窗口和面板窗口仍是 `WINDOW_HEADER_HEIGHT`（44px）的标题栏，红绿灯
 y=15。macOS 原生红绿灯直径为 14pt，不能按 12pt 定位，否则原生按钮会低 1pt。
 
+面板弹出成独立窗口后，`PanelWindow` 的 header 就是那扇窗的标题栏。标题位置放的是面板自己的
+header（终端是标签条），它只能把**能点的东西**标成 `no-drag`：标签、加号、显示中的滚动箭头；
+标签之间和之后的空白留给拖拽。终端标签条从前整条 `no-drag` 且 `flex-1`，主窗口里无害（Windows 上
+`PaneHeader` 本来就不是拖拽区），进了独立窗口就把标题栏吃光了：真机上沿标题栏 82 个点只有 4 个是
+`HTCAPTION`，拖不动、双击也不最大化。`e2e/panel-window-chrome.test.ts` 把九种可弹出的面板各开一扇
+窗，按 Chromium 计算拖拽区的顺序量标题栏内容区，至少 60% 能拖，且每个按钮都在 `no-drag` 里。
+
 `PaneHeader` 负责标题控件可用宽度：可以拖动面板时，为居于整个标题栏中心的 grip 留出
 命中区；只有一个面板或窄窗口时，标题使用系统按钮和面板动作之外的剩余空间。
 `TerminalTabs` 不再把这个空间折半，新增终端按钮始终位于横向滚动区域外。
@@ -54,10 +61,32 @@ CodeMirror 键位，Windows 是 Ctrl+Y 与 Shift+Alt+F。
 编辑文字时重复切换布局。面板菜单中已经公布的浏览器、任务和子 Agent 快捷键均接到对应
 动作，Ctrl+` 也可在没有项目时打开主目录终端。键盘 Tab 导航有可见焦点描边。
 
+Ctrl+W 在 Windows/Linux 的主窗口里由渲染进程处理（`closeInFront`）：先关焦点屏里在前面的面板
+（键盘焦点所在的、否则 dock 最近带到前面的、否则布局里最后一个），这一屏没有面板了再关这一屏，单屏
+又没有面板时什么都不做。从前它是菜单 `close` 角色的加速键，在输入框里按下去整个主窗口收进托盘，而
+Windows 11 把新托盘图标藏在「^」里，看上去像应用退出了。打包版菜单因此去掉了 `close` 角色，只留一个
+没有 label 的 Ctrl+W 项，只关会话窗口和面板窗口。菜单加速键只在页面没有处理这个键时才触发，所以终端
+聚焦时 Ctrl+W 照常是 shell 的删词，xterm 已经把它消费掉。macOS 的 ⌘W 不变。
+
+Windows/Linux 上关主窗口而托盘存在时，窗口收进托盘；第一次这样收起时弹一条系统通知说明 Lyra 还在
+后台、怎么叫回和怎么退出（`notifyStillRunning`），之后再也不弹。标记存在 profile 下的
+`hints.json`，不进设置。
+
 终端里 Windows 的普通 Ctrl+V 是粘贴，和 Windows Terminal 一致（PowerShell 的 PSReadLine 本来
 就会读剪贴板，cmd、Git Bash、WSL 和各种 REPL 里则只会出现 `^V`）；Linux 仍是 Ctrl+Shift+V，
 Ctrl+V 留给 readline 的 quoted-insert。打包版的 Windows/Linux 菜单不带 `minimize` 角色：菜单栏
 是隐藏的，这个角色只剩 Ctrl+M 加速键，打字时误按会把窗口收进任务栏。
+
+## 指针与滚动条
+
+调整大小的光标在 Windows 上用 `ew-resize`/`ns-resize`。CSS 的 `col-resize`/`row-resize` 在那里是
+Chromium 自带的单色 `←‖→`，按 XOR 画，中灰底上几乎看不见；系统其他地方的分栏都是 ↔ 和 ↕。手柄上的
+光标由 `dock.css` 按 `data-ly-platform="win32"` 覆盖，拖动途中写在 body 上的内联光标走
+`ui/layout/resize-cursor.ts`。macOS 不变。真机用 `GetCursorInfo` 对照系统光标句柄量过：`ew-resize`
+是 `IDC_SIZEWE`，`ns-resize` 是 `IDC_SIZENS`，`col-resize`、`row-resize`、`grab` 都不是系统光标。
+
+终端的滚动条和对话区一样是 6px 圆角、离边 2px，悬停加宽到 9px（`scroll.css`）。xterm 5.6 自带的是
+VS Code 那种 14px 方块滑块，几何是内联样式，所以覆盖规则带 `!important`；何时显示仍由 xterm 决定。
 
 ## 字体
 

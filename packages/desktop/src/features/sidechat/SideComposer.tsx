@@ -11,7 +11,7 @@ import type { UserContent } from "@lyra/core";
 import { Plus } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { findModel } from "../models/index.ts";
-import { useSide, sideChatOf, openScopedPanel } from "../dock/index.ts";
+import { useSide, sideChatOf, openScopedPanel, usePaneDock } from "../dock/index.ts";
 import { useSideSessionId } from "./scope.ts";
 import { useDockScope, useScopedMeta } from "../../app/session-scope.tsx";
 import { useApp } from "../../store/index.ts";
@@ -102,6 +102,20 @@ export function SideComposer({
 	 * substituted when something is already half-typed: losing what you were writing to recover
 	 * something you asked for is a bad trade.
 	 */
+	/*
+	 * Opened with its shortcut or a button, the side chat takes the keyboard. Ctrl+Alt+S and then
+	 * typing used to type into nothing — the focus stayed on the conversation's scroller. Only for
+	 * an `open`; a side chat that was simply there when the layout came back takes nothing.
+	 *
+	 * Not cancelled on cleanup: taking the summons re-renders this, and a cancelled frame there
+	 * would drop the very focus it was taken for.
+	 */
+	const summoned = usePaneDock((s) => s.summoned?.kind === "chat" && s.summoned.scope === screen);
+	useEffect(() => {
+		if (!summoned || !screen || !usePaneDock.getState().takeSummon(screen, "chat")) return;
+		requestAnimationFrame(() => field.current?.focus({ preventScroll: true }));
+	}, [summoned, screen]);
+
 	const draftSeed = useSide((s) => sideChatOf(s, sessionId).draftSeed);
 	useEffect(() => {
 		if (!draftSeed) return;
