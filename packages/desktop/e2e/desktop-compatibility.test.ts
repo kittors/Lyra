@@ -304,6 +304,15 @@ test("toolbar and pane icons keep their pixel column wherever the sidebar's edge
 	 */
 	const app = await startApp({ port: 9598, scaleFactor: 1.25, seed: (home) => plainProfile(home) });
 	try {
+		/*
+		 * The page held at the profile's 984×684, by emulation, the forced 125% left as it is.
+		 *
+		 * The edge measured here is a pushed sidebar's. On the windows-ui runner the screen is 1024×768,
+		 * so at 125% the window can be no wider than 819px — inside the band where the sidebar floats
+		 * over the content (`NAV_OVERLAY_MAX`) — and there was no pushed sidebar to hold.
+		 */
+		await app.send("Emulation.setDeviceMetricsOverride", { width: 984, height: 684, deviceScaleFactor: 0, mobile: false });
+		await app.evaluate(`new Promise((resolve, reject) => { const end = performance.now() + 5000; (function tick() { if (innerWidth === 984 && document.querySelector('aside[data-pane="beside"]')) resolve(true); else if (performance.now() > end) reject(new Error('the sidebar is not beside the content at 984px: ' + innerWidth)); else requestAnimationFrame(tick); })(); })`);
 		await frames(app);
 		await click(app, ':is([data-ly-split-tools], [data-dock-header]) button[aria-label^="浏览器"]');
 		await app.evaluate(`new Promise((resolve, reject) => { let n = 240; const step = () => document.querySelector('[data-dock-header="browser"] [data-dock-actions] button') ? resolve() : --n ? requestAnimationFrame(step) : reject(new Error('the browser pane did not open')); step(); })`);
