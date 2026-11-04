@@ -199,6 +199,10 @@ test("after one pop-out, the next takes a window that was built while nobody wai
 		await until(`document.querySelector('[data-ly-pop-out="terminal"]')`, 20_000);
 		await clickAt('[data-ly-pop-out="terminal"]');
 		const spare = await waitForSpare();
+		// Painted, not just started: the timing below is the spare's, and a CI runner is slow to boot one.
+		const standing = (await app.windows()).find((w) => w.boot.id === spare);
+		await standing?.evaluate(`new Promise((resolve) => { const end = Date.now() + 15000; (function tick() { if ((document.readyState === 'complete' && document.querySelector('[data-ly-panel-window]')) || Date.now() > end) resolve(true); else setTimeout(tick, 50); })(); })`);
+		await new Promise((resolve) => setTimeout(resolve, 500));
 
 		await setPanel("tasks", true, tasksKey);
 		await until(`document.querySelector('[data-ly-pop-out="tasks"]')`, 20_000);

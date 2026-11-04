@@ -338,20 +338,32 @@ function dropSpare(): void {
 
 function takeSpare(input: { kind: string; scope: string; sessionId?: string | null }): BrowserWindow | null {
 	const win = sparePanel;
-	if (!win || !spareReady || input.kind === "file") return null;
+	if (!win || input.kind === "file") return null;
 	// A spare whose renderer died would show as a blank window: build this one from nothing instead.
 	if (win.isDestroyed() || win.webContents.isDestroyed() || win.webContents.isCrashed()) {
 		dropSpare();
 		return null;
 	}
+	const ready = spareReady;
 	sparePanel = null;
 	spareReady = false;
 	const meta = windowMeta.get(win);
 	if (meta) windowMeta.set(win, { ...meta, sessionId: input.sessionId ?? null, panelKind: input.kind, panelScope: input.scope });
 	win.setBounds(sessionWindowBounds(mainWindow && !mainWindow.isDestroyed() ? mainWindow.getBounds() : null));
+	// The preload keeps this until the page subscribes, so a spare still starting gets it too.
 	win.webContents.send("windows:assign-panel", { panelKind: input.kind, panelScope: input.scope, sessionId: input.sessionId ?? null });
-	win.show();
-	broadcastSessionWindows();
+	const show = () => {
+		if (win.isDestroyed()) return;
+		win.show();
+		broadcastSessionWindows();
+	};
+	/*
+	 * Still starting up, it is taken all the same and shown once it has painted. It is further
+	 * along than a window built now, which would have to do all of it; on a slow machine a pop-out
+	 * soon after the first one used to build a second window beside the spare.
+	 */
+	if (ready) show();
+	else win.once("ready-to-show", show);
 	return win;
 }
 
