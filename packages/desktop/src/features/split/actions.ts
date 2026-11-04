@@ -124,7 +124,7 @@ function canAddColumn(): boolean {
 	return Boolean(root && root.width / (columnCount(useSplit.getState().tree) + 1) >= SCREEN_MIN_WIDTH_PX);
 }
 
-export function splitWith(meta: SessionMeta, target: string | null, width: number, height: number, side?: DropSide): void {
+function splitWith(meta: SessionMeta, target: string | null, width: number, height: number, side?: DropSide): void {
 	if (contains(useSplit.getState().tree, meta.id) || (side && canSplitSide(width, height, side))) {
 		useSplit.getState().split(target, meta.id, side ?? "right");
 		revealSession(meta);

@@ -20,14 +20,14 @@ const ROW = '[role="menuitem"],[role="menuitemcheckbox"],[role="menuitemradio"]'
 export const MENU_KEYS = new Set(["ArrowDown", "ArrowUp", "Home", "End", "ArrowRight", "ArrowLeft", "Enter"]);
 
 /** The rows a menu's keys move between: enabled, not hidden, in document order. */
-export function menuRows(card: ParentNode): HTMLElement[] {
+function menuRows(card: ParentNode): HTMLElement[] {
 	return [...card.querySelectorAll<HTMLElement>(ROW)].filter(
 		(row) => !(row as HTMLButtonElement).disabled && row.getAttribute("aria-disabled") !== "true" && !row.closest("[hidden],[inert]"),
 	);
 }
 
 /** The row a navigation key leads to from `current`; null when there is nowhere to go. */
-export function stepRow(rows: readonly HTMLElement[], current: HTMLElement | null, key: string): HTMLElement | null {
+function stepRow(rows: readonly HTMLElement[], current: HTMLElement | null, key: string): HTMLElement | null {
 	if (rows.length === 0) return null;
 	const at = current ? rows.indexOf(current) : -1;
 	if (key === "Home") return rows[0] ?? null;
