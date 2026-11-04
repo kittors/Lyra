@@ -100,6 +100,13 @@ export function useSettingsSource(read: () => Settings | undefined): void {
 	readSettings = read;
 }
 
+/** Told each time closing the main window put it into the tray instead of quitting — not on macOS. */
+let hiddenToTray: () => void = () => {};
+
+export function useHiddenToTray(fn: () => void): void {
+	hiddenToTray = fn;
+}
+
 export function useTrayPresence(present: () => boolean): void {
 	trayPresent = present;
 }
@@ -225,12 +232,17 @@ export function listSessionWindowIds(): string[] {
 	return ids;
 }
 
-export function listPanelWindows(): { kind: string; scope: string; sessionId: string | null }[] {
-	const panels: { kind: string; scope: string; sessionId: string | null }[] = [];
+/**
+ * `shown` says whether the window is on screen yet. A panel window is listed from the moment it is
+ * built, seconds before it is shown on a slow machine; the main window keeps the panel where it was
+ * until then (`popOutPanel`), so nothing is missing from the screen in between.
+ */
+export function listPanelWindows(): { kind: string; scope: string; sessionId: string | null; shown: boolean }[] {
+	const panels: { kind: string; scope: string; sessionId: string | null; shown: boolean }[] = [];
 	for (const win of listAppWindows()) {
 		const meta = windowMeta.get(win);
 		if (meta?.role === "panel" && meta.panelKind && meta.panelScope) {
-			panels.push({ kind: meta.panelKind, scope: meta.panelScope, sessionId: meta.sessionId ?? null });
+			panels.push({ kind: meta.panelKind, scope: meta.panelScope, sessionId: meta.sessionId ?? null, shown: win.isVisible() });
 		}
 	}
 	return panels;
@@ -262,12 +274,97 @@ export function openPanelWindow(input: { kind: string; scope: string; sessionId?
 		existing.focus();
 		return existing;
 	}
-	return buildAppWindow({
+	const spare = takeSpare(input);
+	if (spare) {
+		scheduleSpare();
+		return spare;
+	}
+	const win = buildAppWindow({
 		role: "panel",
 		sessionId: input.sessionId ?? undefined,
 		panelKind: input.kind,
 		panelScope: input.scope,
 	});
+	// Only someone who pops panels out pays for a spare: the next one is built once this one is up.
+	win.once("ready-to-show", () => scheduleSpare());
+	return win;
+}
+
+/*
+ * A panel window built ahead of time, hidden, for the next pop-out.
+ *
+ * Building one from nothing is a whole renderer starting up: on the Windows test machine the window
+ * was created 0.65s after the click, painted at 3.0s and drew its terminal at 5.2s. A spare has done
+ * all of that already; the next pop-out only tells it which panel it is, moves it, and shows it.
+ *
+ * Built lazily — only after a first pop-out, a few seconds after that window is up — so nobody who
+ * never pops a panel out carries the extra renderer (about one more Chromium renderer process of
+ * memory). One at most; replaced a few seconds after it is used. The file panel takes the cold path:
+ * its state is handed over at boot (`file-panel-handoff.ts`), which a spare has already passed.
+ */
+let sparePanel: BrowserWindow | null = null;
+let spareReady = false;
+let spareTimer: NodeJS.Timeout | undefined;
+const SPARE_DELAY_MS = 2_500;
+
+function scheduleSpare(): void {
+	clearTimeout(spareTimer);
+	spareTimer = setTimeout(prepareSpare, SPARE_DELAY_MS);
+}
+
+function prepareSpare(): void {
+	if (quitting || (sparePanel && !sparePanel.isDestroyed())) return;
+	if (!mainWindow || mainWindow.isDestroyed()) return;
+	const win = buildAppWindow({ role: "panel", spare: true });
+	sparePanel = win;
+	spareReady = false;
+	win.once("ready-to-show", () => {
+		if (sparePanel === win) spareReady = true;
+	});
+	win.once("closed", () => {
+		if (sparePanel !== win) return;
+		sparePanel = null;
+		spareReady = false;
+	});
+}
+
+function dropSpare(): void {
+	clearTimeout(spareTimer);
+	const win = sparePanel;
+	sparePanel = null;
+	spareReady = false;
+	if (win && !win.isDestroyed()) win.destroy();
+}
+
+function takeSpare(input: { kind: string; scope: string; sessionId?: string | null }): BrowserWindow | null {
+	const win = sparePanel;
+	if (!win || input.kind === "file") return null;
+	// A spare whose renderer died would show as a blank window: build this one from nothing instead.
+	if (win.isDestroyed() || win.webContents.isDestroyed() || win.webContents.isCrashed()) {
+		dropSpare();
+		return null;
+	}
+	const ready = spareReady;
+	sparePanel = null;
+	spareReady = false;
+	const meta = windowMeta.get(win);
+	if (meta) windowMeta.set(win, { ...meta, sessionId: input.sessionId ?? null, panelKind: input.kind, panelScope: input.scope });
+	win.setBounds(sessionWindowBounds(mainWindow && !mainWindow.isDestroyed() ? mainWindow.getBounds() : null));
+	// The preload keeps this until the page subscribes, so a spare still starting gets it too.
+	win.webContents.send("windows:assign-panel", { panelKind: input.kind, panelScope: input.scope, sessionId: input.sessionId ?? null });
+	const show = () => {
+		if (win.isDestroyed()) return;
+		win.show();
+		broadcastSessionWindows();
+	};
+	/*
+	 * Still starting up, it is taken all the same and shown once it has painted. It is further
+	 * along than a window built now, which would have to do all of it; on a slow machine a pop-out
+	 * soon after the first one used to build a second window beside the spare.
+	 */
+	if (ready) show();
+	else win.once("ready-to-show", show);
+	return win;
 }
 
 export function closePanelWindow(input: { kind: string; scope: string }): boolean {
@@ -358,6 +455,8 @@ function buildAppWindow(options: {
 	sessionId?: string;
 	panelKind?: string;
 	panelScope?: string;
+	/** A panel window built ahead of time: stays hidden until `takeSpare` gives it a panel. */
+	spare?: boolean;
 }): BrowserWindow {
 	const saved = options.role === "primary" ? readWindowState() : null;
 	const origin = mainWindow && !mainWindow.isDestroyed() ? mainWindow.getBounds() : null;
@@ -483,6 +582,8 @@ function buildAppWindow(options: {
 		if (options.role === "primary") {
 			mainWindow = null;
 			mainOpened = null;
+			// A hidden spare must not keep the app running once the window that pops panels out is gone.
+			dropSpare();
 		}
 		if (options.role === "aux" || options.role === "panel") broadcastSessionWindows();
 	});
@@ -501,6 +602,7 @@ function buildAppWindow(options: {
 
 	win.once("ready-to-show", () => {
 		noteOpened();
+		if (options.spare) return;
 		// Maximising shows the window as well; `show` after it is what gives it focus.
 		if (options.role === "primary" && reopenMaximized(saved, process.platform)) win.maximize();
 		win.show();
@@ -522,6 +624,8 @@ function buildAppWindow(options: {
 			if (!closeShouldHide()) return;
 			event.preventDefault();
 			hideWindow();
+			// macOS has the dock icon; elsewhere the tray is the only way back, so say where it went.
+			if (process.platform !== "darwin") hiddenToTray();
 		});
 	}
 

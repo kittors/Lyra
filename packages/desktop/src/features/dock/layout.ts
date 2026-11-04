@@ -17,7 +17,7 @@
  * which is also what makes the rearrangement animate for free.
  */
 
-import { COLUMN_LIMIT, EPSILON } from "./geometry.ts";
+import { COLUMN_LIMIT, EPSILON, PANEL_MIN_WIDTH_PX } from "./geometry.ts";
 import type { Axis, DockNode, PaneKind } from "./tree.ts";
 
 /**
@@ -247,6 +247,49 @@ export function clearsFloors(
 	if (!(span.width > 0) || !(span.height > 0)) return false;
 	return floorOf(node, "row", floor) <= span.width + EPSILON
 		&& floorOf(node, "col", floor) <= span.height + EPSILON;
+}
+
+/** How many panes the tallest column stacks once rows are accounted for. */
+function stacked(node: DockNode): number {
+	if (node.type === "leaf") return 1;
+	const each = node.children.map(stacked);
+	return node.dir === "col" ? each.reduce((sum, count) => sum + count, 0) : Math.max(...each);
+}
+
+/** Whether `fitTree` turned any split on its side to draw `stored` as `drawn`. */
+function turned(stored: DockNode, drawn: DockNode): boolean {
+	if (stored.type === "leaf" || drawn.type === "leaf") return false;
+	return stored.dir !== drawn.dir || stored.children.some((child, i) => {
+		const other = drawn.children[i];
+		return other !== undefined && turned(child, other);
+	});
+}
+
+/**
+ * Too crowded to draw as arranged; the dock then draws its panels as tabs (`DockView`).
+ *
+ * Three ways to be crowded:
+ *
+ * - Too tall for its floors: the bottom pane is pressed under its minimum, and a composer's field and
+ *   send button are the first things past the bottom edge.
+ * - Too wide by more than half a panel. A row that is a little too wide keeps its shape, the first
+ *   pane drawn at its minimum and overlapping its neighbour — that is `fitTree`'s answer for rows of
+ *   three, and at 1280px three panes are 61px short. Past half a panel the pane underneath loses
+ *   more than half of itself, and a conversation can lose its send button.
+ * - Cleared only because `fitTree` turned the arrangement on its side and stacked more than two panes
+ *   into one column: a window snapped to half the screen on Windows got four 150px strips that way.
+ *   Three in a column that the user arranged is theirs and is left alone; only a turn counts.
+ */
+export function crowded(
+	stored: DockNode,
+	fitted: DockNode,
+	span: { width: number; height: number },
+	floor: (kind: PaneKind) => Floor,
+): boolean {
+	if (!(span.width > 0) || !(span.height > 0)) return false;
+	if (floorOf(fitted, "col", floor) > span.height + EPSILON) return true;
+	if (floorOf(fitted, "row", floor) - span.width > PANEL_MIN_WIDTH_PX / 2) return true;
+	return turned(stored, fitted) && stacked(fitted) > COLUMN_LIMIT;
 }
 
 /**

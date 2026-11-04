@@ -8,6 +8,7 @@
  */
 
 import { useLayout } from "../../app/layout.tsx";
+import { translate } from "../../i18n/translate.ts";
 import { onPhone } from "../../services/host.ts";
 import { PaneHeader } from "./PaneHeader.tsx";
 import { PaneSurface } from "./PaneSurface.tsx";
@@ -25,6 +26,7 @@ export function DockPane({
 	carried,
 	landing,
 	hidden,
+	leaving = false,
 	draggable,
 	onDragStart,
 	onMove,
@@ -68,6 +70,8 @@ export function DockPane({
 	 * terminal grid and every row's measurements; inherited visibility restyles every descendant.
 	 */
 	hidden: boolean;
+	/** Moving to its own window, which is not on screen yet: still drawn, inert, under a note. */
+	leaving?: boolean;
 	draggable: boolean;
 	onDragStart: (event: React.PointerEvent<HTMLElement>) => void;
 	onMove: (side: DropSide) => void;
@@ -284,7 +288,14 @@ export function DockPane({
 			>
 			{/* Controls keep their endpoint geometry while this retained surface composites its resize. */}
 			{chrome && reserveHeader && <div aria-hidden className="shrink-0" style={{ height: HEADER_HEIGHT }} />}
-			<div data-dock-content={kind} className="relative flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
+			<div data-dock-content={kind} inert={leaving} className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+				{children}
+				{leaving && (
+					<div data-ly-pane-leaving="" className="absolute inset-0 z-10 grid place-items-center bg-shell/70 text-detail text-ink-muted">
+						{translate("pane.movingToWindow")}
+					</div>
+				)}
+			</div>
 			</div>
 		</PaneSurface>
 	);

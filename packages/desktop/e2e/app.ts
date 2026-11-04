@@ -172,7 +172,8 @@ export interface RunningApp {
 	 * 路其实一直在——每个 Electron 窗口在 `/json/list` 里都是一个独立的 page target，从前只
 	 * 取了第一个。认身份不靠 URL：三种窗口 `loadFile` 的是同一个 index.html，靠标题也不行
 	 * （页面自己会改）。问它 `window.lyra.bootWindow`——那是 preload 从 argv 里读出来的，
-	 * 每个窗口从生到死都只有一个答案。
+	 * 每个窗口从生到死都只有一个答案。唯一的例外是预先建好的备用面板窗口：它生下来没有面板，
+	 * 被取走时才由主进程告诉它是哪一个，这份答案从 `onAssignPanel` 的回放里读。
 	 */
 	windows(): Promise<AppWindow[]>;
 	stop(): Promise<void>;
@@ -394,10 +395,16 @@ async function listAppWindows(port: number): Promise<AppWindow[]> {
 		const url = one.webSocketDebuggerUrl;
 		const boot = await evaluateRenderer<AppWindow["boot"] | null>(
 			url,
+			// A spare panel window boots with no panel and is told one later (`windows:assign-panel`);
+			// subscribing replays the last assignment at once, which is how its live identity is read.
 			`(() => {
 				const b = window.lyra && window.lyra.bootWindow;
 				if (!b) return null;
-				return { id: b.id, kind: b.kind, sessionId: b.sessionId ?? null, panelKind: b.panelKind ?? null, panelScope: b.panelScope ?? null };
+				let given = null;
+				const stop = window.lyra.windows && window.lyra.windows.onAssignPanel && window.lyra.windows.onAssignPanel((state) => { given = state; });
+				if (stop) stop();
+				const live = given ? { ...b, ...given } : b;
+				return { id: live.id, kind: live.kind, sessionId: live.sessionId ?? null, panelKind: live.panelKind ?? null, panelScope: live.panelScope ?? null };
 			})()`,
 		).catch(() => null);
 		if (!boot) continue;

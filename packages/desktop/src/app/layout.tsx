@@ -28,6 +28,22 @@ import { MAIN_TOOLBAR_HEIGHT, NATIVE_HEADER_HEIGHT } from "../../shared/window-c
 const COMPACT_MAX = 760;
 /** Above this the dock can hold panes beside the conversation without starving either. */
 const WIDE_MIN = 1180;
+/**
+ * Below this the sidebar floats over the content instead of pushing it (desktop windows only).
+ *
+ * A window snapped to half of a 1920px screen at 125% is 768px wide — "regular", so the sidebar
+ * pushed, and left about 470px for a conversation and its panels: on the Windows test machine four
+ * panels were stacked into 150px strips and the side chat's send button was cut off. Over the
+ * content the sidebar costs nothing until it is opened, by its toolbar button or Ctrl+B, and
+ * choosing a conversation puts it away again. Whether it is open beside the content (`pushOpen`)
+ * is left as the user set it, so widening the window brings it back exactly as it was.
+ *
+ * It has to end below the main window's default width (980, `MAIN_DEFAULT` in `window.ts`). At 1000
+ * every window opened at its default size — a new user's first one, every e2e run — started with
+ * the sidebar shut away. 900 still takes in the half-screen snaps: 768 (1920px at 125%) and 853
+ * (2560px at 150%).
+ */
+const NAV_OVERLAY_MAX = 900;
 
 export type LayoutMode = "compact" | "regular" | "wide";
 
@@ -40,6 +56,8 @@ function modeFor(width: number): LayoutMode {
 export interface LayoutValue {
 	mode: LayoutMode;
 	compact: boolean;
+	/** The sidebar floats over the content rather than pushing it — see `NAV_OVERLAY_MAX`. */
+	overlay: boolean;
 	/** True when there is room for a full-width side panel rather than a squeezed one. */
 	wide: boolean;
 	/** Current window width, for callers that budget space rather than just pick a mode. */
@@ -138,6 +156,8 @@ export function LayoutProvider({ children, nav = true }: { children: React.React
 	// in the user's face, and leaving it must not hide a sidebar they had open.
 	const [pushOpen, setPushOpen] = useState(true);
 	const [drawerOpen, setDrawerOpen] = useState(false);
+	// The floating sidebar's own state: it starts shut, and is never the pushed one's.
+	const [overlayOpen, setOverlayOpen] = useState(false);
 
 	const [sidebarWidth, setSidebarWidthState] = useState(() =>
 		storedWidth("dw:sidebar-width", SIDEBAR_DEFAULT, SIDEBAR_MIN, SIDEBAR_MAX),
@@ -212,6 +232,7 @@ export function LayoutProvider({ children, nav = true }: { children: React.React
 	const titlebar = useTitlebar(nativeFullScreen);
 	const headerBar = hasHeaderBar(bridge.platform ?? "darwin", !onPhone());
 	const framed = nav && !onPhone();
+	const overlay = framed && !compact && width < NAV_OVERLAY_MAX;
 	const toolbarHeight = framed ? (headerBar ? NATIVE_HEADER_HEIGHT : MAIN_TOOLBAR_HEIGHT) : 0;
 
 	/*
@@ -230,6 +251,10 @@ export function LayoutProvider({ children, nav = true }: { children: React.React
 	useEffect(() => {
 		setDrawerOpen(false);
 	}, [compact]);
+	// The same for the floating sidebar: crossing its threshold either way leaves it shut.
+	useEffect(() => {
+		setOverlayOpen(false);
+	}, [overlay]);
 
 	/*
 	 * The gallery has no use for the conversation list. It is a place of its own — the pictures from
@@ -247,18 +272,21 @@ export function LayoutProvider({ children, nav = true }: { children: React.React
 	const toggleNav = useCallback(() => {
 		if (compact) setDrawerOpen((open) => !open);
 		else if (gallery) setGalleryNav((open) => !open);
+		else if (overlay) setOverlayOpen((open) => !open);
 		else setPushOpen((open) => !open);
-	}, [compact, gallery]);
+	}, [compact, gallery, overlay]);
 
 	const dismissNav = useCallback(() => {
 		if (compact) setDrawerOpen(false);
-	}, [compact]);
+		else if (overlay) setOverlayOpen(false);
+	}, [compact, overlay]);
 
 	const collapseNav = useCallback(() => {
 		if (compact) setDrawerOpen(false);
 		else if (gallery) setGalleryNav(false);
+		else if (overlay) setOverlayOpen(false);
 		else setPushOpen(false);
-	}, [compact, gallery]);
+	}, [compact, gallery, overlay]);
 
 	/*
 	 * The phone's two additions to the shell, mounted here because this is where the drawer's state
@@ -271,9 +299,10 @@ export function LayoutProvider({ children, nav = true }: { children: React.React
 		() => ({
 			mode,
 			compact,
+			overlay,
 			wide: mode === "wide",
 			width,
-			navOpen: compact ? drawerOpen : gallery ? galleryNav : pushOpen,
+			navOpen: compact ? drawerOpen : gallery ? galleryNav : overlay ? overlayOpen : pushOpen,
 			hasNav: nav,
 			nativeFullScreen,
 			headerBar,
@@ -292,6 +321,8 @@ export function LayoutProvider({ children, nav = true }: { children: React.React
 		[
 			mode,
 			compact,
+			overlay,
+			overlayOpen,
 			width,
 			drawerOpen,
 			pushOpen,

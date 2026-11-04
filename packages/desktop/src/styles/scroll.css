@@ -511,3 +511,35 @@
     --ly-fade-top var(--ly-t-base) var(--ly-e-out),
     --ly-fade-bottom var(--ly-t-base) var(--ly-e-out);
 }
+
+/*
+ * The terminal's scrollbar, drawn like every other one here (`.ly-thumb`): a 6px rounded mark 2px
+ * in from the edge, at half strength while the terminal is hovered, 9px and stronger under the
+ * pointer or while dragged.
+ *
+ * xterm 5.6 draws VS Code's scrollable element instead: a 14px square slider in xterm's default
+ * grey, beside transcripts whose bars are 6px rounded marks. Its track stays 14px wide — that is
+ * the target to grab — and xterm still decides when the bar shows (`.visible`/`.invisible`). The
+ * slider's geometry is inline style, hence `!important` on it and on the theme colour xterm injects.
+ */
+/* stylelint-disable selector-class-pattern -- xterm's scrollable element is VS Code's; these class names are its own, not ours */
+.xterm .xterm-scrollable-element > .scrollbar.vertical > .slider {
+  left: auto !important;
+  right: 2px;
+  width: 6px !important;
+  border-radius: 9999px;
+  background: var(--color-ink-faint) !important;
+  opacity: 0.5;
+  transition:
+    opacity var(--ly-t-base) var(--ly-e-out),
+    width var(--ly-t-quick) var(--ly-e-out),
+    right var(--ly-t-quick) var(--ly-e-out);
+}
+
+.xterm .xterm-scrollable-element > .scrollbar.vertical > .slider:hover,
+.xterm .xterm-scrollable-element > .scrollbar.vertical > .slider.active {
+  right: 1px;
+  width: 9px !important;
+  opacity: 0.85;
+}
+/* stylelint-enable selector-class-pattern */

@@ -321,6 +321,65 @@ const CHECKS = [
 		window: true,
 		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/avatar-pile-demo.ts", "/tmp/regression-avatar-pile"]],
 	},
+	{
+		id: "WIN-keys-menu",
+		what: "Windows/Linux 的打包版菜单没有 close 角色、Ctrl+W 只关小窗口，主窗口里逐层关面板再关分屏；第一次收进托盘只弹一次系统通知；拖动卡片靠边翻面；Windows 的调整大小光标是系统的",
+		run: ["node", ["--experimental-strip-types", "--test", "packages/desktop/test/app-menu.test.ts", "packages/desktop/test/notify.test.ts", "packages/desktop/test/close-in-front.test.ts", "packages/desktop/test/carry-chip.test.ts", "packages/desktop/test/resize-cursor.test.ts"]],
+	},
+	{
+		id: "WIN-panel-titlebar-window",
+		what: "跑起来的桌面端里，九种可弹出的面板各开一扇独立窗口：标题栏至少六成能拖、每个按钮都点得到（终端标签条曾把 Windows 上的标题栏吃光，82 个点只剩 4 个能拖）",
+		window: true,
+		run: ["node", ["--experimental-strip-types", "--test", "packages/desktop/e2e/panel-window-chrome.test.ts"]],
+	},
+	{
+		id: "WIN-interaction-window",
+		what: "跑起来的桌面端里：快捷键打开侧边聊天后能直接打字、恢复布局不抢焦点；Windows 上分隔条是系统 ↔；终端滚动条是 6px 圆角；弹出的面板在新窗口显示之前留在原处，第二次弹出用预先建好的窗口、一秒内显示；正文右键能复制选区、链接和图片；非焦点屏的标题和图标降一档、没有描边阴影；拖会话到右边缘卡片在窗口内；Windows/Linux 上 Ctrl+W 先关面板、不动窗口",
+		window: true,
+		run: ["node", ["--experimental-strip-types", "--test", "packages/desktop/e2e/windows-interaction.test.ts"]],
+	},
+	{
+		id: "KEYS-menu-shortcuts",
+		what: "菜单能用方向键走（↑↓、Home/End、→ 进子菜单、← 回父项，带搜索框的菜单移动高亮、Enter 选中），不抢输入框自己的方向键；Ctrl/⌘+N、Ctrl/⌘+, 在任何页面都能用，终端已消费的键不接；Ctrl+Tab 按最近顺序切会话；打包版菜单有 Ctrl/⌘ = - 0 缩放",
+		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/menu-keys.test.ts", "test/ui/app-keys.test.ts"]],
+	},
+	{
+		id: "KEYS-menu-shortcuts-unit",
+		what: "Ctrl+Tab 的最近顺序（跳过归档、循环）与打包版菜单的缩放键",
+		run: ["node", ["--experimental-strip-types", "--test", "packages/desktop/test/recency.test.ts", "packages/desktop/test/app-menu.test.ts"]],
+	},
+	{
+		id: "KEYS-habits-window",
+		what: "跑起来的桌面端里：鼠标打开的菜单用方向键走、→ 进「打开方式」、Enter 选「分屏」；模型菜单搜索框里方向键移动高亮；Ctrl/⌘+, 开设置、Ctrl/⌘+N 新对话；Ctrl+Tab 切会话；Alt/⌥+点击侧栏会话开分屏",
+		window: true,
+		run: ["node", ["--experimental-strip-types", "--test", "packages/desktop/e2e/keyboard-habits.test.ts"]],
+	},
+	{
+		id: "LAYOUT-narrow-window",
+		what: "跑起来的桌面端里，视口模拟成半屏（768×816）、四分之一屏（768×440）和默认的 980×680：前两档侧栏浮起来不再推开内容，没有面板被压到最小尺寸以下，对话和侧边聊天的发送键都画在屏内；980 和更宽时侧栏推开、原来的排列回来",
+		window: true,
+		run: ["node", ["--experimental-strip-types", "--test", "packages/desktop/e2e/narrow-window.test.ts"]],
+	},
+	{
+		id: "LAYOUT-narrow-rules",
+		what: "窄窗口的规则：760–900px 侧栏浮起（默认 980 的窗口照旧推开）、不改写存下的偏好、Esc 和遮罩收起；dock 高度放不下、宽度差出半个面板以上或转向后一列超过两个才画成标签，只差几十像素的一行照旧保持一行，保存的排列不动",
+		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/nav-overlay.test.ts", "test/dock-crowded.test.ts"]],
+	},
+	{
+		id: "POPOUT-handover-spare",
+		what: "弹出面板：新窗口显示之前面板留在原处并盖一层说明，窗口没开出来就原样不动；预先建好的备用窗口生下来没有面板，被取走时画出分到的那一个",
+		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/popout-handover.test.ts", "test/ui/spare-panel-window.test.ts", "test/ui/dock-no-auto-popout.test.ts"]],
+	},
+	{
+		id: "SIDECHAT-summon-press",
+		what: "快捷键打开侧边聊天后点回对话：慢机器上输入框晚挂上，召唤不能把焦点再抢回去；打开它的那次按下不算",
+		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/summon-press.test.ts"]],
+	},
+	{
+		id: "MENU-transcript",
+		what: "正文右键菜单：落在选区上给「复制」（带格式、按右键那一刻的选区），链接给「复制链接」，图片给「复制图片 / 另存为」；头像大小的图、输入框、有自己菜单的路径和正文以外的地方都不弹",
+		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/transcript-menu.test.ts"]],
+	},
 ];
 
 const pass = [];

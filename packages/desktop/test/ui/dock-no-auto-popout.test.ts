@@ -10,7 +10,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { openScopedPanel, popOutPanel, provideScope, toggleScopedPanel } from "../../src/features/dock/popout.ts";
+import { openScopedPanel, popOutPanel, provideScope, toggleScopedPanel, usePanelWindows } from "../../src/features/dock/popout.ts";
 import { usePaneDock } from "../../src/features/dock/pane-store.ts";
 import { has } from "../../src/features/dock/tree.ts";
 import "../../src/features/dock/panels/builtin.tsx";
@@ -20,8 +20,10 @@ function watchWindows(): { opened: unknown[] } {
 	const opened: unknown[] = [];
 	Reflect.set(window, "lyra", {
 		windows: {
-			openPanel: async (input: unknown) => {
+			openPanel: async (input: { kind: string; scope: string }) => {
 				opened.push(input);
+				// The main process says so once the window is shown; the panel leaves this one then.
+				setTimeout(() => usePanelWindows.setState({ panels: [{ kind: input.kind, scope: input.scope, shown: true }] }), 0);
 				return { ok: true };
 			},
 			open: async (input: unknown) => {

@@ -6,7 +6,11 @@
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 import type { AgentEvent, UiLocale } from "@lyra/core";
-import { configureNotify, notifyNeedAssistance, notifyAgentEvent, notifyTaskDone, type NotificationInstance, type WindowLike } from "../electron/notify.ts";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { hintStore } from "../electron/hints.ts";
+import { configureNotify, notifyNeedAssistance, notifyAgentEvent, notifyStillRunning, notifyTaskDone, type NotificationInstance, type WindowLike } from "../electron/notify.ts";
 
 function mockWindow(overrides: Partial<WindowLike> = {}): WindowLike {
 	return {
@@ -386,4 +390,81 @@ test("a sub-agent's question names the agent, joined the way the interface langu
 	} as unknown as AgentEvent;
 	assert.deepEqual(bodiesIn("en", "zh-CN", () => notifyAgentEvent("s", asked, "Refactor")), ["“Refactor” needs your input: Review auth: Which branch?"]);
 	assert.deepEqual(bodiesIn("zh-CN", "en-US", () => notifyAgentEvent("s", asked, "Refactor")), ["「Refactor」等待回复：Review auth：Which branch?"]);
+});
+
+/*
+ * Closing the window on Windows hides it into a tray icon that Windows 11 keeps in the "^"
+ * overflow: the first time, the app looked like it had quit. Said once, ever — a system
+ * notification, since the window it would be said in has just gone.
+ */
+test("notifyStillRunning: said once, in the interface language, and a click brings the window back", () => {
+	const shown: Array<{ title: string; body: string; silent?: boolean }> = [];
+	const remembered = new Set<string>();
+	let click: (() => void) | null = null;
+	let revealed = 0;
+	configureNotify({
+		isSupported: () => true,
+		appIcon: () => undefined,
+		uiLocale: () => "en",
+		createNotification: (options) => ({
+			show: () => {
+				shown.push(options);
+			},
+			on: (_event: string, handler: () => void) => {
+				click = handler;
+			},
+		}),
+		reveal: () => {
+			revealed++;
+		},
+		hintShown: (name) => remembered.has(name),
+		rememberHint: (name) => {
+			remembered.add(name);
+		},
+	});
+	notifyStillRunning();
+	notifyStillRunning();
+	assert.equal(shown.length, 1, "the second close says nothing");
+	assert.equal(shown[0]?.title, "Lyra is still running");
+	assert.match(shown[0]?.body ?? "", /Quit Lyra/);
+	assert.equal(shown[0]?.silent, true);
+	(click as (() => void) | null)?.();
+	assert.equal(revealed, 1);
+});
+
+test("notifyStillRunning: not remembered while notifications are unavailable, so it is said when they are", () => {
+	let available = false;
+	let shown = 0;
+	const remembered = new Set<string>();
+	configureNotify({
+		isSupported: () => available,
+		createNotification: () => ({ show: () => { shown++; }, on: () => {} }),
+		hintShown: (name) => remembered.has(name),
+		rememberHint: (name) => {
+			remembered.add(name);
+		},
+	});
+	notifyStillRunning();
+	assert.equal(shown, 0);
+	available = true;
+	notifyStillRunning();
+	assert.equal(shown, 1);
+});
+
+test("hintStore: remembers across instances, and a damaged file means nothing has been said yet", () => {
+	const dir = mkdtempSync(join(tmpdir(), "lyra-hints-"));
+	try {
+		const file = join(dir, "nested", "hints.json");
+		assert.equal(hintStore(file).shown("a"), false);
+		hintStore(file).remember("a");
+		assert.equal(hintStore(file).shown("a"), true, "a fresh reader sees what another one wrote");
+		hintStore(file).remember("b");
+		assert.equal(hintStore(file).shown("a"), true, "remembering one keeps the others");
+		writeFileSync(file, "{not json");
+		assert.equal(hintStore(file).shown("a"), false);
+		hintStore(file).remember("c");
+		assert.equal(hintStore(file).shown("c"), true);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
 });

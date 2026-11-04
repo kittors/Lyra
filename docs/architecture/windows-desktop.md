@@ -32,6 +32,21 @@ macOS 上高 `MAIN_TOOLBAR_HEIGHT`（40px），红绿灯在其中居中，顶部
 下面，不再为窗口的角让位。会话窗口和面板窗口仍是 `WINDOW_HEADER_HEIGHT`（44px）的标题栏，红绿灯
 y=15。macOS 原生红绿灯直径为 14pt，不能按 12pt 定位，否则原生按钮会低 1pt。
 
+面板弹出成独立窗口后，`PanelWindow` 的 header 就是那扇窗的标题栏。标题位置放的是面板自己的
+header（终端是标签条），它只能把**能点的东西**标成 `no-drag`：标签、加号、显示中的滚动箭头；
+标签之间和之后的空白留给拖拽。终端标签条从前整条 `no-drag` 且 `flex-1`，主窗口里无害（Windows 上
+`PaneHeader` 本来就不是拖拽区），进了独立窗口就把标题栏吃光了：真机上沿标题栏 82 个点只有 4 个是
+`HTCAPTION`，拖不动、双击也不最大化。`e2e/panel-window-chrome.test.ts` 把九种可弹出的面板各开一扇
+窗，按 Chromium 计算拖拽区的顺序量标题栏内容区，至少 60% 能拖，且每个按钮都在 `no-drag` 里。
+
+弹出一个面板是起一个新的渲染进程，开销在启动本身，挤不出多少。测试机空闲时，从按下到窗口显示 0.39s、
+终端画出内容 0.76s；同一台机器上另有自动化任务在跑时是 3.0s 和 5.2s。所以分两步：新窗口显示之前面板
+留在主窗口原处，盖一层「正在移到新窗口」，不会有两边都没有的那几秒；第一次弹出之后，主进程在那扇窗
+显示 2.5s 后预先建一扇隐藏的面板窗口，下一次弹出直接给它分配面板（`windows:assign-panel`）、挪到位置、
+显示（空闲时 0.06s 显示、0.21s 画出内容），用掉了再备一扇。代价是多一个常驻的隐藏渲染进程，约 80MB
+私有内存（工作集约 160MB，含与其他进程共享的部分），只有弹出过面板的人才付；主窗口关掉时它跟着销毁，
+不会让应用留在后台。文件面板的状态在启动时交接，仍走冷启动。
+
 `PaneHeader` 负责标题控件可用宽度：可以拖动面板时，为居于整个标题栏中心的 grip 留出
 命中区；只有一个面板或窄窗口时，标题使用系统按钮和面板动作之外的剩余空间。
 `TerminalTabs` 不再把这个空间折半，新增终端按钮始终位于横向滚动区域外。
@@ -54,10 +69,52 @@ CodeMirror 键位，Windows 是 Ctrl+Y 与 Shift+Alt+F。
 编辑文字时重复切换布局。面板菜单中已经公布的浏览器、任务和子 Agent 快捷键均接到对应
 动作，Ctrl+` 也可在没有项目时打开主目录终端。键盘 Tab 导航有可见焦点描边。
 
+Ctrl+W 在 Windows/Linux 的主窗口里由渲染进程处理（`closeInFront`）：先关焦点屏里在前面的面板
+（键盘焦点所在的、否则 dock 最近带到前面的、否则布局里最后一个），这一屏没有面板了再关这一屏，单屏
+又没有面板时什么都不做。从前它是菜单 `close` 角色的加速键，在输入框里按下去整个主窗口收进托盘，而
+Windows 11 把新托盘图标藏在「^」里，看上去像应用退出了。打包版菜单因此去掉了 `close` 角色，只留一个
+没有 label 的 Ctrl+W 项，只关会话窗口和面板窗口。菜单加速键只在页面没有处理这个键时才触发，所以终端
+聚焦时 Ctrl+W 照常是 shell 的删词，xterm 已经把它消费掉。macOS 的 ⌘W 不变。
+
+Windows/Linux 上关主窗口而托盘存在时，窗口收进托盘；第一次这样收起时弹一条系统通知说明 Lyra 还在
+后台、怎么叫回和怎么退出（`notifyStillRunning`），之后再也不弹。标记存在 profile 下的
+`hints.json`，不进设置。
+
+菜单都能用键盘走（`ui/overlay/menu-keys.ts`，挂在 `Popover` 的按键监听上）：↑↓ 在菜单项间移动并循环，
+Home/End 到两头，→ 打开带 `submenu` 的项的子菜单并进到第一项，← 关掉子菜单回到父项，Enter/空格是按钮
+自己的。用鼠标打开时焦点还在触发按钮上，按 ↓ 进第一项。处理按键的是焦点所在的那一层菜单，焦点不在
+任何菜单里时是最里层。带搜索框的菜单（模型菜单，8 个模型起）焦点留在输入框，方向键移动 `data-ly-active`
+高亮，Enter 选它。焦点在菜单外的可编辑区域时（输入框自己的斜杠、@ 列表）一律不接。从前菜单只认 Esc。
+
+常用快捷键：Ctrl+N 新对话、Ctrl+, 设置（macOS 是 ⌘N、⌘,），在设置页也能用（`useAppKeys`）；Ctrl+Tab /
+Ctrl+Shift+Tab 按最近顺序切会话（`updatedAt`，跳过归档，macOS 也是 ⌃Tab），落在焦点屏，和点侧栏一样；
+打包版菜单补上 Ctrl/⌘ 加 = - 0 缩放（角色自带的放大键是 CmdOrCtrl+Plus，中文、美式键盘上要按 Shift，
+所以写明 `=`）。这些都在页面层或菜单加速键上，终端聚焦时 xterm 先消费 Ctrl+字母（Ctrl+N 是 readline
+的下一条历史、Ctrl+- 是撤销），照 `terminal-keys.ts` 的规则不抢。没有做的：Ctrl+/ 没有快捷键列表页可绑，
+Ctrl+F 没有会话内搜索可接。
+
 终端里 Windows 的普通 Ctrl+V 是粘贴，和 Windows Terminal 一致（PowerShell 的 PSReadLine 本来
 就会读剪贴板，cmd、Git Bash、WSL 和各种 REPL 里则只会出现 `^V`）；Linux 仍是 Ctrl+Shift+V，
 Ctrl+V 留给 readline 的 quoted-insert。打包版的 Windows/Linux 菜单不带 `minimize` 角色：菜单栏
 是隐藏的，这个角色只剩 Ctrl+M 加速键，打字时误按会把窗口收进任务栏。
+
+## 指针与滚动条
+
+调整大小的光标在 Windows 上用 `ew-resize`/`ns-resize`。CSS 的 `col-resize`/`row-resize` 在那里是
+Chromium 自带的单色 `←‖→`，按 XOR 画，中灰底上几乎看不见；系统其他地方的分栏都是 ↔ 和 ↕。手柄上的
+光标由 `dock.css` 按 `data-ly-platform="win32"` 覆盖，拖动途中写在 body 上的内联光标走
+`ui/layout/resize-cursor.ts`。macOS 不变。真机用 `GetCursorInfo` 对照系统光标句柄量过：`ew-resize`
+是 `IDC_SIZEWE`，`ns-resize` 是 `IDC_SIZENS`，`col-resize`、`row-resize`、`grab` 都不是系统光标。
+
+正文里右键：落在选区上是「复制」（`execCommand`，和 Ctrl+C 一样带格式，复制的是右键那一刻的选区），
+链接是「复制链接」，图片是「复制图片 / 另存为」（`TranscriptMenu`）。从前右键什么都没有，链接地址拿不到。
+有自己菜单的东西（文件路径、附件标记、交付的文件）照旧弹自己的；头像、图标这种 40px 以下的图不算图片。
+剪贴板只收 PNG/JPEG，WebP、GIF 先在画布上转一道；`ly-media:` 的图对页面是另一个源，走
+`files.mediaDataUrl` 取字节。另存为的对话框由主进程给标题和文件名（`media-save-dialog.ts`）：Electron
+默认拿下载地址当标题，回复里内嵌的图是几 KB 长的 data URL，Windows 上整条铺在对话框顶上。
+
+终端的滚动条和对话区一样是 6px 圆角、离边 2px，悬停加宽到 9px（`scroll.css`）。xterm 5.6 自带的是
+VS Code 那种 14px 方块滑块，几何是内联样式，所以覆盖规则带 `!important`；何时显示仍由 xterm 决定。
 
 ## 字体
 
@@ -73,6 +130,17 @@ Ctrl+V 留给 readline 的 quoted-insert。打包版的 Windows/Linux 菜单不�
 
 渲染端比较路径用 `lib/paths.ts` 的 `samePath` / `canonicalPath`：Windows 的盘符路径不区分大小写
 和分隔符，`C:/a`、`c:\a` 与主进程给出的 `C:\a` 是同一个文件。打开文件时复用已开标签的写法，
+窗口贴半屏、四分之一屏还有两件事。1920×1080、125% 下半屏是 768×816 CSS 像素，侧栏推开内容后只剩
+约 470px，四个面板被压成 150px 的条，侧边聊天的输入框和发送键掉到了底边以下。现在宽度在 760 到
+900px（`NAV_OVERLAY_MAX`）之间时侧栏浮在内容上面：点按钮滑出，点遮罩或按 Esc 收起，存下的侧栏开关
+偏好不动，窗口变宽照旧推开。上限必须低于主窗口的默认宽度 980：第一版定在 1000，默认尺寸打开的每一扇
+窗（新用户的第一扇、每一条 e2e）侧栏都收成了浮层。900 仍然盖住 1920 屏 125% 的半屏（768）和 2560 屏
+150% 的半屏（853）。面板按存下的排列放不下（`crowded`：高度不够、宽度差出半个面板以上，或转向后
+一列叠了两个以上）就画成标签，只差几十像素的一行照旧保持一行。侧边聊天的最小高度是 220px
+（`SIDE_CHAT_MIN_HEIGHT_PX`），放得下输入框和发送键。`e2e/narrow-window.test.ts` 用视口模拟在
+768×816、768×440 和默认的 980×680 下量这几件事，再放宽量能不能恢复——CI 运行器的屏幕是
+1024×768，真窗口撑不到 1360。
+
 `relativeTo` / `isDescendantPath` 也按这个规则判断，模型回复里正斜杠写的链接同样认得出在项目里。
 
 ## 渲染与通知开销

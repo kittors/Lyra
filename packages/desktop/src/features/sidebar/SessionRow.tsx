@@ -55,6 +55,8 @@ const JUST_CREATED_MS = 1500;
  */
 export interface RowActions {
 	onOpen: (session: SessionMeta) => void;
+	/** Alt+click (⌥ on a Mac): open it beside the screen in use rather than in it. */
+	onOpenBeside?: (session: SessionMeta) => void;
 	onArchive?: (session: SessionMeta) => void;
 	onRestore?: (session: SessionMeta) => void;
 	onDelete?: (session: SessionMeta) => void;
@@ -65,6 +67,7 @@ export function rowActions(actions: RowActions, session: SessionMeta) {
 	const bind = (act: ((session: SessionMeta) => void) | undefined) => (act ? () => act(session) : undefined);
 	return {
 		onOpen: () => actions.onOpen(session),
+		onOpenBeside: bind(actions.onOpenBeside),
 		onArchive: bind(actions.onArchive),
 		onRestore: bind(actions.onRestore),
 		onDelete: bind(actions.onDelete),
@@ -77,6 +80,7 @@ export function SessionRow({
 	onRestore,
 	onDelete,
 	onOpen,
+	onOpenBeside,
 	onArchive,
 }: {
 	session: SessionMeta;
@@ -90,6 +94,7 @@ export function SessionRow({
 	 */
 	project?: string;
 	onOpen: () => void;
+	onOpenBeside?: () => void;
 	/** Put it away. Absent in the archive, where every row is already filed. */
 	onArchive?: () => void;
 	/** Both present only in the archive: put it back, or end it. */
@@ -226,7 +231,8 @@ export function SessionRow({
 					);
 				}}
 				type="button"
-				onClick={onOpen}
+				// Alt+click opens it in a split, as in Claude's desktop app; the same key on every platform.
+				onClick={(event) => (event.altKey && onOpenBeside ? onOpenBeside() : onOpen())}
 				/*
 				 * Which conversation you are in, stated rather than only drawn.
 				 *

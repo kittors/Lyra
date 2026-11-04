@@ -15,7 +15,7 @@ import type { SessionMeta } from "@lyra/core";
 import { useMemo } from "react";
 import { deleteSessionQuestion } from "../modals/index.ts";
 import { useApp } from "../../store/index.ts";
-import { openInPane } from "../split/index.ts";
+import { openBeside, openInPane } from "../split/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { emptiedProjects, groupSessions, listableSessions, type Grouped } from "../../lib/sidebar-grouping.ts";
 import type { SortKey } from "./ListMenu.tsx";
@@ -130,15 +130,22 @@ export function useSidebarLists({
 		openInPane(meta);
 		onOpened();
 	};
+	// No room for another screen: an ordinary open, so the click still does something.
+	const beside = (meta: SessionMeta) => {
+		if (!openBeside(meta)) openInPane(meta);
+		onOpened();
+	};
 	const restore = (meta: SessionMeta) => void setSessionArchived(meta, false);
 	const actions: RowActions = archiveOpen
 		? {
 				onOpen: open,
+				onOpenBeside: beside,
 				onRestore: restore,
 				onDelete: (meta) => void deleteSessionQuestion(meta, () => void deleteSession(meta)).then(confirm.ask),
 			}
 		: {
 				onOpen: open,
+				onOpenBeside: beside,
 				onArchive: (meta) => void setSessionArchived(meta, true),
 				/*
 				 * Both directions in the live list, because one row there can be filed: the conversation

@@ -75,13 +75,14 @@ export function WindowFrame({
  */
 function MainToolbar({ title, end, navLabels }: { title?: React.ReactNode; end?: React.ReactNode; navLabels?: { hide: string; show: string } }) {
 	const { t } = useI18n();
-	const { titlebar, toolbarHeight, navOpen, compact, rail, toggleNav } = useLayout();
+	const { titlebar, toolbarHeight, navOpen, compact, overlay, rail, toggleNav } = useLayout();
 	const { drawn } = useSidebarFit();
 	const canBack = useCanStep(-1);
 	const canForward = useCanStep(1);
 	// The cluster's own width: the system's corner, three buttons and the gaps between them.
 	const cluster = titlebar.start + TOOLBAR_BUTTON * 3 + 2 * 2 + 8;
-	const beside = navOpen && !compact;
+	// A floating sidebar leaves the content where it was, so the title does not follow it either.
+	const beside = navOpen && !compact && !overlay;
 	const lead = Math.max(cluster, (rail ? RAIL_WIDTH : 0) + (beside ? drawn : 0));
 
 	return (
@@ -102,7 +103,7 @@ function MainToolbar({ title, end, navLabels }: { title?: React.ReactNode; end?:
 					<ToolbarButton label={`${t("toolbar.forward")} ${forwardKey}`} onClick={() => void goForward()} disabled={!canForward}>
 						<ArrowRight size={15} strokeWidth={1.9} />
 					</ToolbarButton>
-					<WindowControls navOpen={navOpen} onToggleNav={toggleNav} active={compact && navOpen} labels={navLabels} />
+					<WindowControls navOpen={navOpen} onToggleNav={toggleNav} active={(compact || overlay) && navOpen} labels={navLabels} />
 				</div>
 			</div>
 			<div data-ly-toolbar-middle className="relative flex h-full min-w-0 flex-1 items-center gap-1.5 pl-3.5">

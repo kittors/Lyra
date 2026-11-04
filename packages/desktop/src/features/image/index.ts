@@ -11,3 +11,5 @@ export { openFromEvent, openViewer } from "./viewer-store.ts";
 export { ImageViewer } from "./ImageViewer.tsx";
 /* 对话里的图标注完按「完成」，交给那个对话的输入框——谁的图谁来指名，分屏下不串到别的屏。 */
 export { attachToComposer } from "./hand-off.ts";
+/* 另存为：对话正文的右键菜单和查看器用的是同一条路。 */
+export { saveImageAs } from "./save-as.ts";

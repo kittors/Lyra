@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { freezeMotion } from "../motion/freeze.ts";
+import { resizeCursor } from "./resize-cursor.ts";
 
 /**
  * How far the pointer can wander from the edge and still be grabbing it.
@@ -133,7 +134,7 @@ export function ResizeHandle({
 		 * side, and a `cursor` on the handle only applies while the pointer is actually over it —
 		 * so it would flicker back to a text caret the moment the drag left the 9px strip.
 		 */
-		document.body.style.cursor = "col-resize";
+		document.body.style.cursor = resizeCursor("columns");
 		// Freezes transitions for the length of the drag, so the pane tracks the pointer instead
 		// of easing towards each intermediate width and never arriving — and refuses the selection
 		// a drag across the content would start. Both by naming things rather than by a flag on the
@@ -225,7 +226,7 @@ export function ResizeHandle({
 			}}
 			// Pushed out by everything except `INSIDE`, so the strip lands beyond the pane's edge.
 			style={{ width: HIT_WIDTH, [edge === "end" ? "right" : "left"]: INSIDE - HIT_WIDTH }}
-			className="group/resize absolute top-0 bottom-0 z-30 cursor-col-resize [--ly-grip:30px]"
+			className="ly-resize-handle group/resize absolute top-0 bottom-0 z-30 cursor-col-resize [--ly-grip:30px]"
 		>
 			{/*
 			 * The grip: a short rounded bar centred on the pointer, pinned to the boundary itself.

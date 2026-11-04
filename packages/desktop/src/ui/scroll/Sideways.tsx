@@ -95,10 +95,14 @@ export function SidewaysArrow({
 			 *
 			 * 淡出只是看不见，不按住这一条的话，那块透明的圆仍然接着点击——一条滚到头的标签栏，最
 			 * 边上那个标签会变得点不中，而屏幕上根本没有东西挡在那里。
+			 *
+			 * `no-drag` only while shown, for the same reason: a faded arrow still has a box, and in a
+			 * header that moves the window Chromium cuts a 22px hole out of the title bar where
+			 * nothing is drawn.
 			 */
 			className={`absolute inset-y-0 my-auto grid h-[22px] w-[22px] place-items-center rounded-full border border-line-soft bg-card/85 text-ink-muted shadow-sm backdrop-blur-sm transition-[opacity,transform,background-color] duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink ${
 				left ? "left-0.5" : "right-0.5"
-			} ${shown ? "scale-100 opacity-100" : `pointer-events-none opacity-0 ${left ? "-translate-x-1" : "translate-x-1"} scale-90`}`}
+			} ${shown ? "no-drag scale-100 opacity-100" : `pointer-events-none opacity-0 ${left ? "-translate-x-1" : "translate-x-1"} scale-90`}`}
 		>
 			{left ? <ChevronLeft size={14} strokeWidth={2.1} /> : <ChevronRight size={14} strokeWidth={2.1} />}
 		</button>

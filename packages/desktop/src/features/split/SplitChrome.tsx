@@ -78,7 +78,7 @@ function ScreenTitle({ sessionId, screen }: { sessionId: string | null; screen: 
 	const title = meta || screen ? sessionTitle(meta?.title) : "";
 	return (
 		<>
-			{meta && <Folder size={15} strokeWidth={1.7} aria-hidden className="shrink-0 text-ink-faint" />}
+			{meta && <Folder data-ly-screen-icon size={15} strokeWidth={1.7} aria-hidden className="shrink-0 text-ink-faint" />}
 			<span data-ly-screen-title className="min-w-0 truncate text-label font-semibold text-ink select-none">{title}</span>
 			{meta && (
 				<div className="no-drag flex shrink-0">

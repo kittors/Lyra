@@ -73,6 +73,15 @@ interface PaneDockState {
 	maximized: Record<string, Maximized | null>;
 	/** Which pane the narrow layout is showing, and which one the keyboard is on. */
 	focused: Record<string, PaneKind>;
+	/**
+	 * The pane `open` last brought forward, until it takes the keyboard (`takeSummon`).
+	 *
+	 * Opening the side chat with its shortcut or a button should leave the keyboard in its field —
+	 * Ctrl+Alt+S and then typing typed into nothing. Restoring a layout never calls `open`, so a
+	 * pane that was simply there when the window came up takes nothing. Stale after a moment, so a
+	 * request nobody drew for cannot pull focus later.
+	 */
+	summoned: { scope: string; kind: PaneKind; at: number } | null;
 	/** A pair's split while full screen has it on the *other* axis from its dock. */
 	crossRatio: Record<string, number>;
 	/** In the tabs layout, the panel each screen last looked at. See `tabs.ts`. */
@@ -104,6 +113,8 @@ interface PaneDockState {
 	/** Put a panel away wherever it is open. For the panels whose contents are one shared thing. */
 	closeEverywhere(kind: PaneKind): void;
 	focus(scope: string, kind: PaneKind): void;
+	/** True once, for the pane `open` just brought forward on that screen; see `summoned`. */
+	takeSummon(scope: string, kind: PaneKind): boolean;
 	moveTo(scope: string, kind: PaneKind, at: DropAt): void;
 	moveAlong(scope: string, kind: PaneKind, side: DropSide): boolean;
 	setShare(scope: string, path: number[], index: number, fraction: number, floor?: number): void;
@@ -120,6 +131,9 @@ interface PaneDockState {
 	dragTo(pointer: { x: number; y: number }, at: DropAt | null): void;
 	endDrag(cancelled?: boolean): void;
 }
+
+/** How long an `open` may wait for its pane to draw before it no longer moves the keyboard. */
+const SUMMON_FRESH_MS = 2000;
 
 /** How small either half of a maximised pair may get, as a share of the two. */
 const PAIR_MIN = 0.15;
@@ -248,6 +262,7 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 		sizes: {},
 		maximized: {},
 		focused: {},
+		summoned: null,
 		crossRatio: {},
 		tab: {},
 		tabShare: readTabShare(),
@@ -328,6 +343,7 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 			const tree = state.tree(scope);
 			if (has(tree, kind)) {
 				get().focus(scope, kind);
+				set({ summoned: { scope, kind, at: Date.now() } });
 				return true;
 			}
 			const paired = Boolean(at && at.kind !== null && has(tree, at.kind));
@@ -354,7 +370,15 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 				focused: kind,
 				maximized: partner && panes ? { ...partner, panes, ratio: ratioOf(next, panes) } : null,
 			});
+			set({ summoned: { scope, kind, at: Date.now() } });
 			return true;
+		},
+
+		takeSummon(scope, kind) {
+			const asked = get().summoned;
+			if (!asked || asked.scope !== scope || asked.kind !== kind) return false;
+			set({ summoned: null });
+			return Date.now() - asked.at < SUMMON_FRESH_MS;
 		},
 
 		close(scope, kind) {
@@ -556,3 +580,21 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
  * would notice, because it is the one they just made.
  */
 if (typeof window !== "undefined") window.addEventListener("beforeunload", flushTree);
+
+/*
+ * A press anywhere after an `open` is somewhere else being chosen, and drops the summons.
+ *
+ * On a slow machine the pane can draw after that press: on the Windows CI runner the side chat's
+ * composer mounted after a click in the conversation, and its summons then pulled the keyboard back
+ * out of the field just clicked. A press that opens the pane — the toolbar button, a menu row —
+ * comes before there is a summons, so it drops nothing.
+ */
+if (typeof window !== "undefined") {
+	window.addEventListener(
+		"pointerdown",
+		() => {
+			if (usePaneDock.getState().summoned) usePaneDock.setState({ summoned: null });
+		},
+		{ capture: true },
+	);
+}

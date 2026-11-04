@@ -16,12 +16,36 @@
  *   - On macOS the application menu, which is where Quit, Hide and About live.
  *
  * Roles only, no labels: Electron supplies the names, so nothing here is written in one language.
+ * The one item that is not a role is Ctrl+W on Windows and Linux, and it has no label either: the
+ * menu bar is hidden there, so it is only ever an accelerator.
  * A development run returns null and keeps Electron's default, reload and DevTools included.
  */
 
 import type { MenuItemConstructorOptions } from "electron";
 
-export function applicationMenuTemplate(options: { platform: string; packaged: boolean }): MenuItemConstructorOptions[] | null {
+/*
+ * Zoom, which left with the View menu: Ctrl/⌘ with = - 0, as in every browser and in Codex and VS Code.
+ *
+ * The roles' own accelerator for zooming in is CmdOrCtrl+Plus, which on a US or Chinese keyboard
+ * is Ctrl+Shift+= — the default menu of a development run showed it: Ctrl+- zoomed out and Ctrl+=
+ * did nothing. So the keys are spelled out. A focused terminal keeps them: a menu accelerator only
+ * fires for a key the page did not handle, and xterm takes Ctrl+- as readline's undo.
+ */
+const ZOOM: MenuItemConstructorOptions[] = [
+	{ role: "zoomIn", accelerator: "CommandOrControl+=" },
+	{ role: "zoomOut", accelerator: "CommandOrControl+-" },
+	{ role: "resetZoom", accelerator: "CommandOrControl+0" },
+];
+
+export function applicationMenuTemplate(options: {
+	platform: string;
+	packaged: boolean;
+	/**
+	 * Ctrl+W on Windows and Linux, with the window it was pressed in. Main decides what to close:
+	 * a conversation or panel window, never the main one — see the template below.
+	 */
+	closeAuxiliary?: (win: unknown) => void;
+}): MenuItemConstructorOptions[] | null {
 	if (!options.packaged) return null;
 	if (options.platform === "darwin") {
 		return [
@@ -33,6 +57,7 @@ export function applicationMenuTemplate(options: { platform: string; packaged: b
 					{ role: "minimize" },
 					{ role: "zoom" },
 					{ role: "togglefullscreen" },
+					...ZOOM,
 					{ type: "separator" },
 					// ⌘W, which lived in the default File menu.
 					{ role: "close" },
@@ -44,13 +69,22 @@ export function applicationMenuTemplate(options: { platform: string; packaged: b
 	return [
 		{ role: "editMenu" },
 		/*
-		 * `close` is Ctrl+W, which the default menu already bound; keeping it is not a new shortcut.
-		 *
 		 * No `minimize`. The menu bar is hidden here, so a role is nothing but its accelerator, and
 		 * minimise's is Ctrl+M — macOS's ⌘M carried over to a keyboard where no Windows program uses
 		 * it. Pressed while typing, the window vanished to the taskbar. The title bar's own button
 		 * and Win+↓ are how a window is minimised on Windows.
+		 *
+		 * No `close` either, for the same reason with a worse outcome. Its Ctrl+W closed whichever
+		 * window had focus, and the main window closes into the tray, which Windows 11 tucks into the
+		 * "^" overflow: pressed in the composer — where Windows users close a tab or a pane with it —
+		 * the app seemed to have quit. The main window's Ctrl+W is the renderer's now (`closeInFront` in `app/shortcuts.ts`:
+		 * the pane in front, then the screen). This item is what is left of `close`: a menu
+		 * accelerator only fires for a key the page did not handle, so the terminal's Ctrl+W still
+		 * reaches the shell, and the conversation and panel windows still close on it.
 		 */
-		{ role: "windowMenu", submenu: [{ role: "togglefullscreen" }, { role: "close" }] },
+		{
+			role: "windowMenu",
+			submenu: [{ role: "togglefullscreen" }, ...ZOOM, { accelerator: "Ctrl+W", click: (_item, win) => options.closeAuxiliary?.(win) }],
+		},
 	];
 }

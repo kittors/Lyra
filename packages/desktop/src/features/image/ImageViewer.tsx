@@ -39,6 +39,7 @@ import { closeViewer, stepViewer, useViewer, type ViewerImage } from "./viewer-s
 import { portal } from "../../ui/overlay/portal.ts";
 import { holdScrim } from "../../ui/overlay/scrims.ts";
 import { useMovableBar } from "./useMovableBar.ts";
+import { saveImageAs } from "./save-as.ts";
 
 /**
  * Longer than `--ly-t-base`, on purpose.
@@ -659,7 +660,7 @@ export function ImageViewer() {
 						<ViewerButton label={t("viewer.annotate")} onClick={() => setEditing(true)}>
 							<Pencil size={15} strokeWidth={1.9} />
 						</ViewerButton>
-						<ViewerButton label={t("viewer.saveAs")} onClick={() => download(image.src)}>
+						<ViewerButton label={t("viewer.saveAs")} onClick={() => saveImageAs(image.src)}>
 							<Download size={15} strokeWidth={1.9} />
 						</ViewerButton>
 						<ViewerButton label={t("viewer.closeEsc")} onClick={dismiss}>
@@ -828,7 +829,7 @@ async function toClipboard(dataUrl: string) {
 	} catch {
 		// The clipboard refuses while the window is not focused, and refuses entirely on some
 		// platforms. Losing the annotation to that would be the worst of the outcomes.
-		download(dataUrl);
+		saveImageAs(dataUrl);
 		useApp.getState().notify(translate("viewer.clipboardUnavailable"), "warn");
 	}
 }
@@ -886,12 +887,4 @@ function intersect(a: Box, b: Box): Box {
 	const x = Math.max(a.x, b.x);
 	const y = Math.max(a.y, b.y);
 	return { x, y, width: Math.max(0, Math.min(a.x + a.width, b.x + b.width) - x), height: Math.max(0, Math.min(a.y + a.height, b.y + b.height) - y) };
-}
-
-/** A `data:` URL is already the file; an anchor is the whole of "save as" for one. */
-function download(src: string) {
-	const link = document.createElement("a");
-	link.href = src;
-	link.download = `image-${Date.now()}.png`;
-	link.click();
 }

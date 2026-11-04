@@ -99,6 +99,7 @@ import {
 	getPrimaryWindow,
 	registerWindowIpc,
 	useSettingsSource,
+	useHiddenToTray,
 	useTrayPresence,
 } from "./window.ts";
 import { registerWindowsIpc } from "./ipc/windows.ts";
@@ -126,7 +127,8 @@ import { createTray, destroyTray, hasTray, refreshMenu, type TrayCommand } from 
 import { registerScreenshotIpc } from "./ipc/screenshot.ts";
 import { destroyScreenshotOverlay, dismissStrayOverlay, isScreenshotOverlay, registerScreenshotShortcut, unregisterScreenshotShortcut, warmScreenshotOverlay } from "./screenshot.ts";
 import { destroyPinnedShots, isPinnedShot } from "./screenshot-pin.ts";
-import { configureNotify } from "./notify.ts";
+import { configureNotify, notifyStillRunning } from "./notify.ts";
+import { hintStore } from "./hints.ts";
 import { applicationMenuTemplate } from "./app-menu.ts";
 import { shortcutFailureKey } from "./accelerator.ts";
 import { nativeText, nativeTranslator, resolveNativeLocale, setInterfaceLocaleSource } from "./i18n.ts";
@@ -490,7 +492,14 @@ app.whenReady().then(async () => {
 
 	// Before any window exists, so none is ever built with the default menu's reload and DevTools
 	// keys. Packaged builds only; see `app-menu.ts` for what is kept and why.
-	const menu = applicationMenuTemplate({ platform: process.platform, packaged: app.isPackaged });
+	const menu = applicationMenuTemplate({
+		platform: process.platform,
+		packaged: app.isPackaged,
+		// Ctrl+W on Windows and Linux: a conversation or panel window closes, the main one never does.
+		closeAuxiliary: (win) => {
+			if (win instanceof BrowserWindow && !win.isDestroyed() && win !== getPrimaryWindow()) win.close();
+		},
+	});
 	if (menu) Menu.setApplicationMenu(Menu.buildFromTemplate(menu));
 
 	/*
@@ -869,7 +878,12 @@ configureNotify({
 	createNotification: (options) => new Notification(options),
 	uiLocale: () => settings?.uiLocale ?? "system",
 	systemLocale: () => app.getLocale(),
+	reveal: () => reveal(),
+	// Read where the profile is at the time, which a test's LYRA_HOME moves.
+	hintShown: (name) => hintStore(join(lyraHome(), "hints.json")).shown(name),
+	rememberHint: (name) => hintStore(join(lyraHome(), "hints.json")).remember(name),
 });
+useHiddenToTray(() => notifyStillRunning());
 /*
  * The language the rest of the main process writes in — the scheduler's notices, the errors the
  * file tree, the pull request panel and the update dialog show: the interface language setting, or

@@ -1,5 +1,5 @@
 import { mergeFilePanelChanges, type FilePanelState, type FilePanelVersion } from "../../shared/file-panel-state.ts";
-import { bridge } from "../services/index.ts";
+import { bootWindow, bridge } from "../services/index.ts";
 import { useOpenFile } from "./openFile.ts";
 
 export function filePanelSnapshot(): FilePanelState {
@@ -38,7 +38,8 @@ export function flushFilePanelState(): Promise<void> {
 
 export function watchFilePanelState(onError: (error: unknown) => void): () => void {
 	if (!bridge.windows?.onFilePanelState) return () => {};
-	const detached = bridge.bootWindow?.kind === "panel" && bridge.bootWindow.panelKind === "file";
+	const boot = bootWindow();
+	const detached = boot?.kind === "panel" && boot.panelKind === "file";
 	let live = true;
 	let applying = false;
 	let confirmed: FilePanelVersion | null = null;

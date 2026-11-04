@@ -17,6 +17,7 @@ import { revealInWorkspace, watchSessionWindows } from "../features/split/index.
 import { ToolbarScreenTitle, ToolbarScreenTools } from "../features/split/SplitChrome.tsx";
 import { ImageViewer } from "../features/image/index.ts";
 import { InputMenu } from "../features/composer/index.ts";
+import { TranscriptMenu } from "../features/conversation/index.ts";
 import { SkeletonBar, SkeletonGrid, SkeletonList } from "../ui/primitives/Skeleton.tsx";
 import { Toaster } from "../features/toast/index.ts";
 import { Sidebar } from "../features/sidebar/index.ts";
@@ -27,7 +28,7 @@ import { SessionWindow } from "./window/SessionWindow.tsx";
 import { PanelWindow } from "./window/PanelWindow.tsx";
 import { watchPanelWindows } from "../features/dock/index.ts";
 import { LayoutProvider, NavPane, useLayout, useSidebarFit } from "./layout.tsx";
-import { useShortcuts } from "./shortcuts.ts";
+import { useAppKeys, useShortcuts } from "./shortcuts.ts";
 import { useSide } from "../features/dock/index.ts";
 import { useApp } from "../store/index.ts";
 import { useTrayCommands } from "./window/tray-commands.ts";
@@ -175,6 +176,8 @@ export function App() {
 			 * here rather than attached to the fields one at a time.
 			 */}
 			<InputMenu />
+			{/* Copy, copy link, copy and save a picture — in every transcript, in every window. */}
+			<TranscriptMenu />
 			{/*
 			 * Last, and outside the shell.
 			 *
@@ -514,7 +517,7 @@ function SoloScreen({ children }: { children: React.ReactNode }) {
 function ChatShell({ settings }: { settings: boolean }) {
 	const activeSessionId = useApp((s) => s.activeSessionId);
 	const workspace = useApp((s) => s.workspace);
-	const { compact, navOpen, framed, toggleNav, dismissNav } = useLayout();
+	const { compact, overlay, navOpen, framed, toggleNav, dismissNav } = useLayout();
 	const attach = useSide((s) => s.attach);
 	const { drawn: sidebarDrawn, max: sidebarMax } = useSidebarFit();
 	const { t } = useI18n();
@@ -527,7 +530,9 @@ function ChatShell({ settings }: { settings: boolean }) {
 	// Silent while settings is up. The workspace is still mounted behind it — it has to be, for the
 	// transcript to keep its place — but ⌘P for a file pane nobody can see, or Escape unmaximising
 	// one, is not what those keys mean on that screen.
-	useShortcuts({ enabled: !settings, compact, navOpen, activeSessionId, workspace, toggleNav, dismissNav });
+	useShortcuts({ enabled: !settings, compact, overlay, navOpen, activeSessionId, workspace, toggleNav, dismissNav });
+	// New conversation and settings, from any screen including settings itself.
+	useAppKeys();
 
 	useEffect(() => watchSessionWindows(), []);
 	useEffect(() => watchPanelWindows(), []);

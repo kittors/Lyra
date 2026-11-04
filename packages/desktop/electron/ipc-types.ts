@@ -263,7 +263,7 @@ export interface LyraApi {
 	windows: {
 		keepOnTop(input?: { enabled: boolean }): Promise<{ ok: boolean; enabled: boolean }>;
 		open(input: { sessionId: string }): Promise<{ ok: boolean }>;
-		list(): Promise<{ sessions: string[]; panels: { kind: string; scope: string; sessionId?: string | null }[] }>;
+		list(): Promise<{ sessions: string[]; panels: { kind: string; scope: string; sessionId?: string | null; shown?: boolean }[] }>;
 		openInMain(input: { sessionId: string }): Promise<{ ok: boolean }>;
 		openPanel(input: { kind: string; scope: string; sessionId: string | null; fileState?: FilePanelState }): Promise<{ ok: boolean }>;
 		/**
@@ -279,12 +279,17 @@ export interface LyraApi {
 		filePanelState(input?: FilePanelVersion): Promise<FilePanelVersion | null>;
 		restorePanel(input: { kind: string; scope: string }): Promise<{ ok: boolean }>;
 		closePanel(input: { kind: string; scope: string }): Promise<{ ok: boolean }>;
-		onChanged(handler: (state: { sessions: string[]; panels?: { kind: string; scope: string; sessionId?: string | null }[] }) => void): () => void;
+		onChanged(handler: (state: { sessions: string[]; panels?: { kind: string; scope: string; sessionId?: string | null; shown?: boolean }[] }) => void): () => void;
 		onShowSession(handler: (state: { sessionId: string }) => void): () => void;
 		onRestorePanel(handler: (state: { kind: string; scope: string; fileState?: FilePanelState }) => void): () => void;
 		/** The primary window's half of `openPanelInMain`. */
 		onOpenPanel(handler: (state: PanelInMain) => void): () => void;
 		onClosePanel(handler: () => void): () => void;
+		/**
+		 * A spare panel window being told which panel it now is (`takeSpare` in `window.ts`).
+		 * `bootWindow` was read before it had one; `services/boot-window.ts` keeps the live answer.
+		 */
+		onAssignPanel(handler: (state: { panelKind: string; panelScope: string; sessionId: string | null }) => void): () => void;
 		onFilePanelState(handler: (input: FilePanelVersion & { previous?: FilePanelState }) => void): () => void;
 	};
 	/**

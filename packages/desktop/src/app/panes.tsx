@@ -45,7 +45,7 @@ export function NavPane({
 	maxWidth?: number;
 	children: React.ReactNode;
 }) {
-	const { compact, navOpen, dismissNav, setSidebarWidth, resetSidebarWidth, bounds, headerBar, framed, toolbarHeight } = useLayout();
+	const { compact, overlay, navOpen, dismissNav, setSidebarWidth, resetSidebarWidth, bounds, headerBar, framed, toolbarHeight } = useLayout();
 	const ref = useRef<HTMLElement>(null);
 	/**
 	 * Suppresses the transition for one beat after the breakpoint moves.
@@ -56,13 +56,13 @@ export function NavPane({
 	 */
 	const [snap, setSnap] = useState(false);
 
-	useFocusTrap(ref, compact && navOpen);
+	useFocusTrap(ref, (compact || overlay) && navOpen);
 
 	useEffect(() => {
 		setSnap(true);
 		const id = window.setTimeout(() => setSnap(false), 60);
 		return () => window.clearTimeout(id);
-	}, [compact]);
+	}, [compact, overlay]);
 
 	/*
 	 * On a phone the drawer stops short of the full width and lays a scrim over what is left.
@@ -88,7 +88,7 @@ export function NavPane({
 			 * stylesheet. Beside the content the pane is a column of its own; as a drawer it lies
 			 * over the transcript and has to cover what is under it.
 			 */
-			data-pane={compact ? "drawer" : "beside"}
+			data-pane={compact || overlay ? "drawer" : "beside"}
 			className={`${compact ? `fixed inset-y-0 left-0 z-30 shadow-2xl shadow-black/60 ${phone ? "ly-drawer" : "right-0"}` : `h-full w-full overflow-hidden${framed ? " ly-nav-column" : ""}`} ${
 				snap ? "transition-none" : "transition-[opacity,transform] duration-[var(--ly-t-base)] ease-out"
 			}`}
@@ -149,6 +149,47 @@ export function NavPane({
 			</>
 		) : (
 			pane
+		);
+
+	/*
+	 * Floating over the content, in a window too narrow for it to push (`NAV_OVERLAY_MAX`).
+	 *
+	 * The frame reserves no width, so the content keeps the whole window; the pane hangs from it
+	 * over the content with the drawer's opaque fill, and a light scrim behind it is the way out.
+	 * Absolute rather than fixed, inside the frame panel that clips both: the toolbar above stays
+	 * clear, and its sidebar button with it.
+	 */
+	if (overlay)
+		return (
+			<div className="relative w-0 shrink-0" data-ly-nav-overlay="">
+				<div
+					aria-hidden
+					onClick={dismissNav}
+					className={`absolute inset-y-0 left-0 z-20 w-screen bg-black/20 ${
+						snap ? "transition-none" : "transition-opacity duration-[var(--ly-t-base)] ease-out"
+					}`}
+					style={{ opacity: navOpen ? 1 : 0, pointerEvents: navOpen ? "auto" : "none" }}
+				/>
+				<div
+					className={`absolute inset-y-0 left-0 z-30 shadow-2xl shadow-black/25 ${
+						snap ? "transition-none" : "transition-[opacity,transform] duration-[var(--ly-t-base)] ease-out"
+					}`}
+					style={{ width, opacity: navOpen ? 1 : 0, transform: navOpen ? "none" : "translateX(-16px)", pointerEvents: navOpen ? "auto" : "none" }}
+				>
+					{pane}
+					{navOpen && (
+						<ResizeHandle
+							edge="end"
+							width={width}
+							min={bounds.sidebar.min}
+							max={Math.min(bounds.sidebar.max, maxWidth ?? bounds.sidebar.max)}
+							onResize={setSidebarWidth}
+							onReset={resetSidebarWidth}
+							label={translate("panes.resizeSidebar")}
+						/>
+					)}
+				</div>
+			</div>
 		);
 
 	return (

@@ -334,6 +334,23 @@
 	container: ly-chat ly-pane / inline-size;
 }
 
+/*
+ * A screen without the focus says so quietly: its title and icons one step down the ink scale.
+ *
+ * Two screens drew identical chrome, so which one Ctrl+W, Ctrl+Tab or the keyboard would reach was
+ * told apart by nothing on the Windows test machine. No outline, frame or shadow: the difference is
+ * in the type, not around it. A button under the pointer or pressed lights up as anywhere else.
+ */
+[data-ly-split-chrome] :is([data-ly-screen-title], [data-ly-screen-icon]) {
+	transition: color var(--ly-t-quick) var(--ly-e-soft);
+}
+[data-ly-split-pane]:not([data-ly-split-focused]) [data-ly-split-chrome] [data-ly-screen-title] {
+	color: var(--color-ink-muted);
+}
+[data-ly-split-pane]:not([data-ly-split-focused]) [data-ly-split-chrome] :is([data-ly-screen-icon], button:not([aria-pressed="true"], :hover, :focus-visible)) {
+	color: color-mix(in srgb, var(--color-ink-faint) 62%, transparent);
+}
+
 @container ly-chat (width < 360px) {
 	[data-ly-split-chrome] [data-ly-panel-quick] {
 		display: none;
@@ -368,4 +385,20 @@ html:not([data-layout="compact"]) [data-dock-content="conversation"] {
 	:root[data-content-width="auto"] .ly-dock-pane > * {
 		--ly-content: min(calc(100cqw - 416px), 1120px);
 	}
+}
+
+/*
+ * Windows: the system's resize cursors on every boundary handle.
+ *
+ * `col-resize` and `row-resize` are Chromium's own monochrome bitmaps there (←‖→), drawn by XOR and
+ * close to invisible on a mid-grey surface, unlike every other split on Windows, which shows ↔ and
+ * ↕ — `ew-resize` and `ns-resize`. Windows only, so macOS keeps its column cursor exactly as it
+ * was. The body's cursor during a drag is set inline and follows `ui/layout/resize-cursor.ts`.
+ */
+:root[data-ly-platform="win32"] .ly-splitter[aria-orientation="vertical"],
+:root[data-ly-platform="win32"] .ly-resize-handle {
+  cursor: ew-resize;
+}
+:root[data-ly-platform="win32"] .ly-splitter[aria-orientation="horizontal"] {
+  cursor: ns-resize;
 }

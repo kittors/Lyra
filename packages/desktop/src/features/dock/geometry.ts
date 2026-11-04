@@ -60,7 +60,16 @@ export const PANEL_MIN_HEIGHT_PX = 150;
 export const paneFloor = (kind: PaneKind): { width: number; height: number } =>
 	kind === "conversation"
 		? { width: CONVERSATION_MIN_WIDTH_PX, height: CONVERSATION_MIN_HEIGHT_PX }
-		: { width: PANEL_MIN_WIDTH_PX, height: PANEL_MIN_HEIGHT_PX };
+		: { width: PANEL_MIN_WIDTH_PX, height: kind === "chat" ? SIDE_CHAT_MIN_HEIGHT_PX : PANEL_MIN_HEIGHT_PX };
+
+/**
+ * The side chat's height floor: its title row and an empty composer, send button included.
+ *
+ * At the panels' 150px it was drawn with the send button and half of the field below its bottom
+ * edge — a half-screen window on Windows stacked it there. Measured on that machine, header and
+ * composer were whole at 224px and cut at 150.
+ */
+const SIDE_CHAT_MIN_HEIGHT_PX = 220;
 
 /** Tiling does not make text or controls usable at a smaller size. */
 export const tilePaneFloor = paneFloor;

@@ -42,6 +42,11 @@
   touch-action: none;
 }
 
+/* Windows draws col-resize as Chromium's faint ←‖→; the system's ↔ is ew-resize. See dock.css. */
+:root[data-ly-platform="win32"] .ly-trace-resize {
+  cursor: ew-resize;
+}
+
 @container trajectory (width < 720px) {
   /*
    * Cover the panel, not just the ledger row.

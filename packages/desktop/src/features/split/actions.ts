@@ -13,6 +13,7 @@ import { canSplitSide, pickSplitTarget, preferredSide, SCREEN_MIN_WIDTH_PX, type
 import { columnCount } from "./moves.ts";
 import { useSplit } from "./store.ts";
 import { useSplitOverlay } from "./overlay.ts";
+import { stepInRecency } from "./recency.ts";
 
 /**
  * Kept for tests that wait out the old burst window. The pane now swaps on
@@ -123,7 +124,7 @@ function canAddColumn(): boolean {
 	return Boolean(root && root.width / (columnCount(useSplit.getState().tree) + 1) >= SCREEN_MIN_WIDTH_PX);
 }
 
-export function splitWith(meta: SessionMeta, target: string | null, width: number, height: number, side?: DropSide): void {
+function splitWith(meta: SessionMeta, target: string | null, width: number, height: number, side?: DropSide): void {
 	if (contains(useSplit.getState().tree, meta.id) || (side && canSplitSide(width, height, side))) {
 		useSplit.getState().split(target, meta.id, side ?? "right");
 		revealSession(meta);
@@ -141,6 +142,27 @@ export function splitWith(meta: SessionMeta, target: string | null, width: numbe
 	}
 	useSplit.getState().split(picked.target, meta.id, picked.side);
 	revealSession(meta);
+}
+
+/**
+ * Open a conversation beside the screen being worked in: 「打开方式 → 分屏」, and Alt+click (⌥ on a
+ * Mac) on its sidebar row, as Claude's desktop app does. False when there is no room for another
+ * screen — the menu item is disabled then, and the click falls back to an ordinary open.
+ */
+export function openBeside(meta: SessionMeta): boolean {
+	const tree = useSplit.getState().tree;
+	if (!contains(tree, meta.id) && !(canSplit(tree) && canOfferSplit())) return false;
+	const pane = document.querySelector<HTMLElement>("[data-ly-split-focused]");
+	const box = (pane ?? document.querySelector("[data-ly-split-root]"))?.getBoundingClientRect();
+	splitWith(meta, pane?.dataset.lySplitPane === "@draft" ? null : pane?.dataset.lySplitPane ?? null, box?.width ?? 800, box?.height ?? 600);
+	return true;
+}
+
+/** Ctrl+Tab / Ctrl+Shift+Tab: the next or previous conversation by recency, into the screen in use. */
+export function stepConversation(step: 1 | -1): void {
+	const { sessions, activeSessionId } = useApp.getState();
+	const next = stepInRecency(sessions, activeSessionId, step);
+	if (next) openInPane(next);
 }
 
 export function closePane(sessionId: string): void {

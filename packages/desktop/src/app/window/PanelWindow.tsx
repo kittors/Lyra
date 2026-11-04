@@ -6,7 +6,7 @@
  */
 
 import { AppWindow } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect } from "react";
 import { SessionScope } from "../session-scope.tsx";
 import { renderPanel, renderPanelHeader, renderPanelActions, usePanelDefinitions, useSide } from "../../features/dock/index.ts";
 import { useApp } from "../../store/index.ts";
@@ -14,20 +14,25 @@ import { useI18n } from "../../i18n/index.ts";
 import { useLayout } from "../layout.tsx";
 import { ToolbarButton } from "./WindowControls.tsx";
 import { NATIVE_HEADER_HEIGHT, WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
-import { bridge } from "../../services/index.ts";
+import { bridge, useBootWindow, watchPanelAssignment } from "../../services/index.ts";
 import { KeepOnTopButton } from "./KeepOnTopButton.tsx";
 import { flushFilePanelState } from "../../store/file-panel-handoff.ts";
 import type { PanelKind } from "../../features/dock/index.ts";
 
 export function PanelWindow() {
 	const { t } = useI18n();
-	const kind = (bridge.bootWindow?.panelKind ?? null) as PanelKind | null;
-	const scope = bridge.bootWindow?.panelScope ?? "window";
-	const sessionId = bridge.bootWindow?.sessionId ?? null;
+	// Live, not `bridge.bootWindow`: a spare window is built without a panel and given one later.
+	const boot = useBootWindow();
+	const kind = (boot?.panelKind ?? null) as PanelKind | null;
+	const scope = boot?.panelScope ?? "window";
+	const sessionId = boot?.sessionId ?? null;
 	const { titlebar, headerBar } = useLayout();
 	const definitions = usePanelDefinitions();
 	const def = kind ? definitions.find((entry) => entry.kind === kind) : undefined;
 	const title = def ? t(def.label) : kind ?? "";
+
+	// Before the first paint: the main process may take a spare as soon as it reports ready-to-show.
+	useLayoutEffect(() => watchPanelAssignment(), []);
 
 	useEffect(() => {
 		if (!sessionId) return;

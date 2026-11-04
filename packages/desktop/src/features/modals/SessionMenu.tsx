@@ -21,7 +21,7 @@ import { MenuBody, MenuItem, MenuSeparator, Popover, type Anchor } from "../../u
 import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
 import { onPhone } from "../../services/index.ts";
-import { canOfferSplit, canSplit, contains, openInNewWindow, SplitMoveItems, splitWith, useSplit } from "../split/index.ts";
+import { canOfferSplit, canSplit, contains, openBeside, openInNewWindow, SplitMoveItems, useSplit } from "../split/index.ts";
 import { sessionHome } from "../../lib/session-home.ts";
 import { prefetchDeleteQuestion } from "./delete-session.tsx";
 
@@ -299,6 +299,7 @@ export function SessionMenu({
 						<MenuItem
 							icon={<ExternalLink size={13} strokeWidth={1.8} />}
 							trailing={<ChevronRight size={13} strokeWidth={1.8} className="text-ink-faint" />}
+							submenu
 							onClick={showOpenIn}
 						>
 							{t("sessionMenu.openIn")}
@@ -319,9 +320,7 @@ export function SessionMenu({
 										icon={<Columns2 size={13} strokeWidth={1.8} />}
 										disabled={!contains(splitTree, session.id) && !(canSplit(splitTree) && canOfferSplit())}
 										onClick={() => {
-											const pane = document.querySelector<HTMLElement>("[data-ly-split-focused]");
-											const box = (pane ?? document.querySelector("[data-ly-split-root]"))?.getBoundingClientRect();
-											splitWith(session, pane?.dataset.lySplitPane === "@draft" ? null : pane?.dataset.lySplitPane ?? null, box?.width ?? 800, box?.height ?? 600);
+											openBeside(session);
 											onClose();
 										}}
 									>

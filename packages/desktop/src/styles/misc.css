@@ -93,6 +93,29 @@
   background: var(--color-elevated);
 }
 
+/*
+ * The row the keyboard is on, filled the way the pointer's row is (see `menu-keys.ts`).
+ *
+ * Not the 2px accent ring every other focused button gets: inside a menu card it is clipped at the
+ * card's edge and reads louder than the row it marks. `data-ly-active` is the highlight a menu
+ * with a search field moves while the caret stays in the field.
+ */
+.ly-item:focus-visible:not(:disabled),
+.ly-item[data-ly-active="true"]:not(:disabled) {
+  outline: none;
+  background: var(--color-card-hover);
+}
+
+/* A row whose button sits inside it — the model menu's, with its star beside the name. */
+.ly-item:has(> [role="menuitem"][data-ly-active="true"]),
+.ly-item:has(> [role="menuitem"]:focus-visible) {
+  background: var(--color-card-hover);
+}
+
+.ly-item > [role="menuitem"]:focus-visible {
+  outline: none;
+}
+
 .ly-item:disabled {
   opacity: 0.4;
 }
