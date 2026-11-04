@@ -100,6 +100,13 @@ export function useSettingsSource(read: () => Settings | undefined): void {
 	readSettings = read;
 }
 
+/** Told each time closing the main window put it into the tray instead of quitting — not on macOS. */
+let hiddenToTray: () => void = () => {};
+
+export function useHiddenToTray(fn: () => void): void {
+	hiddenToTray = fn;
+}
+
 export function useTrayPresence(present: () => boolean): void {
 	trayPresent = present;
 }
@@ -522,6 +529,8 @@ function buildAppWindow(options: {
 			if (!closeShouldHide()) return;
 			event.preventDefault();
 			hideWindow();
+			// macOS has the dock icon; elsewhere the tray is the only way back, so say where it went.
+			if (process.platform !== "darwin") hiddenToTray();
 		});
 	}
 

@@ -28,3 +28,5 @@ export { renderPanel, renderPanelActions, renderPanelHeader, usePanelDefinitions
 export { useBoxSize } from "./useBoxSize.ts";
 export type { PanelKind } from "./sideStore.ts";
 export { has } from "./tree.ts";
+export type { PaneKind } from "./tree.ts";
+export { panelsOf } from "./tabs.ts";

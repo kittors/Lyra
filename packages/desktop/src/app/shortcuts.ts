@@ -13,9 +13,35 @@
  */
 
 import { useEffect } from "react";
-import { currentScope, toggleScopedPanel, usePaneDock } from "../features/dock/index.ts";
-import type { PanelKind } from "../features/dock/index.ts";
-import { composingKey, shortcutLetter } from "../ui/keyboard.ts";
+import { currentScope, panelsOf, toggleScopedPanel, usePaneDock } from "../features/dock/index.ts";
+import type { PaneKind, PanelKind } from "../features/dock/index.ts";
+import { closePane, frontToClose, layoutPanes, paneKey, useSplit } from "../features/split/index.ts";
+import { composingKey, macKeyboard, shortcutLetter } from "../ui/keyboard.ts";
+
+/**
+ * Ctrl+W in the main window on Windows and Linux: the pane in front, then the screen; see
+ * `features/split/close-in-front.ts`. Wired here rather than in the split feature, which would have
+ * to reach into the dock's front door — and the dock leads back to the split through the composer.
+ */
+function closeInFront(): boolean {
+	const scope = currentScope();
+	if (!scope) return false;
+	const dock = usePaneDock.getState();
+	// Focus counts only on the screen being worked in: a press elsewhere has already moved that.
+	const holder = document.activeElement?.closest<HTMLElement>("[data-dock-pane]");
+	const active = holder && holder.closest("[data-ly-split-pane]")?.getAttribute("data-ly-split-pane") === scope ? holder.getAttribute("data-dock-pane") : null;
+	const choice = frontToClose({
+		open: panelsOf(dock.tree(scope)),
+		active,
+		focused: dock.focused[scope] ?? null,
+		screens: layoutPanes(useSplit.getState().tree).length,
+		sessionId: scope === paneKey(null) ? null : scope,
+	});
+	if (!choice) return false;
+	if ("pane" in choice) dock.close(scope, choice.pane as PaneKind);
+	else closePane(choice.screen);
+	return true;
+}
 
 export interface ShortcutDeps {
 	/**
@@ -103,6 +129,20 @@ export function useShortcuts(deps: ShortcutDeps): void {
 			if (mod && !event.altKey && !event.shiftKey && letter === "l") {
 				event.preventDefault();
 				panel("trajectory", activeSessionId);
+				return;
+			}
+			/*
+			 * Ctrl+W on Windows and Linux: the pane in front, then the screen — never the window.
+			 *
+			 * It was the menu's `close`, which put the whole window into the tray, where the key means
+			 * "close this tab or pane" to anyone on Windows. macOS keeps ⌘W as the system's own. A
+			 * focused terminal never gets here: xterm takes Ctrl+W as the shell's delete-word and marks
+			 * the key handled (see `terminal-keys.ts`). Handled here even when nothing closes, so the
+			 * key does not fall through to the menu.
+			 */
+			if (!macKeyboard() && event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && letter === "w") {
+				event.preventDefault();
+				closeInFront();
 				return;
 			}
 			// ⌃` is what every terminal-bearing editor uses, and it is not a ⌘ shortcut.

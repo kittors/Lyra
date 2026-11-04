@@ -68,7 +68,15 @@ export interface NotifyDeps {
 	 */
 	uiLocale(): UiLocale;
 	systemLocale(): string;
+	/** Bring the main window back, as the tray icon's own "open" does. */
+	reveal(): void;
+	/** Notices given once ever: whether this one was, and remembering that it now has been. */
+	hintShown(name: string): boolean;
+	rememberHint(name: string): void;
 }
+
+/** Until main wires a file in, once per process; tests replace both. */
+const givenHere = new Set<string>();
 
 let deps: NotifyDeps = {
 	isSupported: () => false,
@@ -81,6 +89,11 @@ let deps: NotifyDeps = {
 	}),
 	uiLocale: () => "zh-CN",
 	systemLocale: () => "zh-CN",
+	reveal: () => {},
+	hintShown: (name) => givenHere.has(name),
+	rememberHint: (name) => {
+		givenHere.add(name);
+	},
 };
 
 export function configureNotify(next: Partial<NotifyDeps>): void {
@@ -154,5 +167,30 @@ export function notifyNeedAssistance(details: NeedAssistanceDetails): void {
 		deps.sendTrayCommand(`open-session:${details.sessionId}`);
 	});
 
+	notification.show();
+}
+
+const STILL_RUNNING = "stillRunningInTray";
+
+/**
+ * The first time closing the window put it into the tray instead of quitting — Windows and Linux.
+ *
+ * There the tray icon is the only way back, and Windows 11 keeps a new app's icon in the taskbar's
+ * "^" overflow, so a window that closed into it looked like an app that had quit. Said once, ever,
+ * and as a system notification rather than in the app: the window it would be said in just went.
+ * Not remembered when notifications are unavailable, so it is said the first time it can be.
+ */
+export function notifyStillRunning(): void {
+	if (!deps.isSupported() || deps.hintShown(STILL_RUNNING)) return;
+	deps.rememberHint(STILL_RUNNING);
+	const t = translator();
+	const icon = deps.appIcon();
+	const notification = deps.createNotification({
+		title: t("notification.stillRunningTitle"),
+		body: t("notification.stillRunningBody"),
+		...(icon ? { icon } : {}),
+		silent: true,
+	});
+	notification.on("click", () => deps.reveal());
 	notification.show();
 }
