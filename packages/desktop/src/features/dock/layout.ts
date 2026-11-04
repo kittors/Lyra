@@ -249,6 +249,42 @@ export function clearsFloors(
 		&& floorOf(node, "col", floor) <= span.height + EPSILON;
 }
 
+/** How many panes the tallest column stacks once rows are accounted for. */
+function stacked(node: DockNode): number {
+	if (node.type === "leaf") return 1;
+	const each = node.children.map(stacked);
+	return node.dir === "col" ? each.reduce((sum, count) => sum + count, 0) : Math.max(...each);
+}
+
+/** Whether `fitTree` turned any split on its side to draw `stored` as `drawn`. */
+function turned(stored: DockNode, drawn: DockNode): boolean {
+	if (stored.type === "leaf" || drawn.type === "leaf") return false;
+	return stored.dir !== drawn.dir || stored.children.some((child, i) => {
+		const other = drawn.children[i];
+		return other !== undefined && turned(child, other);
+	});
+}
+
+/**
+ * Too crowded to draw as arranged; the dock then draws its panels as tabs (`DockView`).
+ *
+ * Two ways to be crowded. The fitted tree may still not clear its floors — it overlaps, and a
+ * composer's field or send button ends up under a neighbour or past the bottom edge. Or it clears
+ * them only because `fitTree` turned the arrangement on its side and stacked more than two panes
+ * into one column: a window snapped to half the screen on Windows got four 150px strips that way.
+ * Three in a column that the user arranged is theirs and is left alone; only a turn counts.
+ */
+export function crowded(
+	stored: DockNode,
+	fitted: DockNode,
+	span: { width: number; height: number },
+	floor: (kind: PaneKind) => Floor,
+): boolean {
+	if (!(span.width > 0) || !(span.height > 0)) return false;
+	if (!clearsFloors(fitted, span, floor)) return true;
+	return turned(stored, fitted) && stacked(fitted) > COLUMN_LIMIT;
+}
+
 /**
  * The tree as it should be *drawn*, with every pane at or above its floor.
  *

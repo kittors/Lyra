@@ -354,6 +354,17 @@ const CHECKS = [
 		window: true,
 		run: ["node", ["--experimental-strip-types", "--test", "packages/desktop/e2e/keyboard-habits.test.ts"]],
 	},
+	{
+		id: "LAYOUT-narrow-window",
+		what: "跑起来的桌面端里，窗口缩到半屏（768×784）和四分之一屏（768×440）：侧栏浮起来不再推开内容，四个面板只能挤成条时改画成标签，对话和侧边聊天的发送键都在屏内；变宽后侧栏和原来的排列都回来",
+		window: true,
+		run: ["node", ["--experimental-strip-types", "--test", "packages/desktop/e2e/narrow-window.test.ts"]],
+	},
+	{
+		id: "LAYOUT-narrow-rules",
+		what: "窄窗口的规则：1000px 以下侧栏浮起、不改写存下的偏好、Esc 和遮罩收起；dock 放不下最小尺寸或转向后一列超过两个就画成标签，保存的排列不动",
+		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/nav-overlay.test.ts", "test/dock-crowded.test.ts"]],
+	},
 ];
 
 const pass = [];

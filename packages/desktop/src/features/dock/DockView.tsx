@@ -31,7 +31,7 @@ import { cardRoom, HEADER_PAD, PANEL_MIN_WIDTH_PX, paneFloor } from "./geometry.
 import { DockPane } from "./DockPane.tsx";
 import { PaneGrip } from "./PaneGrip.tsx";
 import { Splitter } from "./Splitter.tsx";
-import { fitTree, layoutPanes, layoutSplitters, type Box, type SplitterBox } from "./layout.ts";
+import { crowded, fitTree, layoutPanes, layoutSplitters, type Box, type SplitterBox } from "./layout.ts";
 import { popOutPanel } from "./popout.ts";
 import { emptyDockTree, usePaneDock } from "./pane-store.ts";
 import { DockScope } from "../../app/session-scope.tsx";
@@ -154,7 +154,7 @@ export function DockView({
 	const focusedPane = usePaneDock((s) => s.focused[scope] ?? "conversation");
 	const rememberedTab = usePaneDock((s) => s.tab[scope]);
 	const tabShare = usePaneDock((s) => s.tabShare);
-	const tabbed = usePanelLayout() === "tabs";
+	const tabsChosen = usePanelLayout() === "tabs";
 	const { compact } = useLayout();
 	const definitions = usePanelDefinitions();
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -223,6 +223,12 @@ export function DockView({
 	 * borrows the current tab's cell and stays mounted there, hidden. The stored tree is untouched — see
 	 * `tabs.ts`.
 	 */
+	/*
+	 * Tabs when the setting asks for them — or when this screen is too small for its panels as they
+	 * are arranged (`crowded`): the conversation and the current panel, every other panel one tab
+	 * away and still mounted. The stored tree does not change, so a wider window draws it again.
+	 */
+	const tabbed = tabsChosen || (!compact && size !== null && size !== undefined && crowded(tree, fitTree(tree, size, paneFloor), size, paneFloor));
 	const panels = tabbed ? panelsOf(tree) : [];
 	const tab = tabbed ? activeTab(tree, rememberedTab) : null;
 	const shown = tabbed ? tabbedTree(tab, tabShare) : tree;

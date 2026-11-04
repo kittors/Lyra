@@ -52,6 +52,8 @@ export interface ShortcutDeps {
 	 */
 	enabled: boolean;
 	compact: boolean;
+	/** The sidebar floats over the content (`NAV_OVERLAY_MAX`); Escape puts it away, as a drawer. */
+	overlay?: boolean;
 	navOpen: boolean;
 	activeSessionId: string | null;
 	workspace: unknown;
@@ -60,7 +62,7 @@ export interface ShortcutDeps {
 }
 
 export function useShortcuts(deps: ShortcutDeps): void {
-	const { enabled, compact, navOpen, activeSessionId, workspace, toggleNav, dismissNav } = deps;
+	const { enabled, compact, overlay = false, navOpen, activeSessionId, workspace, toggleNav, dismissNav } = deps;
 
 	useEffect(() => {
 		if (!enabled) return;
@@ -175,7 +177,7 @@ export function useShortcuts(deps: ShortcutDeps): void {
 			 * also un-maximised a pane, so closing a find bar took the layout apart with it.
 			 */
 			if (event.key === "Escape" && !event.defaultPrevented) {
-				if (compact && navOpen) dismissNav();
+				if ((compact || overlay) && navOpen) dismissNav();
 				else {
 					// Full screen is per screen: Escape steps back in the one being worked in.
 					const scope = currentScope();
@@ -186,7 +188,7 @@ export function useShortcuts(deps: ShortcutDeps): void {
 
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);
-	}, [enabled, compact, navOpen, toggleNav, dismissNav, activeSessionId, workspace]);
+	}, [enabled, compact, overlay, navOpen, toggleNav, dismissNav, activeSessionId, workspace]);
 }
 
 /**
