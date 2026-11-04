@@ -268,6 +268,45 @@ test("right-click in a reply: 复制 the selection, 复制链接, 复制图片",
 	}
 });
 
+test("the screen without the focus draws its title and icons a step quieter, and nothing around it", async () => {
+	// Measured on the Windows test machine: two screens drew identical chrome; which one had the keyboard showed nowhere.
+	const SCREENS = `[...document.querySelectorAll('[data-ly-split-pane]')].map((p) => p.getAttribute('data-ly-split-pane'))`;
+	const read = () => app.evaluate<{ ink: string; muted: string; chrome: { id: string; focused: boolean; title: string; icon: string; around: string }[] }>(`(() => {
+		const resolve = (name) => { const probe = document.createElement('span'); probe.style.color = 'var(' + name + ')'; document.body.append(probe); const color = getComputedStyle(probe).color; probe.remove(); return color; };
+		const chrome = [...document.querySelectorAll('[data-ly-split-pane]')].map((pane) => {
+			const header = pane.querySelector('[data-ly-split-chrome]');
+			const style = getComputedStyle(header);
+			return { id: pane.getAttribute('data-ly-split-pane'), focused: pane.hasAttribute('data-ly-split-focused'), title: getComputedStyle(header.querySelector('[data-ly-screen-title]')).color, icon: getComputedStyle(header.querySelector('[data-ly-screen-icon]')).color, around: [style.outlineStyle, style.borderTopWidth, style.borderBottomWidth, style.boxShadow, style.backgroundColor].join(' ') };
+		});
+		return { ink: resolve('--color-ink'), muted: resolve('--color-ink-muted'), chrome };
+	})()`);
+	const settle = () => app.evaluate(`new Promise((resolve) => setTimeout(resolve, 450))`);
+	try {
+		const at = await app.evaluate<{ x: number; y: number }>(`(() => { const r = document.querySelector('[data-ly-row="qa-long"] > button').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+		for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) await app.send("Input.dispatchMouseEvent", { type, x: at.x, y: at.y, button: "left", clickCount: 1, modifiers: ALT });
+		await until(`${SCREENS}.length === 2`);
+		await settle();
+		const first = await read();
+		const on = first.chrome.find((screen) => screen.focused);
+		const off = first.chrome.find((screen) => !screen.focused);
+		assert.ok(on && off, JSON.stringify(first.chrome));
+		assert.equal(on.title, first.ink, "the screen in use keeps its title at full ink");
+		assert.equal(off.title, first.muted, "the other one's title is a step down");
+		assert.notEqual(off.icon, on.icon, "and so are its icons");
+		assert.equal(off.around, on.around, "no outline, frame, shadow or fill tells them apart");
+
+		await clickAt(`[data-ly-split-pane="${off.id}"] [data-dock-pane="conversation"] textarea`);
+		await settle();
+		const swapped = await read();
+		assert.equal(swapped.chrome.find((screen) => screen.id === off.id)?.title, swapped.ink, "focus moved, and the full ink with it");
+		assert.equal(swapped.chrome.find((screen) => screen.id === on.id)?.title, swapped.muted);
+	} finally {
+		const close = `[data-ly-split-chrome="qa-long"] button[aria-label="关闭此屏"]`;
+		if (await app.evaluate<boolean>(`!!document.querySelector(${JSON.stringify(close)})`)) await clickAt(close);
+		await until(`${SCREENS}.length === 1`);
+	}
+});
+
 test("the chip carried to the right edge stays inside the window", async () => {
 	// Measured: at the right edge the chip sat at x 1357.6 in a 1364px window, wholly off screen.
 	const row = await app.evaluate<{ x: number; y: number }>(`(() => { const r = document.querySelector('[data-ly-row="qa-long"]').getBoundingClientRect(); return { x: r.x + 40, y: r.y + r.height / 2 }; })()`);

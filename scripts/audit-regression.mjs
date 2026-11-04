@@ -334,7 +334,7 @@ const CHECKS = [
 	},
 	{
 		id: "WIN-interaction-window",
-		what: "跑起来的桌面端里：快捷键打开侧边聊天后能直接打字、恢复布局不抢焦点；Windows 上分隔条是系统 ↔；终端滚动条是 6px 圆角；弹出的面板在新窗口显示之前留在原处，第二次弹出用预先建好的窗口、一秒内显示；正文右键能复制选区、链接和图片；拖会话到右边缘卡片在窗口内；Windows/Linux 上 Ctrl+W 先关面板、不动窗口",
+		what: "跑起来的桌面端里：快捷键打开侧边聊天后能直接打字、恢复布局不抢焦点；Windows 上分隔条是系统 ↔；终端滚动条是 6px 圆角；弹出的面板在新窗口显示之前留在原处，第二次弹出用预先建好的窗口、一秒内显示；正文右键能复制选区、链接和图片；非焦点屏的标题和图标降一档、没有描边阴影；拖会话到右边缘卡片在窗口内；Windows/Linux 上 Ctrl+W 先关面板、不动窗口",
 		window: true,
 		run: ["node", ["--experimental-strip-types", "--test", "packages/desktop/e2e/windows-interaction.test.ts"]],
 	},

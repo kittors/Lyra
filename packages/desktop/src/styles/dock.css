@@ -334,6 +334,23 @@
 	container: ly-chat ly-pane / inline-size;
 }
 
+/*
+ * A screen without the focus says so quietly: its title and icons one step down the ink scale.
+ *
+ * Two screens drew identical chrome, so which one Ctrl+W, Ctrl+Tab or the keyboard would reach was
+ * told apart by nothing on the Windows test machine. No outline, frame or shadow: the difference is
+ * in the type, not around it. A button under the pointer or pressed lights up as anywhere else.
+ */
+[data-ly-split-chrome] :is([data-ly-screen-title], [data-ly-screen-icon]) {
+	transition: color var(--ly-t-quick) var(--ly-e-soft);
+}
+[data-ly-split-pane]:not([data-ly-split-focused]) [data-ly-split-chrome] [data-ly-screen-title] {
+	color: var(--color-ink-muted);
+}
+[data-ly-split-pane]:not([data-ly-split-focused]) [data-ly-split-chrome] :is([data-ly-screen-icon], button:not([aria-pressed="true"], :hover, :focus-visible)) {
+	color: color-mix(in srgb, var(--color-ink-faint) 62%, transparent);
+}
+
 @container ly-chat (width < 360px) {
 	[data-ly-split-chrome] [data-ly-panel-quick] {
 		display: none;
