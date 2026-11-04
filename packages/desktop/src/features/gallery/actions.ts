@@ -4,6 +4,7 @@
 
 import { sessionMediaUrl } from "../../../shared/session-image.ts";
 import { translate } from "../../i18n/translate.ts";
+import { fitDataUrl } from "../../lib/image-shrink.ts";
 import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { revealDrawing } from "../conversation/index.ts";
@@ -56,7 +57,8 @@ export async function editInConversation(picture: { sessionId: string; media: st
 		useApp.getState().notify(translate("gallery.unreadable"), "error");
 		return false;
 	}
-	const mimeType = /^data:([^;,]+)/.exec(dataUrl)?.[1] ?? picture.mimeType;
+	// A marked copy is the annotator's full-size PNG; fitted like any picture put on a composer.
+	const fitted = (await fitDataUrl(dataUrl, picture.mimeType)) ?? { data: dataUrl.slice(comma + 1), mimeType: /^data:([^;,]+)/.exec(dataUrl)?.[1] ?? picture.mimeType };
 	revealInWorkspace(picture.sessionId);
 	if (!(await opened(picture.sessionId))) {
 		useApp.getState().notify(translate("gallery.conversationGone"), "error");
@@ -66,7 +68,7 @@ export async function editInConversation(picture: { sessionId: string; media: st
 		sessionId: picture.sessionId,
 		// `image.<ext>` is a placeholder name: the composer labels it 图片 1 rather than printing a hash.
 		attachments: [
-			{ id: crypto.randomUUID(), name: `image.${extension(mimeType)}`, mimeType, kind: "image", isText: false, data: dataUrl.slice(comma + 1), ...(marked ? { markedFrom: picture.media } : {}) },
+			{ id: crypto.randomUUID(), name: `image.${extension(fitted.mimeType)}`, mimeType: fitted.mimeType, kind: "image", isText: false, data: fitted.data, ...(marked ? { markedFrom: picture.media } : {}) },
 		],
 		send: Boolean(words.trim()),
 	});

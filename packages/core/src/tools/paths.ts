@@ -58,6 +58,12 @@ const IMAGE_EXTENSIONS: Record<string, string> = {
 	".gif": "image/gif",
 	".webp": "image/webp",
 	".bmp": "image/bmp",
+	// Converted on the way in where the host can decode them (the desktop on macOS, through `sips`); said, not sent, where it cannot.
+	".heic": "image/heic",
+	".heif": "image/heif",
+	".avif": "image/avif",
+	".tif": "image/tiff",
+	".tiff": "image/tiff",
 };
 
 export function imageMimeType(path: string): string | null {

@@ -10,6 +10,7 @@
 import type { AgentEventSink } from "./events.ts";
 import type { AgentRunConfig } from "./loop.ts";
 import { runTool } from "./tool-pipeline.ts";
+import { fitResultImages } from "../images/fit-entry.ts";
 import { skillRefusal } from "../skills/tool.ts";
 import { translatedShellCommand, TOOL_NAMES_KEY } from "../tools/reroute.ts";
 import type {
@@ -44,7 +45,8 @@ export async function runTools(
 			summary: tool?.summarize?.(call.arguments) ?? call.name,
 		});
 
-		const result = masked(await executeOne(tool, call, config, state, emit), config);
+		// Pictures fitted on the way into the history: a 4K screenshot is otherwise re-sent on every request after it.
+		const result = await fitResultImages(masked(await executeOne(tool, call, config, state, emit), config));
 		await emit({
 			type: "tool_end",
 			toolCallId: call.id,

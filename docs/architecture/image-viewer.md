@@ -55,6 +55,9 @@
 接着说一句「照这个改」，`image_generate` 的 `#1` 就是这张标注图，走 `/images/edits` 二次生成。交出去的标注图记着它是从哪张图标注来的（`attachToComposer(sessionId, media)` → 图片块的 `from`），
 画廊的生成链路靠它穿过标注那一步，见 [ADR-0034](../adr/0034-gallery-and-lineage.md)。
 
+交回输入框之前先按发给模型的规矩缩一次（`lib/image-shrink.ts` 的 `fitDataUrl`）：标注器交回的是原尺寸 PNG，
+大于 512 KB 的会变成 JPEG q90，见 [发给模型的图片](prompt-images.md)。
+
 一路上修了三处，缺一处这条路就不通：
 
 1. **画布被污染**。`ly-media:` 是标准 scheme，对页面来说是另一个源，画过它的画布 `toDataURL`

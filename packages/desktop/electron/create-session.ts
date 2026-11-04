@@ -1,4 +1,4 @@
-import type { Message, MessageAttachment, SessionStorage, Settings, SpawnedFrom, UserContent } from "@lyra/core";
+import { fitEntryImages, type Message, type MessageAttachment, type SessionStorage, type Settings, type SpawnedFrom, type UserContent } from "@lyra/core";
 import type { SessionSnapshot } from "./ipc-types.ts";
 
 export interface InitialPrompt {
@@ -34,11 +34,17 @@ export async function createStoredSession(
 	// The level a new chat was given before its first message lives on the app default until now;
 	// written here, so the next new chat moving the default does not move this one. See `SessionMeta.thinking`.
 	let meta = await store.create(cwd, modelId || settings.defaultModelId || "", title, { thinking: settings.thinking });
+	/*
+	 * The opening message is written here, not through `AgentSession.prompt`, so its pictures are fitted
+	 * here too (`images/fit-entry.ts`) — the snapshot that goes back to the window is what it shows, and a
+	 * phone's HEIC must not be what the store keeps.
+	 */
+	const content = initial ? await fitEntryImages(initial.content) : [];
 	const messages: Message[] = initial
 		? [
 				{
 					role: "user",
-					content: initial.content,
+					content,
 					timestamp: Date.now(),
 					...(initial.synthetic ? { synthetic: true } : {}),
 					...(initial.displayText !== undefined ? { displayText: initial.displayText } : {}),

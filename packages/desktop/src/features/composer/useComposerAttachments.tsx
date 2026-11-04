@@ -25,7 +25,8 @@ import { PhoneUploads } from "./attachments/PhoneUploads.tsx";
 import { useAttachmentActions } from "./attachments/actions.ts";
 import { KIND_LABEL } from "./attachments/file-kind.ts";
 import { pickedFrom, type PickedFile } from "./attachments/picked.ts";
-import { fromDataUrl, readPickedFiles, type DraftAttachment } from "./attachments/read.ts";
+import { readPickedFiles, type DraftAttachment } from "./attachments/read.ts";
+import { fitDataUrl } from "../../lib/image-shrink.ts";
 import { receiveLateUploads } from "./attachments/uploads.ts";
 import { useAttachmentMarks, type AttachmentMarks } from "./useAttachmentMarks.ts";
 
@@ -209,8 +210,14 @@ export function useComposerAttachments<T extends DraftAttachment>({
 						previewable.map((a) => ({
 							src: `data:${a.mimeType};base64,${a.data}`,
 							alt: a.name,
+							/*
+							 * The annotator hands back a PNG the size of the picture it was given, whatever went in;
+							 * fitted here like any other picture, and labelled as what it now is.
+							 */
 							onReplace: (dataUrl: string) =>
-								setAttachments((prev) => prev.map((item) => (item.id === a.id ? { ...item, ...fromDataUrl(dataUrl, item) } : item))),
+								void fitDataUrl(dataUrl, a.mimeType).then((fitted) => {
+									if (fitted) setAttachments((prev) => prev.map((item) => (item.id === a.id ? { ...item, ...fitted } : item)));
+								}),
 						})),
 						index,
 					)

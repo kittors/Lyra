@@ -44,6 +44,11 @@ const CHECKS = [
 		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/ask-user.test.ts"]],
 	},
 	{
+		id: "ISSUE-image-size",
+		what: "图片原样进 prompt：一张 4K 截图 6.8 MB 超过单图上限，HEIC 被拒，十三张图每轮重发 25 MB",
+		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/image-fit.test.ts", "packages/core/test/image-request-budget.test.ts", "packages/core/test/image-request.test.ts"]],
+	},
+	{
 		id: "ISSUE-ui",
 		what: "提问遮挡、清单残留、队列卸载重建、过程收起硬切和 Git 重复入口",
 		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/approval-overlay.test.ts", "test/ui/message-queue-strip.test.ts", "test/ui/turn-process.test.ts", "test/ui/git-group-actions.test.ts"]],
