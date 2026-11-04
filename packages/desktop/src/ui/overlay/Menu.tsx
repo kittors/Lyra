@@ -87,6 +87,7 @@ export function MenuItem({
 	disabled,
 	title,
 	className = "",
+	submenu = false,
 	onClick,
 }: {
 	icon?: React.ReactNode;
@@ -124,6 +125,8 @@ export function MenuItem({
 	 * whole point of the row living in one place.
 	 */
 	className?: string;
+	/** The row opens a menu of its own beside it: → opens it from the keyboard (`menu-keys.ts`). */
+	submenu?: boolean;
 	onClick?: () => void;
 }) {
 	const inset = useContext(InsetIcons);
@@ -133,6 +136,7 @@ export function MenuItem({
 			type="button"
 			role={checked === undefined ? "menuitem" : "menuitemcheckbox"}
 			aria-checked={checked}
+			aria-haspopup={submenu ? "menu" : undefined}
 			disabled={disabled}
 			data-ly-tip={title}
 			data-selected={selected ? "true" : undefined}

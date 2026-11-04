@@ -29,6 +29,7 @@ import { chromeTop, heldClear, placeBeside, safeInsets } from "./keep-clear.ts";
 import { sheetHost, useSheetDrag } from "./sheet.ts";
 import { Scroller } from "../scroll/Scroller.tsx";
 import { portal } from "./portal.ts";
+import { handleMenuKey, MENU_KEYS, parentRowOf } from "./menu-keys.ts";
 
 /**
  * A point to hang a menu from, for right-click — where the thing being acted on is a whole
@@ -664,8 +665,36 @@ export function Popover({
 	const overlayDepth = useContext(OverlayDepth);
 
 	useEffect(() => {
+		/*
+		 * The arrows, for the menu the keyboard is in: the one holding focus, or — with focus on the
+		 * trigger or nowhere, as a mouse-opened menu leaves it — the innermost. See `menu-keys.ts`.
+		 * Not on a phone's sheet, and never mid-composition.
+		 */
+		const navigate = (event: KeyboardEvent) => {
+			if (role !== "menu" || asSheet || !MENU_KEYS.has(event.key) || event.defaultPrevented || event.isComposing) return;
+			if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+			const card = ref.current;
+			if (!card) return;
+			const holding = document.activeElement?.closest("[data-ly-popover]");
+			let owner = holding ? Number(holding.getAttribute("data-ly-popover")) : 0;
+			if (!owner) for (const other of openPopovers) owner = Math.max(owner, other.depth);
+			if (owner !== self.depth) return;
+			const taken = handleMenuKey(event.key, {
+				card,
+				anchor: anchor instanceof HTMLElement ? anchor : null,
+				parentRow: parentRowOf(anchor),
+				depth: self.depth,
+				close: dismiss,
+			});
+			if (!taken) return;
+			event.preventDefault();
+			event.stopPropagation();
+		};
 		const onKey = (event: KeyboardEvent) => {
-			if (event.key !== "Escape") return;
+			if (event.key !== "Escape") {
+				navigate(event);
+				return;
+			}
 			/*
 			 * The innermost one goes first, and only it.
 			 *
@@ -679,7 +708,10 @@ export function Popover({
 				deepest = Math.max(deepest, other.depth);
 			if (self.depth !== deepest) return;
 			event.stopPropagation();
+			// Out of a submenu the keyboard was in: back to the row it was opened from.
+			const back = ref.current?.contains(document.activeElement) ? parentRowOf(anchor) : null;
 			dismiss();
+			back?.focus();
 		};
 		const onPointerDown = (event: MouseEvent) => {
 			const target = event.target as Node;
@@ -722,7 +754,7 @@ export function Popover({
 			window.removeEventListener("keydown", onKey, true);
 			window.removeEventListener("mousedown", onPointerDown, true);
 		};
-	}, [anchor, dismiss, self, overlayDepth]);
+	}, [anchor, dismiss, self, overlayDepth, role, asSheet]);
 
 	/*
 	 * Rendered into `<body>`, not where it was written.

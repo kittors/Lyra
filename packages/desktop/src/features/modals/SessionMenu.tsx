@@ -299,6 +299,7 @@ export function SessionMenu({
 						<MenuItem
 							icon={<ExternalLink size={13} strokeWidth={1.8} />}
 							trailing={<ChevronRight size={13} strokeWidth={1.8} className="text-ink-faint" />}
+							submenu
 							onClick={showOpenIn}
 						>
 							{t("sessionMenu.openIn")}
