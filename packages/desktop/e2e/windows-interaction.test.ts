@@ -78,8 +78,36 @@ async function press(key: string, code: string, keyCode: number, modifiers: numb
 	await app.send("Input.dispatchKeyEvent", { type: "keyUp", key, code, windowsVirtualKeyCode: keyCode, modifiers });
 }
 
+/** What an element is, in a line: enough to tell in a CI log where a click or the keyboard went. */
+const DESCRIBE = `(e) => !e ? 'nothing' : e === document.body ? 'body' : e.tagName.toLowerCase() + (e.closest('[data-dock-pane]') ? ' in ' + e.closest('[data-dock-pane]').getAttribute('data-dock-pane') : '') + (e.getAttribute('aria-label') ? ' "' + e.getAttribute('aria-label').slice(0, 40) + '"' : '')`;
+
+/**
+ * A real click at the element's centre, once the element has held still and nothing is over it.
+ *
+ * Opening a pane moves its neighbours for a few frames. On the windows-ui runner the conversation and
+ * the side chat do not fit side by side, so the side chat slides in below and the conversation's field
+ * moves up; a centre read mid-way was clicked after the field had left it, and the press landed on the
+ * side chat (reproduced at 1004×700 under 6× CPU throttling: eight presses out of eight).
+ */
 async function clickAt(selector: string): Promise<void> {
-	const at = await app.evaluate<{ x: number; y: number }>(`(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+	const at = await app.evaluate<{ x: number; y: number }>(`new Promise((resolve, reject) => {
+		const describe = ${DESCRIBE};
+		const end = performance.now() + 10000;
+		let last = '', still = 0;
+		(function tick() {
+			const element = document.querySelector(${JSON.stringify(selector)});
+			const r = element?.getBoundingClientRect();
+			const box = r ? [r.x, r.y, r.width, r.height].map(Math.round).join() : '';
+			still = box && box === last ? still + 1 : 0;
+			last = box;
+			if (still >= 6) {
+				const x = r.x + r.width / 2, y = r.y + r.height / 2, hit = document.elementFromPoint(x, y);
+				if (element.contains(hit)) return resolve({ x, y });
+				if (performance.now() > end) return reject(new Error(${JSON.stringify(selector)} + ' is covered by ' + describe(hit)));
+			} else if (performance.now() > end) return reject(new Error(${JSON.stringify(selector)} + ' never held still: ' + box));
+			requestAnimationFrame(tick);
+		})();
+	})`);
 	for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) await app.send("Input.dispatchMouseEvent", { type, x: at.x, y: at.y, button: "left", clickCount: 1 });
 }
 
@@ -121,16 +149,18 @@ test("a side chat that was already in the layout does not take the keyboard", as
 	/*
 	 * Only an `open` moves focus, and a press somewhere else after it wins.
 	 *
-	 * Red on the Windows CI runner: slow enough that the side chat's composer mounted after the click
-	 * below, and its summons pulled the keyboard back out of the conversation. The press now drops the
-	 * summons (`test/ui/summon-press.test.ts` holds that without depending on how slow the machine is).
+	 * Red on the windows-ui runner two runs out of three. Not the summons coming back: the press itself
+	 * missed. The side chat slid in below the conversation, the field moved up, and the click went to
+	 * the side chat (`clickAt` now waits for the field to hold still and checks what is under the
+	 * pointer). Where the keyboard went is in the message, so the next red says which it was.
 	 */
 	try {
 		await setPanel("chat", true, sideChatKey);
 		await clickAt('[data-dock-pane="conversation"] textarea');
 		// Longer than a summons lasts (SUMMON_FRESH_MS), so a late one would have landed.
 		await app.evaluate(`new Promise((resolve) => setTimeout(resolve, 2500))`);
-		assert.equal(await app.evaluate(`document.activeElement === document.querySelector('[data-dock-pane="conversation"] textarea')`), true);
+		const focus = await app.evaluate<{ ok: boolean; at: string }>(`({ ok: document.activeElement === document.querySelector('[data-dock-pane="conversation"] textarea'), at: (${DESCRIBE})(document.activeElement) })`);
+		assert.equal(focus.ok, true, `the keyboard is in the conversation's field, not in ${focus.at}`);
 	} finally {
 		await setPanel("chat", false, sideChatKey);
 	}
