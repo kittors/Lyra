@@ -35,8 +35,20 @@ test("three in a column that the user arranged is theirs, not crowded", () => {
 	assert.equal(check(theirs, { width: 1200, height: 800 }), false);
 });
 
-test("a tree that cannot clear its floors either way is crowded", () => {
-	assert.equal(check(row([leafOf("conversation"), leafOf("chat")]), { width: 700, height: 400 }), true);
+test("a column too tall for its floors is crowded: the composer at the bottom would go first", () => {
+	assert.equal(check(col([leafOf("conversation"), leafOf("chat")]), { width: 700, height: 400 }), true);
+});
+
+/*
+ * A row of three a little too wide keeps its shape — the first pane at its minimum, overlapping its
+ * neighbour (`fitTree`). At 1280px a file, the conversation and the file tree are 61px short, and
+ * drawing them as tabs there hid two of the three in a window where all of them are readable.
+ */
+test("a row a little too wide keeps its shape; far too wide, it is crowded", () => {
+	const three = row([leafOf("file"), leafOf("conversation"), leafOf("files")]);
+	assert.equal(check(three, { width: 959, height: 814 }), false, "61px short at 1280");
+	assert.equal(check(row([leafOf("conversation"), leafOf("chat")]), { width: 700, height: 400 }), false, "20px short, no column fits either");
+	assert.equal(check(three, { width: 719, height: 814 }), true, "301px short in a half-screen window");
 });
 
 test("the side chat's floor is tall enough for its header and an empty composer", () => {
