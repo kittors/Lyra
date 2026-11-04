@@ -37,8 +37,13 @@ const WIDE_MIN = 1180;
  * content the sidebar costs nothing until it is opened, by its toolbar button or Ctrl+B, and
  * choosing a conversation puts it away again. Whether it is open beside the content (`pushOpen`)
  * is left as the user set it, so widening the window brings it back exactly as it was.
+ *
+ * It has to end below the main window's default width (980, `MAIN_DEFAULT` in `window.ts`). At 1000
+ * every window opened at its default size — a new user's first one, every e2e run — started with
+ * the sidebar shut away. 900 still takes in the half-screen snaps: 768 (1920px at 125%) and 853
+ * (2560px at 150%).
  */
-const NAV_OVERLAY_MAX = 1000;
+const NAV_OVERLAY_MAX = 900;
 
 export type LayoutMode = "compact" | "regular" | "wide";
 

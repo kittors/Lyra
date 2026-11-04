@@ -1,5 +1,5 @@
 /**
- * Below 1000px a desktop window's sidebar floats over the content instead of pushing it.
+ * Below 900px a desktop window's sidebar floats over the content instead of pushing it.
  *
  * Snapped to half of a 1920px screen at 125% a window is 768px wide. The sidebar pushed there, left
  * about 470px for a conversation and its panels, and on the Windows test machine four panels were
@@ -69,7 +69,7 @@ test("widening the window brings back the sidebar the user had beside the conten
 	const view = await mount(h(LayoutProvider, { children: h(Harness) }));
 	try {
 		assert.deepEqual(state(view), { overlay: "false", open: "true", compact: "false" });
-		await resize(900);
+		await resize(853);
 		assert.deepEqual(state(view), { overlay: "true", open: "false", compact: "false" });
 		await click(view.find("[data-test-toggle]"));
 		assert.equal(state(view).open, "true");
@@ -77,7 +77,7 @@ test("widening the window brings back the sidebar the user had beside the conten
 		assert.deepEqual(state(view), { overlay: "false", open: "true", compact: "false" }, "the pushed sidebar is as it was");
 		// And one the user had closed stays closed across the round trip.
 		await click(view.find("[data-test-toggle]"));
-		await resize(900);
+		await resize(853);
 		await resize(1280);
 		assert.equal(state(view).open, "false");
 	} finally {
@@ -85,9 +85,13 @@ test("widening the window brings back the sidebar the user had beside the conten
 	}
 });
 
-test("below 760 it is still the compact drawer, and wide windows push as before", async () => {
+/*
+ * The default window is 980 wide (`MAIN_DEFAULT`). With the line at 1000 every window opened at its
+ * default size — a new user's first, every e2e run — had its sidebar shut away.
+ */
+test("below 760 it is still the compact drawer; the default 980 window and wider push as before", async () => {
 	Object.defineProperty(window, "lyra", { configurable: true, value: { platform: "win32", host: "desktop" } });
-	for (const [w, expected] of [[700, { overlay: "false", compact: "true" }], [1000, { overlay: "false", compact: "false" }], [999, { overlay: "true", compact: "false" }]] as const) {
+	for (const [w, expected] of [[700, { overlay: "false", compact: "true" }], [980, { overlay: "false", compact: "false" }], [900, { overlay: "false", compact: "false" }], [899, { overlay: "true", compact: "false" }], [853, { overlay: "true", compact: "false" }]] as const) {
 		Object.defineProperty(window, "innerWidth", { configurable: true, value: w });
 		const view = await mount(h(LayoutProvider, { children: h(Harness) }));
 		try {
