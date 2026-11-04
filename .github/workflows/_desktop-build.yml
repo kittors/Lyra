@@ -45,7 +45,12 @@ jobs:
             artifact: mac
           - os: windows-latest
             artifact: win
-          - os: ubuntu-latest
+          # Pinned, not `ubuntu-latest`: `pty.node` is compiled here and links against this image's
+          # glibc. When `ubuntu-latest` moved to 26.04 (2026-11), it came out needing GLIBC_2.42
+          # (`cfsetospeed`, `cfsetispeed`) and `check-glibc.mjs` stopped the build — the .deb promises
+          # `libc6 (>= 2.34)`, and raising that would drop every distribution older than 26.04.
+          # Same image as the arm64 runner below.
+          - os: ubuntu-24.04
             artifact: linux
           # Linux on arm64 — a Raspberry Pi, an Ampere server, an arm64 VM on an Apple laptop.
           #

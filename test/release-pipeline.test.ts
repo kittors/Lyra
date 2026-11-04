@@ -38,9 +38,12 @@ const ci = read(".github/workflows/ci.yml");
 test("六个 runner 覆盖三个系统的每个架构", () => {
 	// macOS 与 Windows 各一台机器出两个架构（clang 带两套 slice、MSVC 带 arm64 交叉编译器）；
 	// Linux 没有 aarch64 交叉工具链，所以 x64 和 arm64 各占一台。
-	const expected = ["macos-latest", "windows-latest", "ubuntu-latest", "ubuntu-24.04-arm"];
+	// Both Linux runners are pinned to 24.04: pty.node links against the image's glibc, and
+	// ubuntu-latest (26.04 since 2026-11) produced one needing GLIBC_2.42, past the .deb's floor.
+	const expected = ["macos-latest", "windows-latest", "ubuntu-24.04", "ubuntu-24.04-arm"];
 	for (const runner of expected) {
-		assert.ok(desktopBuild.includes(`os: ${runner}`), `_desktop-build.yml 的矩阵里没有 ${runner}`);
+		// A whole line: `ubuntu-24.04` is also the start of `ubuntu-24.04-arm`.
+		assert.match(desktopBuild, new RegExp(`^\\s*- os: ${runner.replaceAll(".", "\\.")}$`, "m"), `_desktop-build.yml 的矩阵里没有 ${runner}`);
 	}
 
 	const artifacts = [...desktopBuild.matchAll(/artifact: (\S+)/g)].map((m) => m[1]);
