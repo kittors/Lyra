@@ -304,13 +304,25 @@ test("a tab's menu closes the ones it says it will", async () => {
 	assert.deepEqual(outcome.afterOthers, ["two.ts"], "关闭其他 leaves exactly the tab it was asked from");
 });
 
-test("the usage page reports what is in the logs", async () => {
+test("the usage page reports what is in the logs", async (t) => {
 	const page = await ui<{ tiles: string[]; hasBars: boolean; models: string[]; heading: string | null }>(`
 		// Settings → 使用统计, the way it is reached: the settings door, on the rail or in the drawer's footer.
 		const gear = document.querySelector("[data-ly-open-settings]");
-		if (gear) { click(gear); await wait(500); }
-		const nav = [...document.querySelectorAll("button")].find((b) => label(b) === "使用统计");
+		if (gear) click(gear);
+		/*
+		 * Until the page has drawn its navigation, not for a fixed half second.
+		 *
+		 * Settings is fetched when the door is reached for (screens.tsx), and a click dispatched here
+		 * reaches it with no pointer before it: the whole chunk loads after the click, and React holds a
+		 * lazy page's first fallback for 300ms. On a loaded macOS runner that came to more than 500ms,
+		 * and the item was not there yet.
+		 */
+		const find = () => [...document.querySelectorAll("button")].find((b) => label(b) === "使用统计");
+		const asked = performance.now();
+		for (const end = asked + 10000; !find() && performance.now() < end; ) await wait(50);
+		const nav = find();
 		if (!nav) throw new Error("使用统计 nav item not found");
+		window.__settingsDrawnMs = Math.round(performance.now() - asked);
 		click(nav);
 		// The first scan reads every log; give it room.
 		await wait(2500);
@@ -326,6 +338,7 @@ test("the usage page reports what is in the logs", async () => {
 		return { tiles, hasBars: bars > 0, models, heading: headings.join(" / ") || null };
 	`);
 
+	t.diagnostic(JSON.stringify({ settingsDrawnMs: await app.evaluate<number>("window.__settingsDrawnMs") }));
 	assert.equal(page.heading, "使用统计");
 	const joined = page.tiles.join(" | ");
 	assert.match(joined, /已处理 Token/, "the token metric is there");
