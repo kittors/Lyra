@@ -110,11 +110,13 @@ jobs:
     # Skipped on a plain push for the same reason as the macOS unit tests — it is the single most
     # expensive job here (a real Electron install plus a real window, on the 10x platform).
     #
-    # timeout-minutes is the last backstop. A full run is ~21 minutes; GitHub's default is 360.
-    # A hung Electron used to sit until that default, three Dependabot PRs at a time.
+    # timeout-minutes is the last backstop. The tests alone take ~29 minutes (364 of them, measured
+    # 2026-11-04; 27 on 10-26), with the install and build on top, so 30 was hit and the run marked
+    # cancelled. GitHub's default is 360: a hung Electron used to sit until that, three Dependabot PRs
+    # at a time.
     needs: e2e-scope
     if: github.event_name != 'push' && needs.e2e-scope.outputs.run == 'true'
-    timeout-minutes: 30
+    timeout-minutes: 45
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
