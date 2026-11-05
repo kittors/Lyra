@@ -80,6 +80,9 @@ const SIGNALS: { pattern: RegExp; drop: DroppedParam; source: string }[] = [
 	},
 ];
 
+/** xAI's models without `none` among their efforts — every documented one but Grok 4.3. */
+const GROK_WITHOUT_NONE = /(?:^|[^a-z0-9])grok-(?:4\.(?:5|6|7|20)(?![0-9])|build-|code-fast)/;
+
 /**
  * Model families known to refuse an explicit `"none"` reasoning effort. Both OpenAI adapters leave the
  * field out for them when thinking is off, instead of failing the first request and learning from it.
@@ -89,10 +92,15 @@ const SIGNALS: { pattern: RegExp; drop: DroppedParam; source: string }[] = [
  * invalid argument.` — a sentence no signal can safely claim, so for 2.5 this prior is all there is.
  * It lives here rather than in an adapter because that is how it broke: the Responses adapter had the
  * rule and the Chat Completions adapter did not, so with thinking off every Gemini request failed there.
+ *
+ * Of xAI's models only Grok 4.3 lists `none` (docs.x.ai model pages; models.dev records the API
+ * rejecting a value a model does not list). The built-in ladders never send it to the others — see
+ * `XAI_FAMILIES` in `thinking-options.ts` — so this is for the paths that still reach "off": a ladder
+ * somebody configured, and 4.20's non-reasoning line set to think.
  */
 export function refusesReasoningNone(modelId: string): boolean {
 	const id = modelId.toLowerCase();
-	return id.includes("gemini") || id.includes("gemma");
+	return id.includes("gemini") || id.includes("gemma") || GROK_WITHOUT_NONE.test(id);
 }
 
 /** 学到的结论：`${providerId} ${modelId}` → 这些参数别再发了。 */

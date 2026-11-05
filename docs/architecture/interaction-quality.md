@@ -415,6 +415,15 @@ DeepSeek V4 Flash、V4 Pro、V4.1 Flash 及 `deepseek-flash` 别名使用关/低
 DeepSeek `/models` 声明 `low/high/max`、默认 `high`，真实 Chat Completions 请求也确认了 `none`
 关闭推理、`max` 返回推理内容。带供应商前缀、日期或中转后缀的同族名称使用相同档位，旧 V3/R1
 不据此扩展能力；显式配置仍优先。
+xAI 的 Grok 按 docs.x.ai 各模型页的「Reasoning efforts」一行和推理指南给（`XAI_FAMILIES`，与
+models.dev 交叉核对，2026-11-05）：Grok 4.7、4.6 是低/中/高/超高，默认高，关不掉；Grok 4.5 是
+低/中/高，默认高——它的模型页列了 `xhigh`，但推理指南和发布记录都说 4.5 上的 `xhigh` 按 `high` 跑，
+单列出来就是第二个「高」；Grok 4.3 是关/低/中/高/超高，默认低，是唯一收 `none` 的 Grok；Grok 4.20
+Multi-Agent 的低/中/高/超高调的是智能体数量（前两档 4 个、后两档 16 个），官方没写默认。Grok 4.20
+（推理版）和 Grok Build 0.1（`grok-code-fast-1` 现在是它的别名）一直在推理、不收任何 effort，带上
+就是 400，所以它们只有一档「自动」（`AUTO_THINKING`）：按钮和菜单写「自动」、滑块不可拖，两条链既不
+发档位也不发 `none`，Responses 照旧要回加密推理；4.20 的非推理版同样什么都不发。退役的
+`grok-4-0709`、`grok-4-fast-*`、`grok-3` 已被 xAI 转给 4.3，留在兜底。
 未知 relay 别名使用兼容兜底（关/低/中/高）。请求参数与界面读取同一能力列表，支持的档位保持原值；
 模型没有的档位落到它有的最近一档（先往深、再往浅，往浅不落到「关」）——「最高」换到 GPT-5.5 上是
 「超高」，换回来仍是「最高」。内置档位表里没有「关」的模型（GPT-6 Astra、GPT-6.1 Sol、Codex 系列、

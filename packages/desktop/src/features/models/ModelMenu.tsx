@@ -1,6 +1,6 @@
 import { Box, ChevronRight, Star } from "lucide-react";
 import { isMediaModel, type MediaKind } from "@lyra/core/image-models";
-import { resolveThinkingOption } from "@lyra/core/thinking-options";
+import { AUTO_THINKING, resolveThinkingOption } from "@lyra/core/thinking-options";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ModelIcon } from "./ModelIcon.tsx";
 import { RollingText } from "../../ui/motion/RollingText.tsx";
@@ -156,7 +156,8 @@ export function ModelMenu({
 	 *
 	 * GPT-6 Astra, GPT-6.1 Sol and the Codex models cannot stop reasoning, so "off" runs their
 	 * shallowest level instead. The switch still gets the fastest answer they have; its line has to
-	 * say which, or it promises an answer without reasoning that the request does not ask for.
+	 * say which, or it promises an answer without reasoning that the request does not ask for. On a
+	 * model with no dial at all (Grok 4.20, Grok Build) it changes nothing, and the line says that.
 	 */
 	const currentModel = findModel(settings, current);
 	const floor = resolveThinkingOption("off", currentModel);
@@ -318,9 +319,11 @@ export function ModelMenu({
 			footer={selection ? undefined :
 				<MenuFooter>
 					{extra ?? <MenuItem
-						detail={floor && floor.id !== "off"
-							? t("modelMenu.noThinkingFloor", { level: effortLabel("off", currentModel, t) })
-							: meta ? t("modelMenu.noThinkingSession") : t("modelMenu.noThinkingFaster")}
+						detail={floor?.id === AUTO_THINKING
+							? t("modelMenu.noThinkingAuto")
+							: floor && floor.id !== "off"
+								? t("modelMenu.noThinkingFloor", { level: effortLabel("off", currentModel, t) })
+								: meta ? t("modelMenu.noThinkingSession") : t("modelMenu.noThinkingFaster")}
 						trailing={
 							/*
 							 * Indicator, not a control: the whole row is the switch. A real Toggle here

@@ -54,6 +54,7 @@ function thinkingLabelKey(level: ThinkingLevel): MessageKey | null {
 		case "xhigh": return "thinking.xhigh";
 		case "max": return "thinking.max";
 		case "ultra": return "thinking.ultra";
+		case "auto": return "thinking.auto";
 		default: return null;
 	}
 }
@@ -68,6 +69,7 @@ function thinkingDetailKey(level: ThinkingLevel): MessageKey | null {
 		case "xhigh": return "thinking.detail.xhigh";
 		case "max": return "thinking.detail.max";
 		case "ultra": return "thinking.detail.ultra";
+		case "auto": return "thinking.detail.auto";
 		default: return null;
 	}
 }
