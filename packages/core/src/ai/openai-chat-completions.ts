@@ -21,7 +21,7 @@ import { classifyFailure, spokenSoFar, FailureError } from "./failure.ts";
 import { RetryBudget, fetchWithRetry, retryStream, toolCallId } from "./retry.ts";
 import { argumentFragment, parseToolArguments, readSseWithIdleTimeout, STREAM_IDLE_TIMEOUT_MS } from "../utils/sse.ts";
 import { failedStreamEvent, joinUrl } from "./endpoint.ts";
-import { resolveReasoningEffort } from "./thinking-options.ts";
+import { resolveReasoningEffort, resolveReasoningOn } from "./thinking-options.ts";
 import { reasoningReplay, withReasoningRetry, type ReasoningReplay } from "./reasoning-compat.ts";
 import { droppedParams, learnDroppedParam, refusesReasoningNone } from "./request-params-compat.ts";
 import { cacheKeyFields, cacheKeyHeaders } from "./cache-key.ts";
@@ -291,7 +291,8 @@ async function* streamChatCompletions(
 	};
 
 	const reasoningEffort = resolveReasoningEffort(options.thinking, model);
-	const thinkingEnabled = reasoningEffort !== undefined;
+	// Not the same thing: a model with no dial reasons with no effort named (`AUTO_THINKING`).
+	const thinkingEnabled = resolveReasoningOn(options.thinking, model);
 
 	/*
 	 * 每次尝试重新编一遍，因为**推理形状可能在两次之间变掉**。
@@ -415,8 +416,9 @@ async function* streamChatCompletions(
 			 * learn from — every request with thinking off simply failed.
 			 */
 			...(model.supportsThinking
-				? thinkingEnabled && reasoningEffort
-					? { reasoning_effort: reasoningEffort }
+				? thinkingEnabled
+					// Nothing named on a model with no dial: Grok 4.20 answers any effort with a 400.
+					? reasoningEffort ? { reasoning_effort: reasoningEffort } : {}
 					: refusesReasoningNone(model.modelId || model.id || "") || dropped.has("reasoning-off")
 						? {}
 						: { reasoning_effort: "none" }

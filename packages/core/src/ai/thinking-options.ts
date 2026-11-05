@@ -16,15 +16,26 @@ const TEXT: Record<string, Pick<ThinkingOption, "label" | "detail">> = {
 	xhigh: { label: "超高", detail: "更深层次的逻辑推演。" },
 	max: { label: "最高", detail: "把预算拉满，最慢也最稳。" },
 	ultra: { label: "极致", detail: "极致推理模式，算力全开。" },
+	auto: { label: "自动", detail: "这个模型总会推理，想多久由它自己定。" },
 };
 
 /**
  * A model's options from the efforts its API accepts. `vendorDefault` is what the API does when no
- * effort is sent. A ladder without `off` is a model whose reasoning cannot be turned off.
+ * effort is sent, `null` where that is not documented. A ladder without `off` is a model whose
+ * reasoning cannot be turned off.
  */
-function ladder(levels: readonly ThinkingLevel[], vendorDefault: ThinkingLevel = "medium"): ThinkingOption[] {
+function ladder(levels: readonly ThinkingLevel[], vendorDefault: ThinkingLevel | null = "medium"): ThinkingOption[] {
 	return levels.map((id) => (id === vendorDefault ? { id, ...TEXT[id], isDefault: true } : { id, ...TEXT[id] }));
 }
+
+/**
+ * The one level of a model that always reasons and takes no effort at all. It names nothing on the
+ * wire — `resolveReasoningEffort` is `undefined` on it while `resolveReasoningOn` is true — because
+ * the API it stands for answers any effort with a 400, `none` included. Not on the standard line: a
+ * person's level outlives the switch to such a model and comes back on the way out.
+ */
+export const AUTO_THINKING: ThinkingLevel = "auto";
+const AUTO = ladder([AUTO_THINKING], AUTO_THINKING);
 
 /** What nearly every reasoning endpoint accepts. Google's models and unrecognised ids get this. */
 export const DEFAULT_THINKING_OPTIONS: ThinkingOption[] = ladder(["off", "low", "medium", "high"]);
@@ -88,6 +99,43 @@ const OPENAI_FAMILIES: readonly (readonly [RegExp, ThinkingOption[]])[] = [
 	[/(?:^|[^a-z0-9])(?:o1(?!-mini|-preview)|o3|o4-mini)(?![a-z0-9.])/, LOW_TO_HIGH],
 ];
 
+/** `grok-<rest>` after a non-alphanumeric boundary, so `xai/`, `x-ai/` and `cursor-` prefixes still match. */
+const grok = (rest: string) => new RegExp(`(?:^|[^a-z0-9])grok-${rest}`);
+
+const GROK_DEPTH = ladder(["low", "medium", "high", "xhigh"], "high");
+
+/**
+ * xAI's models, with the efforts each one's API accepts — `off` standing for `none`.
+ *
+ * Source: the "Reasoning efforts" line on each model's page at docs.x.ai/developers/models and the
+ * reasoning guide (read 2026-11-05), cross-checked against models.dev, whose xAI entries record
+ * `GET /v1/models` and live requests: the API rejects an effort a model does not list.
+ *
+ * Grok 4.5's page lists `xhigh` because the API takes it, but the guide and the release notes say
+ * it runs as `high` there. Drawn as a level of its own it would be a second 「高」; picked on another
+ * model, it lands on 高 here, which is what xAI does with it anyway.
+ *
+ * Grok 4.20 and Grok Build 0.1 always reason and list no effort, and a request naming one — `none`
+ * too — is a 400 (oh-my-pi's census of the live API says the same), so their only level is `AUTO`.
+ * 4.20's non-reasoning line takes none either. `grok-code-fast-1` is now an alias of Build 0.1 and
+ * `grok-build-latest` one of 4.5, per their model pages. The multi-agent model reads the effort as
+ * how many agents run — four for `low`/`medium`, sixteen for `high`/`xhigh` — with no documented
+ * default.
+ *
+ * Most specific first: the multi-agent and non-reasoning 4.20 ids contain the reasoning one's name.
+ * The retired ids (`grok-4-0709`, `grok-4-fast-*`, `grok-3`) stay on the fallback: xAI serves them as
+ * 4.3 now, which accepts every level the fallback offers.
+ */
+const XAI_FAMILIES: readonly (readonly [RegExp, ThinkingOption[]])[] = [
+	[grok("4\\.20-multi-agent"), ladder(["low", "medium", "high", "xhigh"], null)],
+	[grok("4\\.20(?![0-9]).*non-reasoning"), []],
+	[grok("4\\.20(?![0-9])"), AUTO],
+	[grok("4\\.[67](?![0-9])"), GROK_DEPTH],
+	[grok("(?:4\\.5(?![0-9])|build-latest)"), ladder(["low", "medium", "high"], "high")],
+	[grok("4\\.3(?![0-9])"), ladder(["off", "low", "medium", "high", "xhigh"], "low")],
+	[grok("(?:build-0\\.1|code-fast)"), AUTO],
+];
+
 /**
  * Resolve effective thinking options for a given model.
  * If the model has explicit options configured, use them.
@@ -118,6 +166,9 @@ export function resolveModelThinkingOptions(model?: ModelConfig | null): Thinkin
 	if (/(?:^|[^a-z0-9])deepseek-(?:v4-(?:flash|pro)|v4\.1-flash|flash)(?=$|[^a-z0-9])/.test(id)) {
 		return DEEPSEEK_V4;
 	}
+
+	const xai = XAI_FAMILIES.find(([pattern]) => pattern.test(id));
+	if (xai) return xai[1];
 
 	// Compatibility fallback for unrecognised relay aliases, not a provider capability claim.
 	return OPENAI_FAMILIES.find(([pattern]) => pattern.test(id))?.[1] ?? DEFAULT_THINKING_OPTIONS;
@@ -159,8 +210,23 @@ export function resolveThinkingOption(level: ThinkingLevel | undefined, model?: 
 	return options.find((option) => option.isDefault) ?? options[0];
 }
 
-/** The effort sent for a chosen level; `undefined` means reasoning off. Always the level the menu shows. */
+/**
+ * The effort sent for a chosen level — always the level the menu shows. `undefined` names none:
+ * reasoning is off, or the model reasons with no dial (`AUTO_THINKING`), which `resolveReasoningOn`
+ * tells apart.
+ */
 export function resolveReasoningEffort(level: ThinkingLevel | undefined, model?: ModelConfig | null): string | undefined {
 	const selected = resolveThinkingOption(level, model);
-	return selected && selected.id !== "off" ? selected.id : undefined;
+	return selected && selected.id !== "off" && !namesNothing(selected, model) ? selected.id : undefined;
+}
+
+/** Whether the model reasons at a chosen level — on a model with no dial, with nothing named. */
+export function resolveReasoningOn(level: ThinkingLevel | undefined, model?: ModelConfig | null): boolean {
+	const selected = resolveThinkingOption(level, model);
+	return selected !== undefined && selected.id !== "off";
+}
+
+/** The built-in no-dial level. An `auto` on a ladder somebody configured is theirs to send. */
+function namesNothing(option: ThinkingOption, model?: ModelConfig | null): boolean {
+	return option.id === AUTO_THINKING && model?.thinkingOptions === undefined;
 }

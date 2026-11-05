@@ -197,7 +197,8 @@ test("the composer shows the level of the conversation on screen", async () => {
 	`);
 
 	assert.equal(seen.opened, "高", "the conversation set to high says 高");
-	assert.equal(seen.switched, "关", "switching conversations moves the label with it");
+	// Grok 4.6 cannot stop reasoning: a conversation set to off runs, and says, its shallowest level.
+	assert.equal(seen.switched, "低", "switching conversations moves the label with it");
 	assert.equal(seen.blank, "中", "a new conversation starts on the app default");
 });
 

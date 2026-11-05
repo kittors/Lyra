@@ -26,7 +26,7 @@ import { classifyFailure, spokenSoFar, FailureError } from "./failure.ts";
 import { RetryBudget, fetchWithRetry, retryStream, toolCallId } from "./retry.ts";
 import { argumentFragment, parseToolArguments, readSseWithIdleTimeout, STREAM_IDLE_TIMEOUT_MS } from "../utils/sse.ts";
 import { failedStreamEvent, joinUrl } from "./endpoint.ts";
-import { resolveReasoningEffort } from "./thinking-options.ts";
+import { resolveReasoningEffort, resolveReasoningOn } from "./thinking-options.ts";
 import { reasoningReplay, withReasoningRetry, type ReasoningReplay } from "./reasoning-compat.ts";
 import { learnToolPairing, toolPairing } from "./tool-pairing-compat.ts";
 import { droppedParams, learnDroppedParam, refusesReasoningNone } from "./request-params-compat.ts";
@@ -56,7 +56,8 @@ async function* streamResponses(
 	};
 
 	const reasoningEffort = resolveReasoningEffort(options.thinking, model);
-	const thinkingEnabled = reasoningEffort !== undefined;
+	// Not the same thing: a model with no dial reasons with no effort named (`AUTO_THINKING`).
+	const thinkingEnabled = resolveReasoningOn(options.thinking, model);
 	const modelId = (model.modelId || model.id || "").toLowerCase();
 
 	/*
@@ -106,12 +107,11 @@ async function* streamResponses(
 			// 别的端点也可能不认 `none`——那条实测记录就是 `request-params-compat.ts` 认得的第一条信号，
 			// 撞上之后走的是和 Gemini 同一条路：整个 `reasoning` 不发。
 			...(model.supportsThinking
-				? thinkingEnabled && reasoningEffort
+				? thinkingEnabled
 					? {
-							reasoning: {
-								effort: reasoningEffort,
-								summary: "auto",
-							},
+							// No `reasoning` on a model with no dial — Grok 4.20 answers any effort with a 400 —
+							// while its reasoning is still asked back, so the next turn can replay it.
+							...(reasoningEffort ? { reasoning: { effort: reasoningEffort, summary: "auto" } } : {}),
 							...(dropped.has("include-encrypted") ? {} : { include: ["reasoning.encrypted_content"] }),
 						}
 					: refusesReasoningNone(modelId) || dropped.has("reasoning-off")

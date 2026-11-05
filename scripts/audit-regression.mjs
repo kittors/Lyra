@@ -49,6 +49,16 @@ const CHECKS = [
 		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/image-fit.test.ts", "packages/core/test/image-request-budget.test.ts", "packages/core/test/image-request.test.ts"]],
 	},
 	{
+		id: "ISSUE-grok-effort",
+		what: "Grok 全落进兜底的关/低/中/高：4.7 没有超高、标成中，「关」发它不收的 none，4.20 与 Build 0.1 每轮都带会 400 的 effort",
+		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/grok-thinking.test.ts"]],
+	},
+	{
+		id: "ISSUE-grok-effort-ui",
+		what: "Grok 4.7 的菜单与按钮：低/中/高/超高、存着的「关」写成实际发的「低」；没有档位的 4.20 写「自动」而不是「关」",
+		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/grok-effort.test.ts"]],
+	},
+	{
 		id: "ISSUE-ui",
 		what: "提问遮挡、清单残留、队列卸载重建、过程收起硬切和 Git 重复入口",
 		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/approval-overlay.test.ts", "test/ui/message-queue-strip.test.ts", "test/ui/turn-process.test.ts", "test/ui/git-group-actions.test.ts"]],
