@@ -390,6 +390,11 @@ const CHECKS = [
 		what: "正文右键菜单：落在选区上给「复制」（带格式、按右键那一刻的选区），链接给「复制链接」，图片给「复制图片 / 另存为」；头像大小的图、输入框、有自己菜单的路径和正文以外的地方都不弹",
 		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/transcript-menu.test.ts"]],
 	},
+	{
+		id: "WIN-menu-boot",
+		what: "Windows/Linux 打包版菜单的每一项都过得了 Electron 的校验（0.9.33 的 Ctrl+W 项没有 label，建菜单抛错拦住整个启动，再开就停在启动画面）；菜单建不起来只记日志，不挡启动",
+		run: ["node", ["--experimental-strip-types", "--test", "packages/desktop/test/app-menu.test.ts"]],
+	},
 ];
 
 const pass = [];

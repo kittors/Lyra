@@ -129,7 +129,7 @@ import { destroyScreenshotOverlay, dismissStrayOverlay, isScreenshotOverlay, reg
 import { destroyPinnedShots, isPinnedShot } from "./screenshot-pin.ts";
 import { configureNotify, notifyStillRunning } from "./notify.ts";
 import { hintStore } from "./hints.ts";
-import { applicationMenuTemplate } from "./app-menu.ts";
+import { applicationMenuTemplate, applyApplicationMenu } from "./app-menu.ts";
 import { shortcutFailureKey } from "./accelerator.ts";
 import { nativeText, nativeTranslator, resolveNativeLocale, setInterfaceLocaleSource } from "./i18n.ts";
 import { lazyPty } from "./pty-loader.ts";
@@ -491,7 +491,8 @@ app.whenReady().then(async () => {
 	void primeCommandPath({ always: true });
 
 	// Before any window exists, so none is ever built with the default menu's reload and DevTools
-	// keys. Packaged builds only; see `app-menu.ts` for what is kept and why.
+	// keys. Packaged builds only; see `app-menu.ts` for what is kept and why. A template Electron
+	// refuses is logged and skipped rather than thrown: here it would take the rest of startup with it.
 	const menu = applicationMenuTemplate({
 		platform: process.platform,
 		packaged: app.isPackaged,
@@ -500,7 +501,7 @@ app.whenReady().then(async () => {
 			if (win instanceof BrowserWindow && !win.isDestroyed() && win !== getPrimaryWindow()) win.close();
 		},
 	});
-	if (menu) Menu.setApplicationMenu(Menu.buildFromTemplate(menu));
+	applyApplicationMenu(menu, Menu);
 
 	/*
 	 * Before anything reads or writes it: the home directory was called `.deepwise` until the app
