@@ -35,14 +35,26 @@ ignoredOptionalDependencies:
 
 # Transitive dependencies pinned past a published advisory.
 #
-# Every one of these is something we do not depend on directly — they arrive under the MCP SDK and
-# under Expo — so there is no version of ours to bump. An override is the only lever, and it is the
-# right one: these are patch-level fixes to packages whose API we never touch.
+# Every one of these is something we do not depend on directly — they arrive under the MCP SDK,
+# under Expo and under mermaid — so there is no version of ours to bump. An override is the only
+# lever, and it is the right one: these are patch-level fixes to packages whose API we never touch.
 #
 # `fast-uri` is the one that matters most here. It parses URLs under ajv, two of its three
 # advisories are server-side request forgery, and this application both fetches URLs the model
 # produced and speaks to a relay. The others are denial-of-service in parsers reached by paths that
 # a desktop app does not expose, but they are free to fix.
+#
+# `dompurify` is the other one a user meets. mermaid runs every diagram through it, the diagrams
+# are written by the model, and `MermaidBlock` puts the result into the page as HTML.
+#
+# `zod` is the exception to "patch-level". `@expo/cli` asks for zod 3 and the advisory has no fixed
+# 3.x, so this moves it to zod 4. It uses zod for two schemas in `expo start`'s dev-tools plugin
+# loader — object, string, enum, array, union, literal — and reads them back through `safeParse`,
+# `error.message` and `error.issues`, all of which zod 4 keeps. Everything else already wanted 4.
+#
+# `node-forge` starts at 1.4.3, not the 1.4.1 that `pnpm audit` asks for: 1.4.2 repairs a `Buffer`
+# regression 1.4.1 put into `pem.decode`, and 1.4.3 fixes an X.509 name-constraints bypass that is
+# not in the audit database yet.
 #
 # Reviewed when a dependency bump lands: an override that outlives the vulnerable range is a pin
 # nobody asked for. `pnpm audit --prod` says when one can go.
@@ -50,31 +62,30 @@ overrides:
   fast-uri: ">=3.1.6"
   qs: ">=6.15.4"
   uuid: ">=11.1.1"
-  decode-uri-component: ">=0.4.3"
+  decode-uri-component: ">=0.5.1"
   lodash-es: ">=4.17.24"
+  dompurify: ">=3.4.17"
+  zod: ">=4.6.6"
+  body-parser: ">=2.4.0"
+  node-forge: ">=1.4.3"
 
 # Advisories with no fixed release to move to, ignored one ID at a time.
 #
-# For both, the newest published version is the vulnerable one: GitHub lists no patched version,
-# and the `>=x.y.z` that `pnpm audit` prints is only the complement of the affected range. Neither a
+# The newest published version is the vulnerable one: GitHub lists no patched version, and the
+# `>=x.y.z` that `pnpm audit` prints is only the complement of the affected range. Neither a
 # lockfile refresh nor an override has anything to move to; the alternative is dropping Expo or the
 # Clojure formatter.
 #
-# Neither is loaded by anything that runs on a user's machine:
-# - GHSA-86w9-cpqp-85rv, node-forge <=1.4.0, accepts forged RSA PKCS#1 v1.5 signatures. Only under
-#   `@expo/cli`, the mobile build and dev-server tool. The app bundle does not contain it, and the
-#   app signs no updates.
+# It is not loaded by anything that runs on a user's machine:
 # - GHSA-vfj7-8cjw-p6xm, braces <=3.0.3, stack exhaustion on deeply nested brace patterns. Under
 #   metro, which expands globs from this repository's own config, and under the command-line entry
 #   of `zprint-clj`. The desktop app imports zprint's library entry, which never loads fast-glob,
 #   micromatch or braces.
 #
 # An ID hides that one advisory and nothing else: a new one against the same package still fails
-# the audit. Drop an entry once a fixed release exists — `pnpm view node-forge version` past 1.4.0,
-# `pnpm view braces version` past 3.0.3.
+# the audit. Drop an entry once a fixed release exists — `pnpm view braces version` past 3.0.3.
 auditConfig:
   ignoreGhsas:
-    - GHSA-86w9-cpqp-85rv
     - GHSA-vfj7-8cjw-p6xm
 
 minimumReleaseAgeExclude:
