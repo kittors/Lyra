@@ -15,9 +15,9 @@
  *     and Close — ⌘W / Ctrl+W came from the default menu, and the renderer does not handle it.
  *   - On macOS the application menu, which is where Quit, Hide and About live.
  *
- * Roles only, no labels: Electron supplies the names, so nothing here is written in one language.
- * The one item that is not a role is Ctrl+W on Windows and Linux, and it has no label either: the
- * menu bar is hidden there, so it is only ever an accelerator.
+ * Roles only: Electron supplies the names, so nothing anyone reads is written here in one language.
+ * The one item that is not a role is Ctrl+W on Windows and Linux. Its label is never drawn — the
+ * menu bar is hidden there — but it cannot be left out: see the item.
  * A development run returns null and keeps Electron's default, reload and DevTools included.
  */
 
@@ -84,7 +84,39 @@ export function applicationMenuTemplate(options: {
 		 */
 		{
 			role: "windowMenu",
-			submenu: [{ role: "togglefullscreen" }, ...ZOOM, { accelerator: "Ctrl+W", click: (_item, win) => options.closeAuxiliary?.(win) }],
+			submenu: [
+				{ role: "togglefullscreen" },
+				...ZOOM,
+				/*
+				 * The label is never drawn, which is why it is not translated, but Electron refuses an
+				 * item with none of label, role or type — and `type: "normal"` alone is refused as well
+				 * (measured on 43.4.1). 0.9.33 shipped this item bare: `Menu.buildFromTemplate` threw
+				 * before the app had a window, and every Windows launch ended on the boot screen.
+				 */
+				{ label: "Close Window", accelerator: "Ctrl+W", click: (_item, win) => options.closeAuxiliary?.(win) },
+			],
 		},
 	];
+}
+
+/**
+ * Set the menu, and never let a bad one stop the app.
+ *
+ * This runs first in `whenReady`, before the IPC handlers and the window. When it threw in 0.9.33,
+ * everything after it was skipped: no window on the first launch, and the one a second launch
+ * opened sat on the boot screen for good, every call to the main process answering "No handler
+ * registered". A missing menu costs a few shortcuts; that cost the whole app. The template is held
+ * to Electron's rule in `app-menu.test.ts` — this is for whatever that does not catch.
+ */
+export function applyApplicationMenu<M>(
+	template: MenuItemConstructorOptions[] | null,
+	menu: { buildFromTemplate(template: MenuItemConstructorOptions[]): M; setApplicationMenu(built: M): void },
+	report: (error: unknown) => void = (error) => console.error("[menu] application menu not set:", error),
+): void {
+	if (!template) return;
+	try {
+		menu.setApplicationMenu(menu.buildFromTemplate(template));
+	} catch (error) {
+		report(error);
+	}
 }
