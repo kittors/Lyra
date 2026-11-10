@@ -5,6 +5,136 @@
 只收录 0.8.0 及之后的版本：更早的提交信息还没有统一格式，勉强解析出来的条目比留白更容易误导。
 那些版本的说明在 [GitHub Releases](https://github.com/kittors/Lyra/releases) 里。
 
+## [0.9.34](https://github.com/kittors/Lyra/releases/tag/v0.9.34) - 2026-11-10
+
+<!-- lyra:notes en -->
+
+### Improvements & Fixes
+
+- **0.9.33 did not open on Windows or Linux.** The first launch showed no window, and launching again left the splash screen up for good. 0.9.33 added a menu item for Ctrl+W without a label; Electron refuses a menu like that, and the error stopped startup before the window was made. The item has a label now, and if Electron ever refuses the menu again, Lyra writes it to the log and goes on starting. macOS was not affected.
+  - 0.9.33 cannot update itself on these two systems, because startup never got as far as checking for updates. Download 0.9.34 from this page or the website and install it over the old version.
+- **Grok's reasoning effort follows what xAI lists for each model.** Until now every Grok got Off, Low, Medium and High.
+  - Grok 4.20 (Reasoning) and Grok Build 0.1 (`grok-code-fast-1`) failed every turn with a 400. Neither accepts a reasoning effort, and Lyra sent one each time. They now have one level, Auto, and nothing is sent.
+  - Grok 4.7 had no Extra high, and its default showed as Medium while xAI runs High when nothing is set. Grok 4.7 and 4.6 now have Low, Medium, High and Extra high, default High. Their reasoning cannot be turned off, so No thinking uses Low.
+  - Off was sent as `none`, which only Grok 4.3 accepts. Grok 4.3 now goes from Off to Extra high, default Low. Grok 4.5 has Low, Medium and High, default High: xAI lists Extra high for it as well, but runs it as High.
+  - On Grok 4.20 Multi-Agent the level sets how many agents run at once: 4 at Low and Medium, 16 at High and Extra high.
+  - A level saved on another model moves to the nearest one instead of going back to the default. Max becomes Extra high on Grok 4.7 and High on Grok 4.5.
+- **Five dependencies with security advisories are on fixed versions**, DOMPurify and zod among them. Mermaid diagrams go through DOMPurify; the same seven test diagrams, one of them with `onerror`, `javascript:` and `<script>` in its labels, draw the same before and after.
+
+<!-- lyra:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 优化与修复
+
+- **0.9.33 在 Windows 和 Linux 上打不开。** 第一次点开不出窗口，再点一次就一直停在启动画面。0.9.33 为 Ctrl+W 在菜单里加了一项，却没给它写名字；Electron 不接受这样的菜单，抛出的错误让启动停在了建窗口之前。现在这一项有了名字；以后菜单再被 Electron 拒收，也只记一条日志，启动照常往下走。macOS 不受影响。
+  - 这两个系统上的 0.9.33 没法自己更新：启动根本没走到检查更新那一步。请从本页或官网下载 0.9.34，覆盖安装。
+- **Grok 的推理强度按 xAI 给每个型号列的档位来。** 以前所有 Grok 都是「关 / 低 / 中 / 高」四档。
+  - Grok 4.20（推理版）和 Grok Build 0.1（`grok-code-fast-1`）每一轮都报 400：这两个型号不收推理强度，而 Lyra 每次都带上了。现在它们只有一档「自动」，什么都不发。
+  - Grok 4.7 没有「超高」，默认标的是「中」，而 xAI 在没指定时按「高」跑。现在 4.7 和 4.6 是「低 / 中 / 高 / 超高」，默认「高」。这两个型号的推理关不掉，选「关闭思考」会用「低」。
+  - 「关」发出去是 `none`，只有 Grok 4.3 收。4.3 现在从「关」到「超高」共五档，默认「低」。Grok 4.5 是「低 / 中 / 高」，默认「高」：xAI 也给它列了超高，但实际按高跑。
+  - Grok 4.20 Multi-Agent 的档位决定同时跑几个智能体：「低」「中」是 4 个，「高」「超高」是 16 个。
+  - 在别的模型上存下的档位，换到这里会落到最接近的一档，不再回到默认：「最高」在 Grok 4.7 上是「超高」，在 Grok 4.5 上是「高」。
+- **五个有安全公告的依赖升到了修复版本**，其中有 DOMPurify 和 zod。Mermaid 图要经过 DOMPurify 清洗；同样七张测试图，包括标签里塞了 `onerror`、`javascript:`、`<script>` 的那张，升级前后画出来一样。
+
+</details>
+
+<!-- lyra:notes zh-TW -->
+
+<details>
+<summary>中文（繁體）</summary>
+
+### 改善與修正
+
+- **0.9.33 在 Windows 和 Linux 上打不開。** 第一次點開沒有視窗，再點一次就一直停在啟動畫面。0.9.33 為了 Ctrl+W 在選單裡加了一項，卻沒有幫它取名稱；Electron 不接受這樣的選單，丟出的錯誤讓啟動停在建立視窗之前。現在這一項有了名稱；之後選單就算再被 Electron 拒絕，也只會寫一筆到記錄檔，啟動照常進行。macOS 不受影響。
+  - 這兩個系統上的 0.9.33 沒辦法自己更新：啟動根本沒走到檢查更新那一步。請從本頁或官網下載 0.9.34，直接覆蓋安裝。
+- **Grok 的推理強度改依 xAI 為每個型號列出的檔位。** 以前所有 Grok 都是「關 / 低 / 中 / 高」四檔。
+  - Grok 4.20（推理版）和 Grok Build 0.1（`grok-code-fast-1`）每一輪都回 400：這兩個型號不接受推理強度，而 Lyra 每次都帶上了。現在它們只有一檔「自動」，什麼都不送。
+  - Grok 4.7 沒有「超高」，預設標的是「中」，但 xAI 在沒有指定時是用「高」跑。現在 4.7 和 4.6 是「低 / 中 / 高 / 超高」，預設「高」。這兩個型號的推理關不掉，選「關閉思考」會用「低」。
+  - 「關」送出去的是 `none`，只有 Grok 4.3 接受。4.3 現在從「關」到「超高」共五檔，預設「低」。Grok 4.5 是「低 / 中 / 高」，預設「高」：xAI 也幫它列了超高，但實際上還是用高跑。
+  - Grok 4.20 Multi-Agent 的檔位決定同時跑幾個智慧體：「低」「中」是 4 個，「高」「超高」是 16 個。
+  - 在別的模型上存下的檔位，換到這裡會落在最接近的一檔，不再回到預設：「最高」在 Grok 4.7 上是「超高」，在 Grok 4.5 上是「高」。
+- **五個有安全公告的相依套件升到了修正版本**，其中包括 DOMPurify 和 zod。Mermaid 圖表要經過 DOMPurify 清理；同樣七張測試圖，包括標籤裡塞了 `onerror`、`javascript:`、`<script>` 的那張，升級前後畫出來都一樣。
+
+</details>
+
+<!-- lyra:notes ja -->
+
+<details>
+<summary>日本語</summary>
+
+### 改善と修正
+
+- **0.9.33 が Windows と Linux で開きませんでした。** 1 回目はウィンドウが出ず、もう一度開くと起動画面のまま先へ進みませんでした。0.9.33 で Ctrl+W のために追加したメニュー項目に名前がなく、Electron がそのメニューを受け付けず、そのエラーでウィンドウを作る前に起動が止まっていました。項目に名前を付けました。今後 Electron がメニューを受け付けなかった場合も、ログに残すだけで起動は続けます。macOS には影響していません。
+  - この 2 つの OS の 0.9.33 は、起動が更新の確認まで進まないため、自分では更新できません。このページかウェブサイトから 0.9.34 をダウンロードし、上書きでインストールしてください。
+- **Grok の推論の強度を、xAI がモデルごとに示している段階に合わせました。** これまではどの Grok も「オフ / 低 / 中 / 高」でした。
+  - Grok 4.20（推論版）と Grok Build 0.1（`grok-code-fast-1`）は毎回 400 で失敗していました。どちらも推論の強度を受け付けないのに、Lyra が毎回付けて送っていたためです。今は「自動」の 1 段階だけで、何も送りません。
+  - Grok 4.7 には「非常に高い」がなく、既定値は「中」と表示されていましたが、xAI は指定がないと「高」で動かします。今は 4.7 と 4.6 が「低 / 中 / 高 / 非常に高い」で、既定は「高」です。この 2 つは推論を止められないため、「思考しない」を選ぶと「低」になります。
+  - 「オフ」は `none` として送っていましたが、受け付けるのは Grok 4.3 だけです。4.3 は「オフ」から「非常に高い」までの 5 段階になり、既定は「低」です。Grok 4.5 は「低 / 中 / 高」で既定は「高」。xAI は「非常に高い」も載せていますが、実際には「高」として動きます。
+  - Grok 4.20 Multi-Agent では、段階によって同時に動くエージェントの数が決まります。「低」「中」は 4、「高」「非常に高い」は 16 です。
+  - ほかのモデルで保存した段階は、既定値に戻らず、いちばん近い段階に移ります。「最大」は Grok 4.7 では「非常に高い」、Grok 4.5 では「高」になります。
+- **セキュリティ勧告の出ていた依存パッケージ 5 つを、修正済みのバージョンに上げました。** DOMPurify と zod も含まれます。Mermaid の図は DOMPurify を通して無害化しています。ラベルに `onerror`、`javascript:`、`<script>` を仕込んだ 1 枚を含む同じ 7 枚のテスト図は、更新の前後で同じように描かれます。
+
+</details>
+
+<!-- lyra:notes ko -->
+
+<details>
+<summary>한국어</summary>
+
+### 개선 및 수정
+
+- **0.9.33이 Windows와 Linux에서 열리지 않았습니다.** 처음 실행하면 창이 뜨지 않았고, 다시 실행하면 시작 화면에서 더 나아가지 않았습니다. 0.9.33에서 Ctrl+W를 처리하려고 메뉴에 넣은 항목에 이름이 없었는데, Electron은 그런 메뉴를 받지 않습니다. 그 오류가 창을 만들기도 전에 시작을 멈췄습니다. 이제 그 항목에는 이름이 있고, 앞으로 Electron이 메뉴를 거부하더라도 로그에만 남기고 시작은 계속됩니다. macOS는 영향을 받지 않았습니다.
+  - 두 시스템의 0.9.33은 시작이 업데이트 확인까지 가지 못해 스스로 업데이트할 수 없습니다. 이 페이지나 웹사이트에서 0.9.34를 내려받아 덮어 설치해 주세요.
+- **Grok의 추론 강도를 xAI가 모델마다 밝힌 단계에 맞췄습니다.** 지금까지는 모든 Grok이 끔·낮음·중간·높음이었습니다.
+  - Grok 4.20(추론)과 Grok Build 0.1(`grok-code-fast-1`)은 매 턴 400 오류로 실패했습니다. 둘 다 추론 강도를 받지 않는데 Lyra가 매번 함께 보냈기 때문입니다. 이제는 '자동' 한 단계뿐이고 아무것도 보내지 않습니다.
+  - Grok 4.7에는 '매우 높음'이 없었고 기본값은 '중간'으로 표시됐지만, xAI는 지정이 없으면 '높음'으로 실행합니다. 이제 4.7과 4.6은 낮음·중간·높음·매우 높음이고 기본값은 '높음'입니다. 두 모델은 추론을 끌 수 없어서 '생각 끄기'를 고르면 '낮음'을 씁니다.
+  - '끔'은 `none`으로 보냈는데, 이것을 받는 모델은 Grok 4.3뿐입니다. 4.3은 이제 '끔'부터 '매우 높음'까지 다섯 단계이고 기본값은 '낮음'입니다. Grok 4.5는 낮음·중간·높음이고 기본값은 '높음'입니다. xAI는 '매우 높음'도 적어 두었지만 실제로는 '높음'으로 실행합니다.
+  - Grok 4.20 Multi-Agent에서는 단계에 따라 동시에 실행되는 에이전트 수가 정해집니다. '낮음'과 '중간'은 4개, '높음'과 '매우 높음'은 16개입니다.
+  - 다른 모델에서 저장한 단계는 기본값으로 돌아가지 않고 가장 가까운 단계로 옮겨집니다. '최대'는 Grok 4.7에서 '매우 높음', Grok 4.5에서 '높음'이 됩니다.
+- **보안 권고가 나온 의존성 다섯 개를 수정된 버전으로 올렸습니다.** DOMPurify와 zod도 여기에 들어갑니다. Mermaid 다이어그램은 DOMPurify를 거쳐 정리됩니다. 레이블에 `onerror`, `javascript:`, `<script>`를 넣은 것을 포함해 같은 테스트 다이어그램 일곱 개가 업데이트 전후에 똑같이 그려집니다.
+
+</details>
+
+<!-- lyra:notes fr -->
+
+<details>
+<summary>Français</summary>
+
+### Améliorations et corrections
+
+- **La 0.9.33 ne s'ouvrait pas sous Windows ni sous Linux.** Au premier lancement, aucune fenêtre n'apparaissait ; au suivant, l'écran de démarrage ne partait plus. La 0.9.33 avait ajouté au menu une entrée pour Ctrl+W sans lui donner de libellé. Electron refuse un tel menu, et l'erreur arrêtait le démarrage avant la création de la fenêtre. L'entrée a maintenant un libellé, et si Electron refuse encore le menu un jour, Lyra le note dans le journal et poursuit le démarrage. macOS n'était pas concerné.
+  - Sur ces deux systèmes, la 0.9.33 ne peut pas se mettre à jour d'elle-même : le démarrage n'allait jamais jusqu'à la recherche de mises à jour. Téléchargez la 0.9.34 sur cette page ou sur le site, puis installez-la par-dessus l'ancienne version.
+- **L'effort de raisonnement de Grok suit maintenant ce que xAI indique pour chaque modèle.** Jusqu'ici, tous les Grok avaient Désactivé, Faible, Moyen et Élevé.
+  - Grok 4.20 (Reasoning) et Grok Build 0.1 (`grok-code-fast-1`) échouaient à chaque tour avec une erreur 400 : aucun des deux n'accepte d'effort de raisonnement, et Lyra en envoyait un à chaque fois. Ils n'ont plus qu'un niveau, Auto, et rien n'est envoyé.
+  - Grok 4.7 n'avait pas de niveau Très élevé, et son niveau par défaut s'affichait comme Moyen, alors que xAI utilise Élevé quand rien n'est précisé. Grok 4.7 et 4.6 proposent maintenant Faible, Moyen, Élevé et Très élevé, Élevé par défaut. Leur raisonnement ne peut pas être coupé : Sans réflexion utilise Faible.
+  - Désactivé était envoyé sous la forme `none`, que seul Grok 4.3 accepte. Grok 4.3 va maintenant de Désactivé à Très élevé, Faible par défaut. Grok 4.5 propose Faible, Moyen et Élevé, Élevé par défaut : xAI y mentionne aussi Très élevé, mais le traite comme Élevé.
+  - Sur Grok 4.20 Multi-Agent, le niveau fixe le nombre d'agents qui travaillent en même temps : 4 en Faible et Moyen, 16 en Élevé et Très élevé.
+  - Un niveau enregistré sur un autre modèle passe au niveau le plus proche au lieu de revenir à la valeur par défaut : Maximum devient Très élevé sur Grok 4.7 et Élevé sur Grok 4.5.
+- **Cinq dépendances visées par des avis de sécurité passent à des versions corrigées**, dont DOMPurify et zod. Les diagrammes Mermaid passent par DOMPurify ; les sept mêmes diagrammes de test, dont un avec `onerror`, `javascript:` et `<script>` dans ses libellés, s'affichent à l'identique avant et après.
+
+</details>
+
+<!-- lyra:notes ru -->
+
+<details>
+<summary>Русский</summary>
+
+### Улучшения и исправления
+
+- **0.9.33 не открывалась в Windows и Linux.** При первом запуске окно не появлялось, при повторном заставка так и оставалась на экране. В 0.9.33 в меню добавили пункт для Ctrl+W, но без названия. Electron такое меню не принимает, и ошибка останавливала запуск ещё до создания окна. Теперь у пункта есть название, а если Electron снова отвергнет меню, Lyra запишет это в журнал и продолжит запуск. macOS это не коснулось.
+  - На этих двух системах 0.9.33 не обновится сама: запуск не доходил до проверки обновлений. Скачайте 0.9.34 с этой страницы или с сайта и установите поверх старой версии.
+- **Глубина рассуждений у Grok теперь такая, как xAI указывает для каждой модели.** Раньше у всех Grok были «Выкл.», «Низкая», «Средняя» и «Высокая».
+  - Grok 4.20 (Reasoning) и Grok Build 0.1 (`grok-code-fast-1`) на каждом ходе получали ошибку 400: ни одна из них не принимает глубину рассуждений, а Lyra каждый раз её передавала. Теперь у них один уровень — «Авто», и ничего не передаётся.
+  - У Grok 4.7 не было уровня «Очень высокая», а по умолчанию показывалась «Средняя», хотя без явного уровня xAI запускает её на высоком. Теперь у 4.7 и 4.6 есть «Низкая», «Средняя», «Высокая» и «Очень высокая», по умолчанию — «Высокая». Рассуждения у них не отключаются, поэтому при «Без размышления» используется уровень «Низкая».
+  - «Выкл.» передавалось как `none`, а его принимает только Grok 4.3. У Grok 4.3 теперь пять уровней, от «Выкл.» до «Очень высокая», по умолчанию — «Низкая». У Grok 4.5 — «Низкая», «Средняя» и «Высокая», по умолчанию «Высокая»: xAI указывает для неё и уровень «Очень высокая», но работает он как «Высокая».
+  - У Grok 4.20 Multi-Agent уровень задаёт, сколько агентов работает одновременно: на уровнях «Низкая» и «Средняя» — 4, на «Высокая» и «Очень высокая» — 16.
+  - Уровень, сохранённый для другой модели, переходит на ближайший, а не сбрасывается на уровень по умолчанию: «Максимум» на Grok 4.7 становится уровнем «Очень высокая», на Grok 4.5 — «Высокая».
+- **Пять зависимостей, по которым выходили предупреждения о безопасности, обновлены до исправленных версий**, среди них DOMPurify и zod. Диаграммы Mermaid проходят через DOMPurify; те же семь тестовых диаграмм, в том числе одна с `onerror`, `javascript:` и `<script>` в подписях, выглядят до и после обновления одинаково.
+
+</details>
+
 ## [0.9.33](https://github.com/kittors/Lyra/releases/tag/v0.9.33) - 2026-11-04
 
 <!-- lyra:notes en -->
